@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_lizardman.png" id="battler"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/guard_break.tres" id="guard_break"]
+
+[resource]
+script = ExtResource("enemy")
+id = &"lizardman_soldier"
+display_name = "Lizardman Soldier"
+battler = ExtResource("battler")
+max_hp = 30
+attack = 9
+defense = 6
+speed = 8
+poise = 40
+hp_growth = 6.4
+attack_growth = 1.0
+defense_growth = 0.8
+speed_growth = 0.3
+poise_growth = 1.9
+skill_bias = 0.5
+xp_reward = 13
+xp_growth = 4.8
+skills = Array[ExtResource("skill")]([ExtResource("guard_break")])
+loot = Array[StringName]([&"lizard_scale"])
+loot_chance = 0.3

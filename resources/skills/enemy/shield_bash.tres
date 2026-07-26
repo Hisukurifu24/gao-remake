@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/statuses/dazed.tres" id="status"]
+
+[resource]
+script = ExtResource("skill")
+id = &"shield_bash"
+display_name = "Shield Bash"
+description = "Less a hit than a shove with intent."
+kind = 0
+target = 0
+power = 105
+accuracy = 90
+crit_chance = 3
+stagger = 34
+cooldown = 3
+apply_chance = 30
+ai_weight = 1.0
+announce = "%s slams its shield forward!"
+applies = ExtResource("status")

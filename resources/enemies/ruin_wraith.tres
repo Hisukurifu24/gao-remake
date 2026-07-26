@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_wraith.png" id="battler"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/wither.tres" id="wither"]
+
+[resource]
+script = ExtResource("enemy")
+id = &"ruin_wraith"
+display_name = "Ruin Wraith"
+battler = ExtResource("battler")
+max_hp = 22
+attack = 9
+defense = 3
+speed = 11
+poise = 22
+hp_growth = 5.2
+attack_growth = 1.05
+defense_growth = 0.55
+speed_growth = 0.35
+poise_growth = 1.1
+skill_bias = 0.6
+xp_reward = 12
+xp_growth = 4.6
+skills = Array[ExtResource("skill")]([ExtResource("wither")])
+loot = Array[StringName]([&"spirit_ash"])
+loot_chance = 0.35

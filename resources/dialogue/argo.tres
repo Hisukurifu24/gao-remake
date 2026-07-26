@@ -1,0 +1,144 @@
+[gd_resource type="Resource" script_class="Dialogue" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/placeholder/portrait_argo.png" id="portrait"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue.gd" id="dialogue"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_line.gd" id="line"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_choice.gd" id="choice"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_met_argo"]
+script = ExtResource("condition")
+test = 0
+flag = &"met_argo"
+
+[sub_resource type="Resource" id="cond_met_nezha"]
+script = ExtResource("condition")
+test = 0
+flag = &"met_nezha"
+
+[sub_resource type="Resource" id="cond_no_errand"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"argo_errand"
+
+[sub_resource type="Resource" id="cond_floor_1_cleared"]
+script = ExtResource("condition")
+test = 1
+number = 1
+
+[sub_resource type="Resource" id="eff_start_errand"]
+script = ExtResource("effect")
+kind = 4
+id = &"argo_first_errand"
+
+[sub_resource type="Resource" id="eff_errand_taken"]
+script = ExtResource("effect")
+kind = 0
+id = &"argo_errand"
+
+[sub_resource type="Resource" id="eff_give_map"]
+script = ExtResource("effect")
+kind = 3
+id = &"map_floor_2"
+amount = 1
+
+[sub_resource type="Resource" id="choice_boss"]
+script = ExtResource("choice")
+text = "Where do I find the floor boss?"
+next = &"boss"
+
+[sub_resource type="Resource" id="choice_nezha"]
+script = ExtResource("choice")
+text = "What do you know about Nezha?"
+next = &"nezha"
+conditions = Array[ExtResource("condition")]([SubResource("cond_met_nezha")])
+
+[sub_resource type="Resource" id="choice_map"]
+script = ExtResource("choice")
+text = "Sell me a map of Floor Two."
+next = &"map"
+conditions = Array[ExtResource("condition")]([SubResource("cond_floor_1_cleared")])
+hide_when_locked = false
+locked_hint = "(not until Illfang falls)"
+
+[sub_resource type="Resource" id="choice_errand"]
+script = ExtResource("choice")
+text = "Got any work for me?"
+next = &"errand"
+conditions = Array[ExtResource("condition")]([SubResource("cond_no_errand")])
+
+[sub_resource type="Resource" id="choice_leave"]
+script = ExtResource("choice")
+text = "Nothing right now."
+next = &""
+
+[sub_resource type="Resource" id="line_greet_return"]
+script = ExtResource("line")
+id = &"greet_return"
+text = "Back already, kiddo? Good. Repeat business is the whole trade."
+next = &"menu"
+conditions = Array[ExtResource("condition")]([SubResource("cond_met_argo")])
+
+[sub_resource type="Resource" id="line_greet_first"]
+script = ExtResource("line")
+id = &"greet_first"
+text = "Heya, kiddo. Information's my trade -- first tip's on the house."
+
+[sub_resource type="Resource" id="line_greet_first_2"]
+script = ExtResource("line")
+text = "Name's Argo. The Rat, if you've been listening to the gossip."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_menu"]
+script = ExtResource("line")
+id = &"menu"
+text = "So. What're you after?"
+choices = Array[ExtResource("choice")]([SubResource("choice_boss"), SubResource("choice_nezha"), SubResource("choice_map"), SubResource("choice_errand"), SubResource("choice_leave")])
+
+[sub_resource type="Resource" id="line_boss"]
+script = ExtResource("line")
+id = &"boss"
+text = "Illfang the Kobold Lord. Labyrinth's past the fields, south-east corner."
+
+[sub_resource type="Resource" id="line_boss_2"]
+script = ExtResource("line")
+text = "He's the gentlest thing this castle will ever put in front of you. Doesn't mean he won't kill you."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_nezha"]
+script = ExtResource("line")
+id = &"nezha"
+text = "Nezha? Smith by the well. Hands like a swordsman, though -- watch them."
+
+[sub_resource type="Resource" id="line_nezha_2"]
+script = ExtResource("line")
+text = "That one's free too. Don't say I never gave you anything."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_map"]
+script = ExtResource("line")
+id = &"map"
+text = "Floor Two, mapped and priced. Yours -- I'll bill you when you can pay."
+effects = Array[ExtResource("effect")]([SubResource("eff_give_map")])
+next = &"menu"
+
+[sub_resource type="Resource" id="line_errand"]
+script = ExtResource("line")
+id = &"errand"
+text = "Sure. Walk the fields south of the gate and tell me what's still moving out there."
+effects = Array[ExtResource("effect")]([SubResource("eff_start_errand"), SubResource("eff_errand_taken")])
+
+[sub_resource type="Resource" id="line_errand_2"]
+script = ExtResource("line")
+text = "I pay in information, kiddo. Around here that spends better than col."
+next = &"menu"
+
+[resource]
+script = ExtResource("dialogue")
+id = &"argo"
+default_speaker = "Argo"
+default_portrait = ExtResource("portrait")
+lines = Array[ExtResource("line")]([SubResource("line_greet_return"), SubResource("line_greet_first"), SubResource("line_greet_first_2"), SubResource("line_menu"), SubResource("line_boss"), SubResource("line_boss_2"), SubResource("line_nezha"), SubResource("line_nezha_2"), SubResource("line_map"), SubResource("line_errand"), SubResource("line_errand_2")])
+start = &""

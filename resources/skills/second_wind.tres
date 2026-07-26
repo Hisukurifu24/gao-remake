@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/statuses/regen.tres" id="regen"]
+
+[resource]
+script = ExtResource("skill")
+id = &"second_wind"
+display_name = "Second Wind"
+description = "A moment to breathe. Restores health now and keeps mending for a few turns -- until potions exist, this is the only way back up."
+kind = 1
+target = 2
+power = 180
+accuracy = 100
+crit_chance = 0
+stagger = 0
+cooldown = 5
+post_motion = 0
+applies = ExtResource("regen")
+apply_chance = 100
+unlock_level = 3
+announce = "%s catches their breath."

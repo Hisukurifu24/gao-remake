@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+
+[resource]
+script = ExtResource("skill")
+id = &"rampage"
+display_name = "Rampage"
+description = "The boss stops fighting carefully. Given to every floor boss on top of its own moves."
+kind = 0
+target = 1
+power = 135
+accuracy = 85
+crit_chance = 8
+stagger = 28
+cooldown = 4
+post_motion = 1
+ai_weight = 1.4
+announce = "%s goes berserk!"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BiomeKit" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/biome_kit.gd" id="1_fjcyn"]
+[ext_resource type="TileSet" path="res://resources/tilesets/cave.tres" id="2_3e5vb"]
+
+[resource]
+script = ExtResource("1_fjcyn")
+id = &"cave"
+display_name = "Winding Caves"
+tile_set = ExtResource("2_3e5vb")
+ambient_tint = Color(0.82, 0.84, 0.94, 1)

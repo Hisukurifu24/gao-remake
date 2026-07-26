@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/statuses/bleed.tres" id="status"]
+
+[resource]
+script = ExtResource("skill")
+id = &"rend"
+display_name = "Rend"
+description = "Claws that leave the wound open."
+kind = 0
+target = 0
+power = 120
+accuracy = 90
+crit_chance = 10
+stagger = 12
+cooldown = 2
+apply_chance = 60
+ai_weight = 1.0
+announce = "%s tears in!"
+applies = ExtResource("status")

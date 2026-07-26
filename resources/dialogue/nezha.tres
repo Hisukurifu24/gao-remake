@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="Dialogue" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/placeholder/portrait_nezha.png" id="portrait"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue.gd" id="dialogue"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_line.gd" id="line"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+
+[sub_resource type="Resource" id="cond_floor_1_cleared"]
+script = ExtResource("condition")
+test = 1
+number = 1
+
+[sub_resource type="Resource" id="line_after_boss"]
+script = ExtResource("line")
+id = &"after_boss"
+text = "Illfang's down and you're still standing. That blade of yours must be complaining."
+conditions = Array[ExtResource("condition")]([SubResource("cond_floor_1_cleared")])
+
+[sub_resource type="Resource" id="line_after_boss_2"]
+script = ExtResource("line")
+text = "Bring me ore off the second floor. I'll put an edge on it worth the climb."
+next = &"end"
+
+[sub_resource type="Resource" id="line_first"]
+script = ExtResource("line")
+id = &"first"
+text = "Bring me ore and I'll sharpen that blade of yours."
+
+[sub_resource type="Resource" id="line_first_2"]
+script = ExtResource("line")
+text = "A +1 sword has ended more players' first day than any monster has."
+
+[resource]
+script = ExtResource("dialogue")
+id = &"nezha"
+default_speaker = "Nezha"
+default_portrait = ExtResource("portrait")
+lines = Array[ExtResource("line")]([SubResource("line_after_boss"), SubResource("line_after_boss_2"), SubResource("line_first"), SubResource("line_first_2")])
+start = &""

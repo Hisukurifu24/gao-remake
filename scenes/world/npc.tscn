@@ -1,0 +1,37 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/npc.gd" id="1_npc"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/npc.png" id="2_sheet"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_area"]
+radius = 11.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_solid"]
+size = Vector2(12, 8)
+
+[node name="Npc" type="Area2D"]
+collision_layer = 8
+collision_mask = 0
+monitoring = false
+script = ExtResource("1_npc")
+prompt_verb = "Talk to"
+display_name = "Villager"
+speaker = "Villager"
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_sheet")
+offset = Vector2(0, -13)
+hframes = 4
+vframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -6)
+shape = SubResource("CircleShape2D_area")
+
+[node name="Solid" type="StaticBody2D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Solid"]
+position = Vector2(0, -4)
+shape = SubResource("RectangleShape2D_solid")

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="FloorDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/floor_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" path="res://scenes/world/town.tscn" id="2_town"]
+[ext_resource type="Resource" path="res://resources/biomes/meadow.tres" id="3_biome"]
+
+[resource]
+script = ExtResource("1_def")
+floor_number = 1
+display_name = "Town of Beginnings"
+authored_scene = ExtResource("2_town")
+biome = ExtResource("3_biome")
+boss_name = "Illfang the Kobold Lord"
+enemy_level = 2
+is_milestone = true

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+
+[resource]
+script = ExtResource("skill")
+id = &"vorpal_strike"
+display_name = "Vorpal Strike"
+description = "A single thrust with everything behind it -- and a long, ugly recovery afterwards."
+kind = 0
+target = 0
+power = 265
+accuracy = 85
+crit_chance = 15
+stagger = 30
+cooldown = 4
+post_motion = 2
+unlock_level = 10
+announce = "%s: Vorpal Strike!"

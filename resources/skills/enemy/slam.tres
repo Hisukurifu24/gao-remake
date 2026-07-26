@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+
+[resource]
+script = ExtResource("skill")
+id = &"slam"
+display_name = "Slam"
+description = "Slow enough to see coming. Not slow enough to matter."
+kind = 0
+target = 0
+power = 185
+accuracy = 78
+crit_chance = 5
+stagger = 44
+cooldown = 3
+post_motion = 1
+ai_weight = 1.0
+announce = "%s brings both fists down!"

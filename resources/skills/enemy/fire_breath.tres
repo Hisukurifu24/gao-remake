@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+
+[resource]
+script = ExtResource("skill")
+id = &"fire_breath"
+display_name = "Fire Breath"
+description = "A cone of flame across the whole line."
+kind = 0
+target = 1
+power = 130
+accuracy = 90
+crit_chance = 5
+stagger = 14
+cooldown = 3
+ai_weight = 1.0
+announce = "%s breathes fire!"

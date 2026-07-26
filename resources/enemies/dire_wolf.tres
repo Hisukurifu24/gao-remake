@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_wolf.png" id="battler"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/rend.tres" id="rend"]
+
+[resource]
+script = ExtResource("enemy")
+id = &"dire_wolf"
+display_name = "Dire Wolf"
+battler = ExtResource("battler")
+max_hp = 20
+attack = 8
+defense = 2
+speed = 13
+poise = 24
+hp_growth = 5.0
+attack_growth = 1.0
+defense_growth = 0.5
+speed_growth = 0.4
+poise_growth = 1.2
+skill_bias = 0.45
+xp_reward = 10
+xp_growth = 4.2
+skills = Array[ExtResource("skill")]([ExtResource("rend")])
+loot = Array[StringName]([&"wolf_fang"])
+loot_chance = 0.35

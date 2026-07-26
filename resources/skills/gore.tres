@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+
+[resource]
+script = ExtResource("skill")
+id = &"gore"
+display_name = "Gore"
+description = "A lowered head and a full charge."
+kind = 0
+target = 0
+power = 155
+accuracy = 85
+crit_chance = 8
+stagger = 24
+cooldown = 2
+ai_weight = 1.0
+announce = "%s lowers its head and charges!"

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_golem.png" id="battler"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/slam.tres" id="slam"]
+
+[resource]
+script = ExtResource("enemy")
+id = &"stone_golem"
+display_name = "Stone Golem"
+battler = ExtResource("battler")
+max_hp = 44
+attack = 10
+defense = 9
+speed = 4
+poise = 60
+hp_growth = 7.5
+attack_growth = 1.0
+defense_growth = 0.95
+speed_growth = 0.15
+poise_growth = 2.4
+skill_bias = 0.55
+xp_reward = 15
+xp_growth = 5.2
+skills = Array[ExtResource("skill")]([ExtResource("slam")])
+loot = Array[StringName]([&"golem_core"])
+loot_chance = 0.25

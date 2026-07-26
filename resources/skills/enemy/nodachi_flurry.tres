@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+
+[resource]
+script = ExtResource("skill")
+id = &"nodachi_flurry"
+display_name = "Nodachi Flurry"
+description = "Illfang throws away the axe and buckler and draws the talwar. Everything after that comes faster."
+kind = 0
+target = 0
+power = 180
+accuracy = 88
+crit_chance = 12
+stagger = 30
+cooldown = 3
+post_motion = 1
+ai_weight = 1.3
+announce = "%s draws the talwar!"

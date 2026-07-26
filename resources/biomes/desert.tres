@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BiomeKit" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/biome_kit.gd" id="1_b013v"]
+[ext_resource type="TileSet" path="res://resources/tilesets/desert.tres" id="2_x3lsv"]
+
+[resource]
+script = ExtResource("1_b013v")
+id = &"desert"
+display_name = "Scorched Waste"
+tile_set = ExtResource("2_x3lsv")
+ambient_tint = Color(1, 0.97, 0.88, 1)

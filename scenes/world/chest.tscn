@@ -1,0 +1,34 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/chest.gd" id="1_chest"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/chest.png" id="2_tex"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_area"]
+radius = 11.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_solid"]
+size = Vector2(16, 8)
+
+[node name="Chest" type="Area2D"]
+collision_layer = 8
+collision_mask = 0
+monitoring = false
+script = ExtResource("1_chest")
+prompt_verb = "Open"
+display_name = "chest"
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_tex")
+offset = Vector2(0, -13)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -6)
+shape = SubResource("CircleShape2D_area")
+
+[node name="Solid" type="StaticBody2D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Solid"]
+position = Vector2(0, -4)
+shape = SubResource("RectangleShape2D_solid")

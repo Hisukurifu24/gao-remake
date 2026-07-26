@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_boar.png" id="battler"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/gore.tres" id="gore"]
+
+[resource]
+script = ExtResource("enemy")
+id = &"frenzy_boar"
+display_name = "Frenzy Boar"
+battler = ExtResource("battler")
+max_hp = 26
+attack = 7
+defense = 3
+speed = 7
+poise = 34
+hp_growth = 6.5
+attack_growth = 0.95
+defense_growth = 0.6
+speed_growth = 0.25
+poise_growth = 1.5
+skill_bias = 0.4
+xp_reward = 9
+xp_growth = 4.0
+skills = Array[ExtResource("skill")]([ExtResource("gore")])
+loot = Array[StringName]([&"boar_hide"])
+loot_chance = 0.35

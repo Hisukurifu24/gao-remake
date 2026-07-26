@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+
+[resource]
+script = ExtResource("skill")
+id = &"sonic_leap"
+display_name = "Sonic Leap"
+description = "A closing lunge. Hits hard enough to break a guard wide open."
+kind = 0
+target = 0
+power = 170
+accuracy = 90
+crit_chance = 12
+stagger = 34
+cooldown = 3
+post_motion = 1
+unlock_level = 7
+announce = "%s: Sonic Leap!"

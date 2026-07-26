@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_bat.png" id="battler"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/rend.tres" id="rend"]
+
+[resource]
+script = ExtResource("enemy")
+id = &"cave_bat"
+display_name = "Cave Bat"
+battler = ExtResource("battler")
+max_hp = 14
+attack = 6
+defense = 1
+speed = 16
+poise = 18
+hp_growth = 4.2
+attack_growth = 0.9
+defense_growth = 0.45
+speed_growth = 0.45
+poise_growth = 1.0
+skill_bias = 0.35
+xp_reward = 6
+xp_growth = 3.4
+skills = Array[ExtResource("skill")]([ExtResource("rend")])
+loot = Array[StringName]([&"bat_wing"])
+loot_chance = 0.3

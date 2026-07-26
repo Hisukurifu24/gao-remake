@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_drake.png" id="battler"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/fire_breath.tres" id="fire_breath"]
+
+[resource]
+script = ExtResource("enemy")
+id = &"ember_drake"
+display_name = "Ember Drake"
+battler = ExtResource("battler")
+max_hp = 34
+attack = 11
+defense = 6
+speed = 10
+poise = 38
+hp_growth = 6.6
+attack_growth = 1.1
+defense_growth = 0.75
+speed_growth = 0.35
+poise_growth = 1.8
+skill_bias = 0.5
+xp_reward = 16
+xp_growth = 5.5
+skills = Array[ExtResource("skill")]([ExtResource("fire_breath")])
+loot = Array[StringName]([&"drake_scale"])
+loot_chance = 0.3

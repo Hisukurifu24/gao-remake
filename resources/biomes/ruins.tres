@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BiomeKit" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/biome_kit.gd" id="1_2hvuc"]
+[ext_resource type="TileSet" path="res://resources/tilesets/ruins.tres" id="2_a7elx"]
+
+[resource]
+script = ExtResource("1_2hvuc")
+id = &"ruins"
+display_name = "Broken Ruins"
+tile_set = ExtResource("2_a7elx")
+ambient_tint = Color(1, 0.98, 0.92, 1)

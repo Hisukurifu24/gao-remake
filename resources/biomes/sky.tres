@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BiomeKit" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/biome_kit.gd" id="1_dvaae"]
+[ext_resource type="TileSet" path="res://resources/tilesets/sky.tres" id="2_hrccx"]
+
+[resource]
+script = ExtResource("1_dvaae")
+id = &"sky"
+display_name = "Cloud Gardens"
+tile_set = ExtResource("2_hrccx")
+ambient_tint = Color(0.97, 0.99, 1, 1)

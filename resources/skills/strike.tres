@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+
+[resource]
+script = ExtResource("skill")
+id = &"strike"
+display_name = "Strike"
+description = "A plain swing. No cooldown, no flourish, always there."
+kind = 0
+target = 0
+power = 100
+accuracy = 95
+crit_chance = 5
+stagger = 8
+cooldown = 0
+post_motion = 0
+unlock_level = 1
+announce = "%s attacks!"

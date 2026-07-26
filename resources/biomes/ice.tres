@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BiomeKit" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/biome_kit.gd" id="1_4d8rj"]
+[ext_resource type="TileSet" path="res://resources/tilesets/ice.tres" id="2_1ie41"]
+
+[resource]
+script = ExtResource("1_4d8rj")
+id = &"ice"
+display_name = "Frozen Reach"
+tile_set = ExtResource("2_1ie41")
+ambient_tint = Color(0.92, 0.97, 1, 1)

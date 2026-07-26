@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatusEffect" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/status_effect.gd" id="status"]
+
+[resource]
+script = ExtResource("status")
+id = &"weakened"
+display_name = "Weakened"
+kind = 2
+magnitude = -25
+duration = 3
+color = Color(0.72, 0.58, 0.85, 1)
+is_debuff = true

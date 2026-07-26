@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BiomeKit" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/biome_kit.gd" id="1_wtp1g"]
+[ext_resource type="TileSet" path="res://resources/tilesets/forest.tres" id="2_tblmu"]
+
+[resource]
+script = ExtResource("1_wtp1g")
+id = &"forest"
+display_name = "Deep Forest"
+tile_set = ExtResource("2_tblmu")
+ambient_tint = Color(0.92, 0.98, 0.92, 1)
