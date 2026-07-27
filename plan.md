@@ -234,10 +234,12 @@ dungeon, tune floor pacing, or author a milestone floor until you know how long 
 takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for trash.
 
 *Readability (not blocked on anything):*
-- [ ] Terrain/autotiling: TileSet terrain sets + `set_cells_terrain_connect` so rooms get
-  wall edges and corners. Placeholder atlases have none, which is why generated floors
-  read as flat rectangles. Biggest single visual win available.
-- [ ] Raise floor/wall contrast in the `castle` and `sky` palettes.
+- [x] Terrain/autotiling: TileSet terrain sets + `set_cells_terrain_connect` so rooms get
+  wall edges and corners. **Landed** — every biome atlas now carries a 47-tile wall blob
+  and `FloorGenerator._join_walls()` joins the mass up as a final pass. All 99 generated
+  floors benefited at once.
+- [x] Raise floor/wall contrast in the `castle` and `sky` palettes. Both sat ~10
+  luminance points apart and read as one flat colour; they are now 77 and 59.
 - [ ] Y-sorting (deferred from M1) — matters once floors have props to walk behind.
 
 *Generation depth (wants combat first):*
@@ -255,6 +257,31 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
 - [ ] The other 9 milestone floors (each is a `.tres` + a hand-built scene).
 - [ ] **Floor 100: the final boss — *you* — as an authored multi-phase fight.** The one
   encounter that should be hand-built end to end.
+
+Three decisions worth keeping from the autotiling pass:
+
+- **Corners are matched, not just sides.** Side-only matching needs 16 tiles instead of
+  47 and looks correct until you check a room corner: the cell diagonally outside one has
+  both its touching sides walled, so it draws as solid interior and leaves a notch at
+  every corner of every room. Matching corners too is what closes that, and it is what
+  reduces 256 arrangements to 47 — a corner only distinguishes anything when both sides
+  beside it are wall, so the other 209 can never occur on a map.
+- **The two tools derive the mask list, they don't share it.** `gen_placeholder_art.py`
+  draws tile *n* and `build_biomes.gd` wires tile *n*'s peering bits, in different
+  languages. Both compute the same enumeration from the same rule rather than copying a
+  table, because a mis-paired blob is invisible to everything else: the floor stays
+  completable and merely looks wrong. The floor test checks every chosen tile against its
+  actual neighbours as the backstop.
+- **Joining runs last, as a pass over the finished layout.** Carving, decor and the
+  reachability flood fill all happen against the plain wall tile, so nothing about the
+  *layout* can come to depend on which tile a wall ended up drawing. The cost is one
+  `set_cells_terrain_connect` per floor — ~70 ms, spent behind the transition fade.
+
+The palette work turned out to be the smaller half. Autotiling fixed readability in every
+biome, including the four (`forest`, `cave`, `ruins`, `volcanic`) whose floor and wall
+bodies are still within a couple of luminance points of each other: the rim and the lit
+cap carry the room outline, not the fill colour. Those four are worth a look eventually,
+but they are no longer the problem they were.
 
 ### M7 — Save/load, polish, audio
 - [ ] Serialize GameState/Inventory/QuestLog to `user://` save files. **`world_seed` must
@@ -287,8 +314,9 @@ procgen reliably ships and it cannot be caught by playing.
 ### Extending it
 - **New biome**: a palette entry in `tools/gen_placeholder_art.py` + a row in
   `tools/build_biomes.gd`. No generator changes — all atlases share one semantic slot
-  layout (`0 floor, 1 floor-alt, 2 path, 3 special, 4 liquid, 5 obstacle, 6 wall,
-  7 wall-alt`; slots 4–7 collide).
+  layout in row 0 (`0 floor, 1 floor-alt, 2 path, 3 special, 4 liquid, 5 obstacle,
+  6 wall, 7 wall-alt`; slots 4–7 collide), and the 47-tile wall blob in rows 1–6 is
+  derived from the palette's stone colour, so a new biome autotiles for free.
 - **New milestone floor**: build the scene, add a `FloorDefinition` `.tres` in
   `resources/floors/`, register it in `FloorRegistry.AUTHORED`.
 - **Rebalance**: `FloorTuning` only. Never tune individual floors.
@@ -363,6 +391,12 @@ you talk to him, and reporting back pays. Nezha wants three hides and two ovules
 and pays in whetstones, which is where the field's drops finally go. **J** opens
 the journal. Beat Illfang and Argo pays for the exclusive.
 
+And the climb finally *looks* like a climb. Generated floors used to read as one flat
+grey rectangle with lighter rectangles punched out of it; every wall is now autotiled, so
+rooms have edges, corridors have sides and a doorway is visibly a doorway. The `castle`
+and `sky` bands, which had almost no floor-to-wall contrast at all, got repalettes to
+match.
+
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
 
@@ -370,7 +404,7 @@ the journal. Beat Illfang and Argo pays for the exclusive.
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 41-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 20-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 24-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 125-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 73-check combat test
@@ -379,30 +413,30 @@ GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 
 # Regenerating content (in order)
 python3 tools/gen_placeholder_art.py
+"$GODOT" --headless --path . --import                       # not optional -- see below
 "$GODOT" --headless --path . --script res://tools/build_biomes.gd
 "$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd
 ```
+
+⚠ The `--import` step is load-bearing, not housekeeping. `build_biomes.gd` reads the
+*imported* atlas, so without it every tile is cut from the stale one — and since the
+atlases are now 7 rows rather than 1, a stale cache means the wall blob is cut from
+nothing at all.
 
 ⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn` / `field.tscn`. Once you start
 painting maps in the editor, stop running it. `build_biomes.gd` is always safe — it only
 touches derived resources.
 
 ## Immediate next steps
-1. **M6 readability, starting with terrain/autotiling.** The single biggest visual
-   win on the board and blocked on nothing: TileSet terrain sets plus
-   `set_cells_terrain_connect` so generated rooms get wall edges and corners
-   instead of reading as flat rectangles. Every one of the 99 generated floors
-   benefits at once. Raising floor/wall contrast in the `castle` and `sky` palettes
-   is the cheap half of the same job.
-2. **M6 authored content, now that quests can carry it.** The other nine milestone
+1. **M6 authored content, now that quests can carry it.** The other nine milestone
    floors are each a `.tres` plus a hand-built scene, and a milestone floor with a
    quest on it is a different thing from one without. Floor 10 first.
-3. **M7 save/load is the one thing getting more expensive with every milestone.**
+2. **M7 save/load is the one thing getting more expensive with every milestone.**
    `QuestLog` just added a third autoload's worth of state to serialise
    (`_active`/`_completed`/`_order`/`_tracked`), on top of `GameState` and
    `Inventory`. `world_seed` **must** be in the save or every generated floor
    reshuffles on load.
-4. Replace placeholder art when the systems settle, not before.
+3. Replace placeholder art when the systems settle, not before.
 
 **Cheapest combat-feel wins**, if the fights start to feel flat: the
 stagger *bonus turn* (poise already costs the victim a turn; granting the attacker one is

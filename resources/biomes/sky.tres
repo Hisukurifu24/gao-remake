@@ -8,4 +8,5 @@ script = ExtResource("1_dvaae")
 id = &"sky"
 display_name = "Cloud Gardens"
 tile_set = ExtResource("2_hrccx")
+wall_terrain_set = 0
 ambient_tint = Color(0.97, 0.99, 1, 1)

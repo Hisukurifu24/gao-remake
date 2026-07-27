@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The world is **100 floors** of a stacked castle, each ending in a boss; floor 100 is the final fight. Milestone floors are hand-authored, the rest are procedurally generated — see "The floor system" below.
 
-`plan.md` is the roadmap and the source of truth for what's built. **M0 (foundation), M1 (overworld, movement, interaction, map transitions), M2 (dialogue), M3 (inventory & items), M4 (turn-based combat), M5 (quests) and the 100-floor spine are done.** What's left is M6 (world depth, authored floors, autotiling) and M7 (save/load, polish, audio).
+`plan.md` is the roadmap and the source of truth for what's built. **M0 (foundation), M1 (overworld, movement, interaction, map transitions), M2 (dialogue), M3 (inventory & items), M4 (turn-based combat), M5 (quests) and the 100-floor spine are done.** What's left is M6 (world depth, authored floors) and M7 (save/load, polish, audio). **Wall autotiling landed**, so generated floors read as rooms rather than as flat rectangles.
 
 The core loop is completable end to end: walk, talk, take a job, fight the monsters on the floor, level up, beat the floor boss, climb. No placeholders remain in it.
 
@@ -41,15 +41,20 @@ GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 Run in this order — each step consumes the previous one's output.
 
 ```sh
-# 1. Placeholder art: one 8-slot atlas per biome, plus characters, dialogue
+# 1. Placeholder art: one atlas per biome (8 semantic slots + a 47-tile wall
+#    blob), plus characters, dialogue
 #    portraits, props, enemy battlers and item icons (pure-stdlib PNG writer,
 #    no Pillow). ITEM_ICONS must stay in step with ItemLibrary.ITEMS.
 python3 tools/gen_placeholder_art.py
 
-# 2. A TileSet + BiomeKit per biome. Safe to re-run; only touches derived resources.
+# 2. Re-import, so step 3 cuts tiles from the atlas step 1 just wrote rather than
+#    from the stale one. Load-bearing, not housekeeping.
+"$GODOT" --headless --path . --import
+
+# 3. A TileSet + BiomeKit per biome. Safe to re-run; only touches derived resources.
 "$GODOT" --headless --path . --script res://tools/build_biomes.gd
 
-# 3. The authored Floor 1 maps.
+# 4. The authored Floor 1 maps.
 #    OVERWRITES scenes/world/town.tscn and field.tscn -- stop using it once maps
 #    are being painted in the editor.
 "$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd
@@ -58,7 +63,9 @@ python3 tools/gen_placeholder_art.py
 "$GODOT" --path . res://tools/screenshot.tscn
 ```
 
-Biome atlases share one **semantic slot layout** (`0 floor, 1 floor-alt, 2 path, 3 special, 4 liquid, 5 obstacle, 6 wall, 7 wall-alt`; slots 4–7 collide). The generator paints "wall" without knowing which biome it's in, so a new biome is a palette entry in `gen_placeholder_art.py` plus a row in `build_biomes.gd` — no generator changes.
+Biome atlases share one **semantic slot layout** in row 0 (`0 floor, 1 floor-alt, 2 path, 3 special, 4 liquid, 5 obstacle, 6 wall, 7 wall-alt`; slots 4–7 collide). The generator paints "wall" without knowing which biome it's in, so a new biome is a palette entry in `gen_placeholder_art.py` plus a row in `build_biomes.gd` — no generator changes.
+
+Rows 1–6 hold the **47-tile wall blob** for autotiling. Both tools derive the mask list from the same rule (`_blob_masks`) rather than sharing a table, so the art and the terrain peering bits cannot drift into a silent mis-pairing — and the floor test checks every chosen tile against its actual neighbours in case they do.
 
 Maps are engine-generated because `tile_map_data` is a binary blob inside the `.tscn` — it can't be hand-authored as text. Entity scenes (player, NPC, chest, exits) are plain hand-written `.tscn`.
 
@@ -70,7 +77,8 @@ Maps are engine-generated because `tile_map_data` is a binary blob inside the `.
 "$GODOT" --headless --path . res://test/smoke_test.tscn
 
 # The floor system: registry, biome bands, seed determinism, progression gating,
-# and a flood-fill of ALL 99 generated floors proving each is completable
+# wall autotiling, and a flood-fill of ALL 99 generated floors proving each is
+# completable and still sealed
 "$GODOT" --headless --path . res://test/floor_test.tscn
 
 # The dialogue system: conditions, entry selection, branching, effects, the input
@@ -96,7 +104,7 @@ Maps are engine-generated because `tile_map_data` is a binary blob inside the `.
 
 All six exit non-zero on failure. Four checks are load-bearing and should not be weakened:
 
-- **The floor test's completability flood fill.** An unreachable boss door is the failure mode procedural generation reliably ships, and playtesting will not find it.
+- **The floor test's completability flood fill.** An unreachable boss door is the failure mode procedural generation reliably ships, and playtesting will not find it. It also checks the outer ring is still sealed: autotiling rewrites every wall on the floor, and dropping one instead of replacing it would open the map onto the void — which the flood fill alone would answer by quietly reaching *further*, not by failing.
 - **The combat test's balance section.** Its numbers were measured, not chosen. A stat, curve or growth-rate edit that makes floor 50 unwinnable fails here instead of 20 hours into a playthrough. If one moves, decide whether the climb *should* have changed shape before re-baselining it.
 - **The inventory test's item-id sweep.** Every id the rest of the game emits — `EnemyType.loot`, `FloorGenerator.CHEST_*`, dialogue's `GIVE_ITEM` — must name a real `.tres`. A typo is silent everywhere else: the drop simply never arrives.
 - **The quest test's objective-target sweep.** The same failure, one layer up: every KILL must name an enemy id, every COLLECT an item id, every TALK a conversation, every REACH a floor in range. A typo makes an objective that can never be completed, and nothing else in the game will say so.
@@ -189,6 +197,7 @@ Physics layers: 1 world, 2 player, 3 enemy, 4 interactable. Input actions: `move
 - **`FloorDefinition`** (`.tres`) describes a floor. If it has an `authored_scene` it's hand-built; otherwise it's generated. `FloorRegistry` returns one for any floor 1–100, synthesising non-authored ones from the biome band table + `FloorTuning`.
 - **`FloorRegistry.build_floor(n)`** is the single entry point — it hides which kind you got. `SceneRouter.enter_floor(n, spawn)` is what gameplay calls.
 - **`FloorGenerator`** builds rooms + L-corridors and returns *the same node shape as an authored map* (`Ground` / `Walls` / `SpawnPoints` / `Player` + interactables). Keep it that way: `GameMap`, the camera and the router all depend on that shape and on nothing else.
+- **`_join_walls()` autotiles the wall mass, and it runs last.** It is a pass over the finished layout, not a step in building it — carving, decor and the reachability check all happen against the plain wall tile, so the layout can never depend on which tile a wall ended up drawing. It joins only cells still holding `wall_tile`: decor lives on the same layer but carries no terrain, so the mass correctly draws an edge against a boulder. `ignore_empty_terrains` must stay `false`, since a carved cell has no terrain and those are precisely the neighbours an edge tile is chosen against. A biome whose `BiomeKit.wall_terrain_set` is -1 simply skips the pass and ships flat.
 - **Determinism is a requirement, not a nicety.** Seeds come from `FloorRegistry.seed_for(n)` = `hash(world_seed, floor_number)`. Never use unseeded `randi()` in generation — it breaks save consistency and makes bugs irreproducible.
 - **`FloorTuning`** holds the whole 100-floor curve (level, map size, room/chest counts, boss names). Balance changes go there, not into individual floors.
 - **Progression** is `GameState.clear_floor(n)` → `is_floor_unlocked(n+1)`. `BossGate` is the gate, and it runs a real fight (`Bestiary.boss_encounter(n)`). Losing drops the player at the floor entrance on 35% HP with the floor rebuilt, so its monsters are back — the way through a wall is levels.

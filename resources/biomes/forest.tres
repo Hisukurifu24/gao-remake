@@ -8,4 +8,5 @@ script = ExtResource("1_wtp1g")
 id = &"forest"
 display_name = "Deep Forest"
 tile_set = ExtResource("2_tblmu")
+wall_terrain_set = 0
 ambient_tint = Color(0.92, 0.98, 0.92, 1)

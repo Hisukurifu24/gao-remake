@@ -8,4 +8,5 @@ script = ExtResource("1_2hvuc")
 id = &"ruins"
 display_name = "Broken Ruins"
 tile_set = ExtResource("2_a7elx")
+wall_terrain_set = 0
 ambient_tint = Color(1, 0.98, 0.92, 1)

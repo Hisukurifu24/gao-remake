@@ -8,6 +8,23 @@ extends Node
 ## off is the one bug procedural generation reliably ships, and it can't be
 ## caught by playing.
 
+## Where each peering bit points. Sides are checked strictly; a corner is only
+## meaningful when both sides beside it are wall, which is the same reduction
+## that takes the blob from 256 arrangements down to 47.
+const SIDES := {
+	TileSet.CELL_NEIGHBOR_TOP_SIDE: Vector2i.UP,
+	TileSet.CELL_NEIGHBOR_RIGHT_SIDE: Vector2i.RIGHT,
+	TileSet.CELL_NEIGHBOR_BOTTOM_SIDE: Vector2i.DOWN,
+	TileSet.CELL_NEIGHBOR_LEFT_SIDE: Vector2i.LEFT,
+}
+## corner bit -> [the diagonal, the two sides it depends on]
+const CORNERS := {
+	TileSet.CELL_NEIGHBOR_TOP_RIGHT_CORNER: [Vector2i(1, -1), Vector2i.UP, Vector2i.RIGHT],
+	TileSet.CELL_NEIGHBOR_BOTTOM_RIGHT_CORNER: [Vector2i(1, 1), Vector2i.DOWN, Vector2i.RIGHT],
+	TileSet.CELL_NEIGHBOR_BOTTOM_LEFT_CORNER: [Vector2i(-1, 1), Vector2i.DOWN, Vector2i.LEFT],
+	TileSet.CELL_NEIGHBOR_TOP_LEFT_CORNER: [Vector2i(-1, -1), Vector2i.UP, Vector2i.LEFT],
+}
+
 var _failures: PackedStringArray = PackedStringArray()
 var _checks := 0
 
@@ -83,6 +100,26 @@ func _run() -> void:
 	_check(unique_names.size() >= 50,
 			"generated boss names are varied (%d distinct over 100 floors)" % unique_names.size())
 
+	# --- wall autotiling ---
+	var without_terrain: PackedStringArray = PackedStringArray()
+	for floor_number in range(1, FloorTuning.TOP_FLOOR + 1):
+		var biome := FloorRegistry.get_biome(floor_number)
+		if biome != null and biome.wall_terrain_set < 0:
+			without_terrain.append(String(biome.id))
+	_check(without_terrain.is_empty(),
+			"every biome carries a wall terrain%s" % (
+				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
+
+	var tiled := FloorGenerator.generate(thirty_seven, FloorRegistry.seed_for(37))
+	var tiled_walls := tiled.get_node("Walls") as TileMapLayer
+	var mismatched := _mismatched_wall_tiles(tiled_walls)
+	var edges := _edge_tile_count(tiled_walls)
+	var uncollidable := _uncollidable_wall_tiles(tiled_walls)
+	_check(mismatched == 0, "every wall tile matches its neighbours (%d wrong)" % mismatched)
+	_check(edges > 0, "the wall mass is joined up rather than left flat (%d edge tiles)" % edges)
+	_check(uncollidable == 0, "every autotiled wall still collides (%d that don't)" % uncollidable)
+	tiled.free()
+
 	# --- every generated floor is completable ---
 	var broken: PackedStringArray = PackedStringArray()
 	for floor_number in range(2, FloorTuning.TOP_FLOOR + 1):
@@ -90,7 +127,7 @@ func _run() -> void:
 		if definition.is_authored():
 			continue
 		var map := FloorGenerator.generate(definition, FloorRegistry.seed_for(floor_number))
-		var problem := _audit(map, floor_number)
+		var problem := _audit(map, definition)
 		if not problem.is_empty():
 			broken.append(problem)
 		map.free()
@@ -100,9 +137,70 @@ func _run() -> void:
 
 # --- helpers ---------------------------------------------------------------
 
+## True when a cell is part of the wall mass. Decor -- the boulders and pools
+## scattered inside rooms -- also lives on this layer but carries no terrain, so
+## the mass is correct to draw an edge against it.
+func _is_wall(walls: TileMapLayer, cell: Vector2i) -> bool:
+	var data := walls.get_cell_tile_data(cell)
+	return data != null and data.terrain_set >= 0
+
+
+## Counts wall cells whose chosen tile describes neighbours it doesn't have.
+##
+## This is the check that catches the art and the terrain data drifting apart --
+## a mis-paired blob leaves the floor perfectly completable and merely wrong to
+## look at, so nothing else in the suite would say a word about it.
+func _mismatched_wall_tiles(walls: TileMapLayer) -> int:
+	var bad := 0
+	for cell in walls.get_used_cells():
+		var data := walls.get_cell_tile_data(cell)
+		if data == null or data.terrain_set < 0:
+			continue
+		var wrong := false
+		for bit in SIDES:
+			if (data.get_terrain_peering_bit(bit) >= 0) != _is_wall(walls, cell + SIDES[bit]):
+				wrong = true
+		for bit in CORNERS:
+			var corner: Array = CORNERS[bit]
+			if not (_is_wall(walls, cell + corner[1]) and _is_wall(walls, cell + corner[2])):
+				continue
+			if (data.get_terrain_peering_bit(bit) >= 0) != _is_wall(walls, cell + corner[0]):
+				wrong = true
+		if wrong:
+			bad += 1
+	return bad
+
+
+## Wall cells that border something other than wall -- i.e. the ones autotiling
+## exists to draw. Zero of them means the pass silently did nothing.
+func _edge_tile_count(walls: TileMapLayer) -> int:
+	var edges := 0
+	for cell in walls.get_used_cells():
+		var data := walls.get_cell_tile_data(cell)
+		if data == null or data.terrain_set < 0:
+			continue
+		for bit in SIDES:
+			if data.get_terrain_peering_bit(bit) < 0:
+				edges += 1
+				break
+	return edges
+
+
+func _uncollidable_wall_tiles(walls: TileMapLayer) -> int:
+	var open := 0
+	for cell in walls.get_used_cells():
+		var data := walls.get_cell_tile_data(cell)
+		if data == null or data.terrain_set < 0:
+			continue
+		if data.get_collision_polygons_count(0) == 0:
+			open += 1
+	return open
+
+
 ## Walks the walls layer to confirm the player can actually reach the boss door
 ## and every chest from the spawn point.
-func _audit(map: Node2D, floor_number: int) -> String:
+func _audit(map: Node2D, definition: FloorDefinition) -> String:
+	var floor_number := definition.floor_number
 	var walls := map.get_node_or_null("Walls") as TileMapLayer
 	var spawns := map.get_node_or_null("SpawnPoints")
 	var gate := map.get_node_or_null("BossGate")
@@ -122,7 +220,22 @@ func _audit(map: Node2D, floor_number: int) -> String:
 			continue
 		if not reachable.has(walls.local_to_map((child as Node2D).position)):
 			return "floor %d has an unreachable chest" % floor_number
+
+	# Autotiling rewrites every wall on the floor. Dropping one instead of
+	# replacing it would open the map onto the void, and the flood fill above
+	# would quietly reach further rather than fail -- so the sealed outer ring,
+	# which nothing is ever allowed to carve, is checked directly.
+	for x in definition.size.x:
+		if not _sealed(walls, Vector2i(x, 0)) or not _sealed(walls, Vector2i(x, definition.size.y - 1)):
+			return "floor %d has a hole in its outer wall" % floor_number
+	for y in definition.size.y:
+		if not _sealed(walls, Vector2i(0, y)) or not _sealed(walls, Vector2i(definition.size.x - 1, y)):
+			return "floor %d has a hole in its outer wall" % floor_number
 	return ""
+
+
+func _sealed(walls: TileMapLayer, cell: Vector2i) -> bool:
+	return walls.get_cell_source_id(cell) != -1
 
 
 func _flood(walls: TileMapLayer, from: Vector2i) -> Dictionary:

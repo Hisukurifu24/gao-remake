@@ -6,13 +6,18 @@ meant to be replaced by real assets; regenerate with:
 
     python3 tools/gen_placeholder_art.py
 
-Emits one 8-tile atlas per biome. Every atlas has the same *semantic* layout, so
+Emits one atlas per biome. Row 0 is the same *semantic* layout in every atlas, so
 the floor generator can paint any biome without knowing which one it is:
 
     0 floor   1 floor-alt   2 path      3 special
     4 liquid  5 obstacle    6 wall      7 wall-alt
 
 Slots 4-7 are the solid ones (see SOLID_TILES in tools/build_biomes.gd).
+
+Rows 1-6 are the 47-tile wall blob used for autotiling -- one tile per legal
+arrangement of wall neighbours, in the order BLOB_MASKS enumerates them.
+tools/build_biomes.gd derives that same order independently and wires each tile's
+terrain peering bits from it, so the two files agree without sharing data.
 
 Also emits characters, dialogue portraits, props, enemy battlers, and one 16x16
 icon per item id in ITEM_ICONS -- which must stay in step with ItemLibrary.ITEMS.
@@ -104,14 +109,106 @@ BIOMES = {
     "desert":   ((196, 168, 106), (176, 146, 92),  (72, 132, 152),   (150, 122, 74),   (188, 168, 132),  (160, 108, 68)),
     "ice":      ((178, 202, 214), (150, 176, 194), (96, 152, 190),   (140, 176, 196),  (196, 214, 226),  (108, 140, 172)),
     "volcanic": ((72, 58, 56),   (96, 74, 64),     (196, 92, 44),    (58, 46, 46),     (104, 88, 82),    (168, 74, 48)),
-    "sky":      ((146, 176, 206), (196, 208, 224), (120, 168, 216),  (168, 184, 204),  (214, 222, 236),  (140, 152, 190)),
-    "castle":   ((132, 116, 140), (168, 152, 172), (128, 84, 148),   (96, 84, 104),    (176, 164, 184),  (152, 62, 82)),
+    # sky and castle used to sit ~10 luminance points between floor and wall,
+    # which read as one flat colour. Both now drop the ground and lift the stone.
+    # Path stays near ground rather than near stone: corridors and rooms are both
+    # places you walk, and they should read as one surface, not two.
+    "sky":      ((84, 118, 164),  (118, 152, 198), (140, 186, 230),  (188, 206, 232),  (228, 236, 248),  (118, 132, 178)),
+    "castle":   ((70, 58, 82),    (102, 86, 116),  (150, 74, 176),   (128, 110, 140),  (198, 184, 208),  (168, 60, 88)),
 }
+
+
+# --- the wall blob ---------------------------------------------------------
+#
+# Autotiling needs one tile per arrangement of wall neighbours. Sides alone
+# (16 tiles) leaves a notch at every room corner, because the cell diagonally
+# outside a corner has both its touching sides walled and would draw as solid
+# interior. Matching corners as well is what closes that, and reduces 256
+# arrangements to 47: a corner only means anything when both sides beside it are
+# wall, so the rest are unreachable.
+
+N, E, S, W = 1, 2, 4, 8
+NE, SE, SW, NW = 16, 32, 64, 128
+CORNERS = ((NE, N, E), (SE, S, E), (SW, S, W), (NW, N, W))
+
+BLOB_ROW = 1  # row 0 is the semantic slots; the blob starts under it
+BLOB_COLUMNS = 8
+
+
+def _blob_masks():
+    """Every legal neighbour arrangement, ascending. Exactly 47 of them."""
+    return [
+        mask
+        for mask in range(256)
+        if all(not mask & corner or mask & a and mask & b for corner, a, b in CORNERS)
+    ]
+
+
+BLOB_MASKS = _blob_masks()
+
+
+def _wall_body(c, ox, oy, stone):
+    """The interior of a wall mass: coursed stone, no edges.
+
+    Deliberately low-contrast. The coursing is texture, not information -- if it
+    competes with the rim then a room's outline stops being the thing the eye
+    finds first, which is the whole point of autotiling this.
+    """
+    c.rect(ox, oy, TILE, TILE, shade(stone, 0.82))
+    dark = shade(stone, 0.72)
+    for y in (0, 5, 10, 15):
+        c.rect(ox, oy + y, TILE, 1, dark)
+    for y, off in ((2, 0), (7, 8), (12, 0)):
+        c.rect(ox + off, oy + y - 2, 1, 5, dark)
+        c.rect(ox + off + 8, oy + y - 2, 1, 5, dark)
+
+
+def _corner_bevel(c, ox, oy, right, bottom, rim, fill):
+    """Chamfers the one corner where floor pokes in diagonally."""
+    for dx in range(3):
+        for dy in range(3 - dx):
+            x = ox + (TILE - 1 - dx if right else dx)
+            y = oy + (TILE - 1 - dy if bottom else dy)
+            c.set(x, y, rim if dx + dy < 2 else fill)
+
+
+def _wall_blob(c, ox, oy, stone, mask):
+    """One blob tile. A bit set in [param mask] means that neighbour is wall."""
+    rim = shade(stone, 0.20)  # the outline that separates wall from floor
+    cap = tint(stone, 0.42)  # the lit top face of the course
+    skirt = shade(stone, 0.40)  # the shadow a wall casts on itself
+    side = tint(stone, 0.16)
+
+    _wall_body(c, ox, oy, stone)
+    if not mask & W:
+        c.rect(ox + 1, oy, 2, TILE, side)
+    if not mask & E:
+        c.rect(ox + TILE - 3, oy, 2, TILE, side)
+    if not mask & N:
+        c.rect(ox, oy + 1, TILE, 3, cap)
+    if not mask & S:
+        c.rect(ox, oy + TILE - 4, TILE, 3, skirt)
+
+    if not mask & N:
+        c.rect(ox, oy, TILE, 1, rim)
+    if not mask & S:
+        c.rect(ox, oy + TILE - 1, TILE, 1, rim)
+    if not mask & W:
+        c.rect(ox, oy, 1, TILE, rim)
+    if not mask & E:
+        c.rect(ox + TILE - 1, oy, 1, TILE, rim)
+
+    # Sides walled but the corner between them open: the notch side-matching
+    # alone would miss.
+    for corner, a, b in CORNERS:
+        if mask & a and mask & b and not mask & corner:
+            _corner_bevel(c, ox, oy, corner in (NE, SE), corner in (SE, SW), rim, side)
 
 
 def tileset(name, palette):
     ground, path, liquid, obstacle, stone, accent = palette
-    c = Canvas(TILE * 8, TILE)
+    rows = BLOB_ROW + (len(BLOB_MASKS) + BLOB_COLUMNS - 1) // BLOB_COLUMNS
+    c = Canvas(TILE * BLOB_COLUMNS, TILE * rows)
 
     def at(idx, x, y, col):
         c.set(idx * TILE + x, y, col)
@@ -151,22 +248,24 @@ def tileset(name, palette):
                 at(5, x, y, shade(obstacle, 1.0) if (x + y) % 3 else tint(obstacle, 0.15))
     c.rect(TILE * 5 + 7, 10, 2, 5, shade(obstacle, 0.6))
 
-    # 6 wall
-    c.rect(TILE * 6, 0, TILE, TILE, shade(stone, 0.82))
-    dark = shade(stone, 0.62)
-    for y in (0, 5, 10, 15):
-        for x in range(TILE):
-            at(6, x, y, dark)
-    for y, off in ((2, 0), (7, 8), (12, 0)):
-        for dy in range(-2, 3):
-            at(6, off, y + dy, dark)
-            at(6, off + 8, y + dy, dark)
+    # 6 wall -- the blob's fully-enclosed tile, so a hand-painted wall and an
+    # autotiled one are the same stone.
+    _wall_body(c, TILE * 6, 0, stone)
 
     # 7 wall-alt (roof / banded stone)
     c.rect(TILE * 7, 0, TILE, TILE, shade(accent, 1.0))
     for y in range(0, TILE, 4):
         for x in range(TILE):
             at(7, x, y, shade(accent, 0.8))
+
+    for index, mask in enumerate(BLOB_MASKS):
+        _wall_blob(
+            c,
+            (index % BLOB_COLUMNS) * TILE,
+            (BLOB_ROW + index // BLOB_COLUMNS) * TILE,
+            stone,
+            mask,
+        )
 
     c.save("tiles_%s.png" % name)
 

@@ -8,4 +8,5 @@ script = ExtResource("1_b013v")
 id = &"desert"
 display_name = "Scorched Waste"
 tile_set = ExtResource("2_x3lsv")
+wall_terrain_set = 0
 ambient_tint = Color(1, 0.97, 0.88, 1)

@@ -8,3 +8,4 @@ script = ExtResource("1_2tw7f")
 id = &"meadow"
 display_name = "Green Meadow"
 tile_set = ExtResource("2_eamvn")
+wall_terrain_set = 0

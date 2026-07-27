@@ -8,4 +8,5 @@ script = ExtResource("1_gkxrl")
 id = &"volcanic"
 display_name = "Molten Depths"
 tile_set = ExtResource("2_i5axu")
+wall_terrain_set = 0
 ambient_tint = Color(1, 0.9, 0.86, 1)

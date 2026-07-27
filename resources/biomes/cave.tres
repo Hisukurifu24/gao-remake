@@ -8,4 +8,5 @@ script = ExtResource("1_fjcyn")
 id = &"cave"
 display_name = "Winding Caves"
 tile_set = ExtResource("2_3e5vb")
+wall_terrain_set = 0
 ambient_tint = Color(0.82, 0.84, 0.94, 1)

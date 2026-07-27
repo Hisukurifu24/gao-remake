@@ -90,6 +90,7 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	var must_reach: Array[Vector2i] = chest_cells.duplicate()
 	must_reach.append(_center(boss_room))
 	_ensure_reachable(_center(entry), must_reach)
+	_join_walls()
 
 	_add_spawns(map, _center(entry))
 	for index in chest_cells.size():
@@ -265,6 +266,30 @@ func _reaches_all(from: Vector2i, required: Array[Vector2i]) -> bool:
 		if not seen.has(cell):
 			return false
 	return true
+
+
+## Autotiles the wall mass, so a room reads as a room rather than as the absence
+## of one. Runs last, once carving and decor have settled: it is a pass over the
+## finished layout, not a step in building it, and the layout must not depend on
+## which tile a wall ended up drawing.
+##
+## Only cells still holding the plain wall tile are joined. Decor -- boulders and
+## pools scattered inside rooms -- also lives on the walls layer, and it is
+## scenery rather than part of the mass, so it stays out of the terrain and the
+## mass draws an edge against it.
+func _join_walls() -> void:
+	if _biome.wall_terrain_set < 0:
+		return
+	var wall_atlas := Vector2i(_biome.wall_tile, 0)
+	var cells: Array[Vector2i] = []
+	for cell in _walls.get_used_cells():
+		if _walls.get_cell_atlas_coords(cell) == wall_atlas:
+			cells.append(cell)
+	if cells.is_empty():
+		return
+	# ignore_empty_terrains must be false: a carved cell has no terrain, and it is
+	# exactly those neighbours that an edge tile has to be chosen against.
+	_walls.set_cells_terrain_connect(cells, _biome.wall_terrain_set, _biome.wall_terrain, false)
 
 
 func _add_spawns(map: Node2D, entry: Vector2i) -> void:

@@ -8,4 +8,5 @@ script = ExtResource("1_k841a")
 id = &"castle"
 display_name = "Ruby Palace"
 tile_set = ExtResource("2_85j2a")
+wall_terrain_set = 0
 ambient_tint = Color(1, 0.94, 0.97, 1)

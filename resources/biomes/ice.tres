@@ -8,4 +8,5 @@ script = ExtResource("1_4d8rj")
 id = &"ice"
 display_name = "Frozen Reach"
 tile_set = ExtResource("2_1ie41")
+wall_terrain_set = 0
 ambient_tint = Color(0.92, 0.97, 1, 1)

@@ -21,6 +21,13 @@ extends Resource
 @export var wall_tile := 6
 @export var wall_alt_tile := 7
 
+@export_group("Autotiling")
+## The terrain set holding the wall blob, or -1 if this biome's TileSet has none.
+## Generation paints [member wall_tile] first and only then joins the mass up, so
+## a biome without a blob still produces a correct -- if flat -- floor.
+@export var wall_terrain_set := -1
+@export var wall_terrain := 0
+
 @export_group("Flavour")
 ## Tinted onto the map root -- cheap mood without per-biome lighting.
 @export var ambient_tint := Color.WHITE

@@ -8,4 +8,5 @@ script = ExtResource("1_di21u")
 id = &"swamp"
 display_name = "Fetid Swamp"
 tile_set = ExtResource("2_rn6bm")
+wall_terrain_set = 0
 ambient_tint = Color(0.9, 0.96, 0.86, 1)
