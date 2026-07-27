@@ -79,6 +79,13 @@ static func get_enemy(id: StringName) -> EnemyType:
 
 ## The monsters that roam [param floor_number], strongest-first is not implied --
 ## the pool is a set, not a ranking.
+## Whether [param id] names a template at all, without the error [method get_enemy]
+## raises. For validating content that points at enemies by id -- a
+## [QuestObjective]'s KILL target -- where a missing one is a question, not a bug.
+static func exists(id: StringName) -> bool:
+	return id != &"" and ResourceLoader.exists(ENEMY_PATH % id)
+
+
 static func pool_for_floor(floor_number: int) -> Array[EnemyType]:
 	var biome := FloorRegistry.biome_id(floor_number)
 	var types: Array[EnemyType] = []

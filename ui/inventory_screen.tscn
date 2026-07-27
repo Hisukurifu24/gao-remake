@@ -1,0 +1,229 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://ui/inventory_screen.gd" id="1_inventory"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.06, 0.07, 0.12, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.45, 0.62, 0.85, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_side"]
+bg_color = Color(0.05, 0.06, 0.11, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.62, 0.55, 0.85, 0.85)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="InventoryScreen" type="CanvasLayer"]
+layer = 8
+script = ExtResource("1_inventory")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.03, 0.04, 0.07, 1)
+
+[node name="Title" type="Label" parent="."]
+anchors_preset = 0
+offset_left = 14.0
+offset_top = 8.0
+offset_right = 300.0
+offset_bottom = 24.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.6, 0.78, 1, 1)
+theme_override_font_sizes/font_size = 13
+text = "Inventory"
+
+[node name="Bag" type="PanelContainer" parent="."]
+anchors_preset = 0
+offset_left = 12.0
+offset_top = 28.0
+offset_right = 306.0
+offset_bottom = 268.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="Bag"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 6
+
+[node name="Column" type="VBoxContainer" parent="Bag/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Header" type="Label" parent="Bag/Margin/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.78, 1, 1)
+theme_override_font_sizes/font_size = 10
+text = "Bag   0 / 24"
+
+[node name="Grid" type="GridContainer" parent="Bag/Margin/Column"]
+layout_mode = 2
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
+columns = 6
+
+[node name="Gear" type="PanelContainer" parent="."]
+anchors_preset = 0
+offset_left = 316.0
+offset_top = 28.0
+offset_right = 628.0
+offset_bottom = 122.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_side")
+
+[node name="Margin" type="MarginContainer" parent="Gear"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 6
+
+[node name="Rows" type="VBoxContainer" parent="Gear/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="Header" type="Label" parent="Gear/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "Equipped"
+
+[node name="Weapon" type="PanelContainer" parent="Gear/Margin/Rows"]
+layout_mode = 2
+
+[node name="Row" type="HBoxContainer" parent="Gear/Margin/Rows/Weapon"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Slot" type="Label" parent="Gear/Margin/Rows/Weapon/Row"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Weapon"
+
+[node name="Value" type="Label" parent="Gear/Margin/Rows/Weapon/Row"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "--"
+
+[node name="Armor" type="PanelContainer" parent="Gear/Margin/Rows"]
+layout_mode = 2
+
+[node name="Row" type="HBoxContainer" parent="Gear/Margin/Rows/Armor"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Slot" type="Label" parent="Gear/Margin/Rows/Armor/Row"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Armor"
+
+[node name="Value" type="Label" parent="Gear/Margin/Rows/Armor/Row"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "--"
+
+[node name="Accessory" type="PanelContainer" parent="Gear/Margin/Rows"]
+layout_mode = 2
+
+[node name="Row" type="HBoxContainer" parent="Gear/Margin/Rows/Accessory"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Slot" type="Label" parent="Gear/Margin/Rows/Accessory/Row"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Accessory"
+
+[node name="Value" type="Label" parent="Gear/Margin/Rows/Accessory/Row"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "--"
+
+[node name="Totals" type="Label" parent="Gear/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "ATK 8   DEF 4   SPD 10   HP 60"
+
+[node name="Details" type="PanelContainer" parent="."]
+anchors_preset = 0
+offset_left = 316.0
+offset_top = 128.0
+offset_right = 628.0
+offset_bottom = 268.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_side")
+
+[node name="Margin" type="MarginContainer" parent="Details"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 6
+
+[node name="Rows" type="VBoxContainer" parent="Details/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="Name" type="Label" parent="Details/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "--"
+
+[node name="Kind" type="Label" parent="Details/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 9
+text = " "
+
+[node name="Stats" type="Label" parent="Details/Margin/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = " "
+
+[node name="Description" type="Label" parent="Details/Margin/Rows"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 10
+text = "Nothing here."
+autowrap_mode = 3
+
+[node name="Hints" type="Label" parent="."]
+anchors_preset = 0
+offset_left = 14.0
+offset_top = 274.0
+offset_right = 306.0
+offset_bottom = 292.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.55, 0.57, 0.66, 1)
+theme_override_font_sizes/font_size = 10
+text = "[E] use   [Q] drop   drag to move"
+
+[node name="Footer" type="HBoxContainer" parent="."]
+anchors_preset = 0
+offset_left = 316.0
+offset_top = 272.0
+offset_right = 628.0
+offset_bottom = 292.0
+alignment = 2
+theme_override_constants/separation = 6

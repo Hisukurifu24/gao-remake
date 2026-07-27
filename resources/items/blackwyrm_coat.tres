@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_blackwyrm_coat.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"blackwyrm_coat"
+display_name = "Blackwyrm Coat"
+description = "Drake hide, cured black. Heavy on the shoulders and worth every point of it."
+icon = ExtResource("icon")
+kind = 2
+rarity = 2
+defense_bonus = 7
+speed_bonus = -1
+max_hp_bonus = 20

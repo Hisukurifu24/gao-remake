@@ -14,6 +14,7 @@ enum Kind {
 	STATUS,   ## A damage- or heal-over-time tick.
 	SKIPPED,  ## Staggered or stunned: the turn was lost.
 	DEFEAT,   ## A combatant went down.
+	ITEM,     ## Something was spent out of the bag.
 }
 
 ## One number over one sprite.
@@ -31,6 +32,8 @@ class Hit extends RefCounted:
 var kind: Kind = Kind.SKILL
 var actor: Combatant = null
 var skill: Skill = null
+## Set on [constant Kind.ITEM] reports, for a view that wants to show the icon.
+var item: Item = null
 var text := ""
 var hits: Array[Hit] = []
 var success := true

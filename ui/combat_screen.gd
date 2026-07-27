@@ -32,16 +32,17 @@ const FLOATER_TIME := 0.7
 const OUTRO_TIME := 1.1
 
 ## What the command menu is currently asking for.
-enum Phase { HIDDEN, BUSY, ROOT, SKILLS, TARGET }
+enum Phase { HIDDEN, BUSY, ROOT, SKILLS, ITEMS, TARGET }
 
-## The fixed commands. Skills get their own submenu; Item joins in M3.
-enum Command { ATTACK, SKILLS, DEFEND, FLEE }
+## The fixed commands. Skills and Items each get their own submenu.
+enum Command { ATTACK, SKILLS, ITEM, DEFEND, FLEE }
 
 var _phase := Phase.HIDDEN
 var _selected := 0
 ## Root commands actually on offer -- Flee is absent from a boss fight.
 var _commands: Array[Command] = []
 var _skill_rows: Array[Skill] = []
+var _item_rows: Array[ItemStack] = []
 var _target_rows: Array[Combatant] = []
 ## The text of each menu row, without the cursor. Kept beside the Labels so
 ## repainting the selection doesn't have to parse what it drew last time.
@@ -103,6 +104,10 @@ func _confirm() -> void:
 			var skill := _skill_rows[_selected]
 			if _actor.is_ready(skill):
 				_stage(skill)
+		Phase.ITEMS:
+			# Party of one, and nothing is thrown at an enemy yet, so an item
+			# always lands on the person drinking it.
+			_send(CombatAction.use_item(_item_rows[_selected].item, _actor))
 		Phase.TARGET:
 			_send(CombatAction.use(_staged, _target_rows[_selected]))
 
@@ -111,7 +116,7 @@ func _confirm() -> void:
 ## a fight is not something you can close.
 func _cancel() -> void:
 	match _phase:
-		Phase.SKILLS:
+		Phase.SKILLS, Phase.ITEMS:
 			_show_root()
 		Phase.TARGET:
 			if _staged in _skill_rows:
@@ -126,6 +131,8 @@ func _choose_command(command: Command) -> void:
 			_stage(SkillLibrary.basic_attack())
 		Command.SKILLS:
 			_show_skills()
+		Command.ITEM:
+			_show_items()
 		Command.DEFEND:
 			_send(CombatAction.defend())
 		Command.FLEE:
@@ -196,14 +203,19 @@ func _on_combat_finished(result: CombatResult) -> void:
 func _show_root() -> void:
 	_phase = Phase.ROOT
 	_staged = null
-	_commands = [Command.ATTACK, Command.SKILLS, Command.DEFEND]
+	_commands = [Command.ATTACK, Command.SKILLS, Command.ITEM, Command.DEFEND]
 	if CombatManager.current_encounter().can_flee:
 		_commands.append(Command.FLEE)
 
 	var labels := PackedStringArray()
-	for command in _commands:
-		labels.append(_command_label(command))
-	_populate(labels, PackedInt32Array())
+	var locked := PackedInt32Array()
+	for i in _commands.size():
+		labels.append(_command_label(_commands[i]))
+		# Item stays on the list with an empty bag rather than disappearing:
+		# a verb that comes and goes is a verb the player never learns.
+		if _commands[i] == Command.ITEM and Inventory.usable_stacks(true).is_empty():
+			locked.append(i)
+	_populate(labels, locked)
 	_hint.text = "[E] choose"
 
 
@@ -223,6 +235,20 @@ func _show_skills() -> void:
 		if left > 0:
 			locked.append(i)
 	_populate(labels, locked)
+
+
+func _show_items() -> void:
+	_phase = Phase.ITEMS
+	_item_rows = Inventory.usable_stacks(true)
+	if _item_rows.is_empty():
+		_show_root()
+		return
+
+	var labels := PackedStringArray()
+	for stack in _item_rows:
+		labels.append(stack.label())
+	_populate(labels, PackedInt32Array())
+	_hint.text = "[Esc] back"
 
 
 func _show_targets(candidates: Array[Combatant]) -> void:
@@ -282,6 +308,8 @@ func _paint() -> void:
 
 	if _phase == Phase.SKILLS and _selected < _skill_rows.size():
 		_hint.text = _skill_rows[_selected].description
+	elif _phase == Phase.ITEMS and _selected < _item_rows.size():
+		_hint.text = _item_rows[_selected].item.description
 	_highlight_target()
 
 
@@ -301,6 +329,8 @@ func _command_label(command: Command) -> String:
 			return "Attack"
 		Command.SKILLS:
 			return "Sword Skills"
+		Command.ITEM:
+			return "Item"
 		Command.DEFEND:
 			return "Defend"
 		_:

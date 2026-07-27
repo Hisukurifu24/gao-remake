@@ -76,16 +76,20 @@ static func from_enemy(type: EnemyType, at_level: int, override_name := "") -> C
 
 ## The player as they stand in [GameState] right now. HP carries into the
 ## fight and back out of it -- there is no free heal at the door.
+##
+## Stats come through the [code]total_*[/code] accessors, which is where worn
+## equipment folds in. Combat itself never sees an [Item]: a sword is +6 attack
+## by the time it gets here.
 static func from_player() -> Combatant:
 	var c := Combatant.new()
 	c.display_name = GameState.player_name
 	c.is_player = true
 	c.level = GameState.level
-	c.max_hp = GameState.max_hp
-	c.hp = GameState.hp
-	c.attack = GameState.attack
-	c.defense = GameState.defense
-	c.speed = GameState.speed
+	c.max_hp = GameState.total_max_hp()
+	c.hp = mini(GameState.hp, c.max_hp)
+	c.attack = GameState.total_attack()
+	c.defense = GameState.total_defense()
+	c.speed = GameState.total_speed()
 	c.max_poise = GameState.max_poise()
 	c.poise = c.max_poise
 	c.skills = SkillLibrary.for_level(GameState.level)
@@ -190,6 +194,15 @@ func has_status_kind(kind: StatusEffect.Kind) -> bool:
 		if active.effect.kind == kind:
 			return true
 	return false
+
+
+## Strips every debuff and leaves the buffs alone. What an antidote does; kept
+## here rather than in [CombatManager] because [member statuses] is this class's
+## business and nobody else's.
+func clear_debuffs() -> int:
+	var before := statuses.size()
+	statuses = statuses.filter(func(a: Active) -> bool: return not a.effect.is_debuff)
+	return before - statuses.size()
 
 
 func status_labels() -> PackedStringArray:

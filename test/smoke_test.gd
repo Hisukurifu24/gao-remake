@@ -91,6 +91,17 @@ func _run() -> void:
 	_check(not GameState.is_input_locked(), "closing the dialogue unlocks input")
 	_check(GameState.has_flag(&"met_argo"), "finishing a conversation sets the NPC's flag")
 
+	# --- quests, in the real booted game ---
+	# quest_test.gd owns the rules. What matters here is that the autoload is wired
+	# into a running game, that its two views are in the shell, and that a real
+	# floor_cleared from a real boss fight reaches an objective further down.
+	_check(main.get_node_or_null("QuestTracker") != null, "the shell has a quest tracker")
+	_check(main.get_node_or_null("QuestJournal") != null, "and a quest journal")
+	GameState.set_flag(QuestLog.flag_for(&"argo_first_errand", QuestLog.FLAG_DONE))
+	_check(QuestLog.start(&"argo_illfang"), "a quest can be taken in the running game")
+	_check(QuestLog.tracked() != null and QuestLog.tracked().quest.id == &"argo_illfang",
+			"and the tracker follows it")
+
 	# --- chest ---
 	var chest: Node2D = town.get_node("Chest")
 	_check(chest.is_available(), "an unopened chest is interactable")
@@ -141,6 +152,13 @@ func _run() -> void:
 	await _auto_battle()
 	_check(GameState.is_floor_cleared(1), "beating the boss clears the floor")
 	_check(GameState.is_floor_unlocked(2), "clearing floor 1 unlocks floor 2")
+
+	# The quest taken back in town, finished by the boss fight it asked for --
+	# BossGate never learned that quests exist.
+	_check(QuestLog.is_ready(&"argo_illfang"),
+			"clearing the floor completes the quest that asked for it")
+	_check(QuestLog.turn_in(&"argo_illfang"), "and it can be handed in")
+	_check(Inventory.count(&"guard_ring") == 1, "which pays the reward into the real bag")
 	await _close_dialogue()
 
 	gate.interact(field_player)

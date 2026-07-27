@@ -24,6 +24,20 @@ const BOSS_GATE_SCENE := preload("res://scenes/world/boss_gate.tscn")
 const STAIRS_SCENE := preload("res://scenes/world/floor_stairs.tscn")
 const MONSTER_SCENE := preload("res://scenes/world/monster.tscn")
 
+## What a floor cache can hold. Consumables are the staple -- they are what makes
+## walking off the main line worth the monsters in the way. Gear is the rarer
+## payoff, and the same few pieces recur because the roster is small; a chest is
+## a supply drop, not a loot table.
+const CHEST_CONSUMABLES: Array[StringName] = [
+	&"small_potion", &"health_potion", &"antidote", &"whetstone",
+]
+const CHEST_GEAR: Array[StringName] = [
+	&"bronze_sword", &"kobold_blade", &"leather_coat",
+	&"guard_ring", &"swift_charm", &"blackwyrm_coat",
+]
+## How often a chest holds gear rather than supplies.
+const CHEST_GEAR_CHANCE := 0.3
+
 var _rng := RandomNumberGenerator.new()
 var _definition: FloorDefinition
 var _biome: BiomeKit
@@ -268,7 +282,14 @@ func _add_chest(map: Node2D, cell: Vector2i, index: int) -> void:
 	var chest := CHEST_SCENE.instantiate()
 	chest.name = "Chest%d" % index
 	chest.position = _world(cell)
-	chest.set(&"contents", "a Floor %d cache" % _definition.floor_number)
+	# Drawn from the floor's own seeded rng, so floor 37's second chest holds the
+	# same thing every time it is generated -- same rule as everything else here.
+	if _rng.randf() < CHEST_GEAR_CHANCE:
+		chest.set(&"item_id", CHEST_GEAR[_rng.randi() % CHEST_GEAR.size()])
+		chest.set(&"amount", 1)
+	else:
+		chest.set(&"item_id", CHEST_CONSUMABLES[_rng.randi() % CHEST_CONSUMABLES.size()])
+		chest.set(&"amount", _rng.randi_range(1, 3))
 	chest.set(&"opened_flag", StringName("floor_%d_chest_%d" % [_definition.floor_number, index]))
 	map.add_child(chest)
 

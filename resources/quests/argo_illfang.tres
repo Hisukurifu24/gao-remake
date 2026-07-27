@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="Quest" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
+[ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_errand_done"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_argo_first_errand_done"
+
+[sub_resource type="Resource" id="obj_illfang"]
+script = ExtResource("objective")
+id = &"illfang"
+kind = 3
+number = 1
+description = "Put Illfang the Kobold Lord down"
+
+[sub_resource type="Resource" id="reward_xp"]
+script = ExtResource("effect")
+kind = 2
+amount = 80
+
+[sub_resource type="Resource" id="reward_ring"]
+script = ExtResource("effect")
+kind = 3
+id = &"guard_ring"
+
+[resource]
+script = ExtResource("quest")
+id = &"argo_illfang"
+title = "The Kobold Lord"
+giver = "Argo"
+summary = "Argo has been selling information about Illfang all week. She would rather be selling news of his death, and she will pay for the privilege of breaking it first."
+objectives = Array[ExtResource("objective")]([SubResource("obj_illfang")])
+prerequisites = Array[ExtResource("condition")]([SubResource("cond_errand_done")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_ring")])

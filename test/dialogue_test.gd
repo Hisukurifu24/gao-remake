@@ -167,7 +167,7 @@ func _test_entry_selection() -> void:
 
 func _test_choices() -> void:
 	GameState.set_flag(&"met_nezha", false)
-	GameState.set_flag(&"argo_errand", false)
+	QuestLog.clear()
 	_open_menu()
 	_check(DialogueRunner.is_choosing(), "the menu line offers choices")
 
@@ -200,14 +200,18 @@ func _test_choices() -> void:
 # --- effects ---------------------------------------------------------------
 
 func _test_effects() -> void:
-	GameState.set_flag(&"argo_errand", false)
+	QuestLog.clear()
 	_quests.clear()
 	_open_menu()
 	_check(_choice_texts().has("Got any work for me?"), "the errand is on offer")
 
 	DialogueRunner.choose(_choice_index("Got any work"))
 	_check(_quests == [&"argo_first_errand"], "taking the errand starts the quest")
-	_check(GameState.has_flag(&"argo_errand"), "taking the errand sets its flag")
+	# The dialogue's own bookkeeping flag is gone: QuestLog writes
+	# quest_<id>_started and Argo's choice reads that, so there is one answer to
+	# "has this been taken" instead of two that can disagree.
+	_check(GameState.has_flag(&"quest_argo_first_errand_started"),
+			"taking the errand puts it in the quest log")
 	_close()
 
 	_open_menu()

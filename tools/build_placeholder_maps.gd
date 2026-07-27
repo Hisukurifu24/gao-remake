@@ -104,7 +104,7 @@ func _build_town(tile_set: TileSet) -> Node2D:
 		Vector2(504, 344), "Nezha", "Nezha the smith", [], &"met_nezha",
 		"res://resources/dialogue/nezha.tres"
 	))
-	_add(map, _chest(Vector2(648, 472), "a Small Health Potion", &"chest_town_square"))
+	_add(map, _chest(Vector2(648, 472), &"small_potion", 3, &"chest_town_square"))
 	_add(map, _exit(Vector2(392, TOWN_H * TILE - 8), Vector2(2, 1), FIELD_PATH, &"from_town", true))
 
 	_add(map, _player(Vector2(392, 296)))
@@ -147,7 +147,7 @@ func _build_field(tile_set: TileSet) -> Node2D:
 		],
 		&""
 	))
-	_add(map, _chest(Vector2(744, 168), "a Bronze Sword", &"chest_field_north"))
+	_add(map, _chest(Vector2(744, 168), &"bronze_sword", 1, &"chest_field_north"))
 	_add(map, _exit(Vector2(392, 8), Vector2(2, 1), TOWN_PATH, &"from_field", true))
 
 	for index in FIELD_MONSTERS.size():
@@ -242,10 +242,11 @@ func _monster(index: int, at: Vector2, enemy_id: StringName) -> Node:
 	return node
 
 
-func _chest(at: Vector2, contents: String, flag: StringName) -> Node:
+func _chest(at: Vector2, item_id: StringName, amount: int, flag: StringName) -> Node:
 	var node := (load(CHEST_SCENE) as PackedScene).instantiate()
 	node.position = at
-	node.set(&"contents", contents)
+	node.set(&"item_id", item_id)
+	node.set(&"amount", amount)
 	node.set(&"opened_flag", flag)
 	return node
 

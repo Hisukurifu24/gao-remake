@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_swift_charm.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"swift_charm"
+display_name = "Swift Charm"
+description = "Light as nothing. Turn order is decided by speed, and this decides turn order."
+icon = ExtResource("icon")
+kind = 3
+rarity = 1
+attack_bonus = 1
+speed_bonus = 3

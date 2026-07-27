@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="Quest" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
+[ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="obj_boars"]
+script = ExtResource("objective")
+id = &"boars"
+kind = 0
+target = &"frenzy_boar"
+required = 3
+description = "Cull the boars in the West Field"
+
+[sub_resource type="Resource" id="obj_smith"]
+script = ExtResource("objective")
+id = &"smith"
+kind = 2
+target = &"nezha"
+description = "Ask Nezha what he has been hearing"
+
+[sub_resource type="Resource" id="reward_xp"]
+script = ExtResource("effect")
+kind = 2
+amount = 40
+
+[sub_resource type="Resource" id="reward_potions"]
+script = ExtResource("effect")
+kind = 3
+id = &"small_potion"
+amount = 2
+
+[resource]
+script = ExtResource("quest")
+id = &"argo_first_errand"
+title = "What's Still Moving"
+giver = "Argo"
+summary = "Walk the fields south of the gate and tell Argo what is still moving out there. She wants the smith's gossip while you are at it -- information is the only thing she trades in."
+objectives = Array[ExtResource("objective")]([SubResource("obj_boars"), SubResource("obj_smith")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_potions")])

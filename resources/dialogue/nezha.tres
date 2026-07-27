@@ -3,12 +3,85 @@
 [ext_resource type="Texture2D" path="res://assets/placeholder/portrait_nezha.png" id="portrait"]
 [ext_resource type="Script" path="res://scripts/resources/dialogue.gd" id="dialogue"]
 [ext_resource type="Script" path="res://scripts/resources/dialogue_line.gd" id="line"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_choice.gd" id="choice"]
 [ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
 
 [sub_resource type="Resource" id="cond_floor_1_cleared"]
 script = ExtResource("condition")
 test = 1
 number = 1
+
+[sub_resource type="Resource" id="cond_level_2"]
+script = ExtResource("condition")
+test = 2
+number = 2
+
+[sub_resource type="Resource" id="cond_blade_not_taken"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_nezha_first_blade_started"
+
+[sub_resource type="Resource" id="cond_blade_taken"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_nezha_first_blade_started"
+
+[sub_resource type="Resource" id="cond_blade_ready"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_nezha_first_blade_ready"
+
+[sub_resource type="Resource" id="cond_blade_not_ready"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_nezha_first_blade_ready"
+
+[sub_resource type="Resource" id="cond_blade_not_done"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_nezha_first_blade_done"
+
+[sub_resource type="Resource" id="eff_start_blade"]
+script = ExtResource("effect")
+kind = 4
+id = &"nezha_first_blade"
+
+[sub_resource type="Resource" id="eff_turn_in_blade"]
+script = ExtResource("effect")
+kind = 5
+id = &"nezha_first_blade"
+
+[sub_resource type="Resource" id="choice_blade_report"]
+script = ExtResource("choice")
+text = "Hide and oil, as asked."
+next = &"blade_report"
+conditions = Array[ExtResource("condition")]([SubResource("cond_blade_ready")])
+
+[sub_resource type="Resource" id="choice_blade"]
+script = ExtResource("choice")
+text = "Sharpen it, then."
+next = &"blade"
+conditions = Array[ExtResource("condition")]([SubResource("cond_blade_not_taken"), SubResource("cond_level_2")])
+
+[sub_resource type="Resource" id="choice_blade_wip"]
+script = ExtResource("choice")
+text = "Still gathering."
+next = &"blade_wip"
+conditions = Array[ExtResource("condition")]([SubResource("cond_blade_taken"), SubResource("cond_blade_not_ready"), SubResource("cond_blade_not_done")])
+
+[sub_resource type="Resource" id="choice_gossip"]
+script = ExtResource("choice")
+text = "Heard anything worth hearing?"
+next = &"gossip"
+
+[sub_resource type="Resource" id="choice_leave"]
+script = ExtResource("choice")
+text = "Nothing today."
+next = &""
 
 [sub_resource type="Resource" id="line_after_boss"]
 script = ExtResource("line")
@@ -18,22 +91,66 @@ conditions = Array[ExtResource("condition")]([SubResource("cond_floor_1_cleared"
 
 [sub_resource type="Resource" id="line_after_boss_2"]
 script = ExtResource("line")
-text = "Bring me ore off the second floor. I'll put an edge on it worth the climb."
-next = &"end"
+text = "Bring me ore off the second floor and I'll put an edge on it worth the climb."
+next = &"menu"
 
 [sub_resource type="Resource" id="line_first"]
 script = ExtResource("line")
 id = &"first"
-text = "Bring me ore and I'll sharpen that blade of yours."
+text = "Bring me something to work with and I'll sharpen that blade of yours."
 
 [sub_resource type="Resource" id="line_first_2"]
 script = ExtResource("line")
 text = "A +1 sword has ended more players' first day than any monster has."
+
+[sub_resource type="Resource" id="line_menu"]
+script = ExtResource("line")
+id = &"menu"
+text = "Well? The forge doesn't stay hot for conversation."
+choices = Array[ExtResource("choice")]([SubResource("choice_blade_report"), SubResource("choice_blade"), SubResource("choice_blade_wip"), SubResource("choice_gossip"), SubResource("choice_leave")])
+
+[sub_resource type="Resource" id="line_blade"]
+script = ExtResource("line")
+id = &"blade"
+text = "Then bring me three boar hides for the grip and two nepent ovules for the oil."
+effects = Array[ExtResource("effect")]([SubResource("eff_start_blade")])
+
+[sub_resource type="Resource" id="line_blade_2"]
+script = ExtResource("line")
+text = "The fields south of the gate have both, if you don't mind being gored for them."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_blade_wip"]
+script = ExtResource("line")
+id = &"blade_wip"
+text = "Three hides. Two ovules. I'll know if you're short, so don't try it."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_blade_report"]
+script = ExtResource("line")
+id = &"blade_report"
+text = "Good hide. Good oil. Hold still -- this is the part nobody watches."
+effects = Array[ExtResource("effect")]([SubResource("eff_turn_in_blade")])
+
+[sub_resource type="Resource" id="line_blade_report_2"]
+script = ExtResource("line")
+text = "Whetstones, both of them. Use one before a boss, not after."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_gossip"]
+script = ExtResource("line")
+id = &"gossip"
+text = "Heard the fields are thick with boars, and that the Rat is charging for saying so."
+
+[sub_resource type="Resource" id="line_gossip_2"]
+script = ExtResource("line")
+text = "Tell her I said it for free. She'll hate that more than losing the sale."
+next = &"menu"
 
 [resource]
 script = ExtResource("dialogue")
 id = &"nezha"
 default_speaker = "Nezha"
 default_portrait = ExtResource("portrait")
-lines = Array[ExtResource("line")]([SubResource("line_after_boss"), SubResource("line_after_boss_2"), SubResource("line_first"), SubResource("line_first_2")])
+lines = Array[ExtResource("line")]([SubResource("line_after_boss"), SubResource("line_after_boss_2"), SubResource("line_first"), SubResource("line_first_2"), SubResource("line_menu"), SubResource("line_blade"), SubResource("line_blade_2"), SubResource("line_blade_wip"), SubResource("line_blade_report"), SubResource("line_blade_report_2"), SubResource("line_gossip"), SubResource("line_gossip_2")])
 start = &""

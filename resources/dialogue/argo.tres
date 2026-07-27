@@ -17,32 +17,110 @@ script = ExtResource("condition")
 test = 0
 flag = &"met_nezha"
 
-[sub_resource type="Resource" id="cond_no_errand"]
-script = ExtResource("condition")
-test = 0
-negate = true
-flag = &"argo_errand"
-
 [sub_resource type="Resource" id="cond_floor_1_cleared"]
 script = ExtResource("condition")
 test = 1
 number = 1
 
-[sub_resource type="Resource" id="eff_start_errand"]
-script = ExtResource("effect")
-kind = 4
-id = &"argo_first_errand"
+[sub_resource type="Resource" id="cond_errand_not_taken"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_argo_first_errand_started"
 
-[sub_resource type="Resource" id="eff_errand_taken"]
-script = ExtResource("effect")
-kind = 0
-id = &"argo_errand"
+[sub_resource type="Resource" id="cond_errand_taken"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_argo_first_errand_started"
+
+[sub_resource type="Resource" id="cond_errand_ready"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_argo_first_errand_ready"
+
+[sub_resource type="Resource" id="cond_errand_not_ready"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_argo_first_errand_ready"
+
+[sub_resource type="Resource" id="cond_errand_done"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_argo_first_errand_done"
+
+[sub_resource type="Resource" id="cond_errand_not_done"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_argo_first_errand_done"
+
+[sub_resource type="Resource" id="cond_illfang_not_taken"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_argo_illfang_started"
+
+[sub_resource type="Resource" id="cond_illfang_ready"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_argo_illfang_ready"
 
 [sub_resource type="Resource" id="eff_give_map"]
 script = ExtResource("effect")
 kind = 3
 id = &"map_floor_2"
 amount = 1
+
+[sub_resource type="Resource" id="eff_start_errand"]
+script = ExtResource("effect")
+kind = 4
+id = &"argo_first_errand"
+
+[sub_resource type="Resource" id="eff_turn_in_errand"]
+script = ExtResource("effect")
+kind = 5
+id = &"argo_first_errand"
+
+[sub_resource type="Resource" id="eff_start_illfang"]
+script = ExtResource("effect")
+kind = 4
+id = &"argo_illfang"
+
+[sub_resource type="Resource" id="eff_turn_in_illfang"]
+script = ExtResource("effect")
+kind = 5
+id = &"argo_illfang"
+
+[sub_resource type="Resource" id="choice_errand_report"]
+script = ExtResource("choice")
+text = "The fields are handled."
+next = &"errand_report"
+conditions = Array[ExtResource("condition")]([SubResource("cond_errand_ready")])
+
+[sub_resource type="Resource" id="choice_illfang_report"]
+script = ExtResource("choice")
+text = "Illfang's down."
+next = &"illfang_report"
+conditions = Array[ExtResource("condition")]([SubResource("cond_illfang_ready")])
+
+[sub_resource type="Resource" id="choice_errand"]
+script = ExtResource("choice")
+text = "Got any work for me?"
+next = &"errand"
+conditions = Array[ExtResource("condition")]([SubResource("cond_errand_not_taken")])
+
+[sub_resource type="Resource" id="choice_errand_wip"]
+script = ExtResource("choice")
+text = "Still working on it."
+next = &"errand_wip"
+conditions = Array[ExtResource("condition")]([SubResource("cond_errand_taken"), SubResource("cond_errand_not_ready"), SubResource("cond_errand_not_done")])
+
+[sub_resource type="Resource" id="choice_illfang"]
+script = ExtResource("choice")
+text = "Anything bigger than boars?"
+next = &"illfang_offer"
+conditions = Array[ExtResource("condition")]([SubResource("cond_errand_done"), SubResource("cond_illfang_not_taken")])
 
 [sub_resource type="Resource" id="choice_boss"]
 script = ExtResource("choice")
@@ -62,12 +140,6 @@ next = &"map"
 conditions = Array[ExtResource("condition")]([SubResource("cond_floor_1_cleared")])
 hide_when_locked = false
 locked_hint = "(not until Illfang falls)"
-
-[sub_resource type="Resource" id="choice_errand"]
-script = ExtResource("choice")
-text = "Got any work for me?"
-next = &"errand"
-conditions = Array[ExtResource("condition")]([SubResource("cond_no_errand")])
 
 [sub_resource type="Resource" id="choice_leave"]
 script = ExtResource("choice")
@@ -95,7 +167,7 @@ next = &"menu"
 script = ExtResource("line")
 id = &"menu"
 text = "So. What're you after?"
-choices = Array[ExtResource("choice")]([SubResource("choice_boss"), SubResource("choice_nezha"), SubResource("choice_map"), SubResource("choice_errand"), SubResource("choice_leave")])
+choices = Array[ExtResource("choice")]([SubResource("choice_errand_report"), SubResource("choice_illfang_report"), SubResource("choice_errand"), SubResource("choice_errand_wip"), SubResource("choice_illfang"), SubResource("choice_boss"), SubResource("choice_nezha"), SubResource("choice_map"), SubResource("choice_leave")])
 
 [sub_resource type="Resource" id="line_boss"]
 script = ExtResource("line")
@@ -127,12 +199,55 @@ next = &"menu"
 [sub_resource type="Resource" id="line_errand"]
 script = ExtResource("line")
 id = &"errand"
-text = "Sure. Walk the fields south of the gate and tell me what's still moving out there."
-effects = Array[ExtResource("effect")]([SubResource("eff_start_errand"), SubResource("eff_errand_taken")])
+text = "Sure. Walk the fields south of the gate and thin out the boars for me."
+effects = Array[ExtResource("effect")]([SubResource("eff_start_errand")])
 
 [sub_resource type="Resource" id="line_errand_2"]
 script = ExtResource("line")
+text = "And ask the smith by the well what he's been hearing. He talks to people who don't talk to me."
+
+[sub_resource type="Resource" id="line_errand_3"]
+script = ExtResource("line")
 text = "I pay in information, kiddo. Around here that spends better than col."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_errand_wip"]
+script = ExtResource("line")
+id = &"errand_wip"
+text = "Boars, and the smith. Come back when you've done both, not one."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_errand_report"]
+script = ExtResource("line")
+id = &"errand_report"
+text = "Boars thinned and the smith's gossip in one trip. That's a day's work."
+effects = Array[ExtResource("effect")]([SubResource("eff_turn_in_errand")])
+
+[sub_resource type="Resource" id="line_errand_report_2"]
+script = ExtResource("line")
+text = "Potions and what you learned getting them. Told you I pay."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_illfang_offer"]
+script = ExtResource("line")
+id = &"illfang_offer"
+text = "Bigger? Illfang. Put the Kobold Lord down and I'll pay for the exclusive."
+effects = Array[ExtResource("effect")]([SubResource("eff_start_illfang")])
+
+[sub_resource type="Resource" id="line_illfang_offer_2"]
+script = ExtResource("line")
+text = "Being first to know is the only thing worth being in this trade."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_illfang_report"]
+script = ExtResource("line")
+id = &"illfang_report"
+text = "The Kobold Lord's dead and I heard it from you first. Worth every col."
+effects = Array[ExtResource("effect")]([SubResource("eff_turn_in_illfang")])
+
+[sub_resource type="Resource" id="line_illfang_report_2"]
+script = ExtResource("line")
+text = "Take the ring. Floor Two doesn't care how well Floor One went."
 next = &"menu"
 
 [resource]
@@ -140,5 +255,5 @@ script = ExtResource("dialogue")
 id = &"argo"
 default_speaker = "Argo"
 default_portrait = ExtResource("portrait")
-lines = Array[ExtResource("line")]([SubResource("line_greet_return"), SubResource("line_greet_first"), SubResource("line_greet_first_2"), SubResource("line_menu"), SubResource("line_boss"), SubResource("line_boss_2"), SubResource("line_nezha"), SubResource("line_nezha_2"), SubResource("line_map"), SubResource("line_errand"), SubResource("line_errand_2")])
+lines = Array[ExtResource("line")]([SubResource("line_greet_return"), SubResource("line_greet_first"), SubResource("line_greet_first_2"), SubResource("line_menu"), SubResource("line_boss"), SubResource("line_boss_2"), SubResource("line_nezha"), SubResource("line_nezha_2"), SubResource("line_map"), SubResource("line_errand"), SubResource("line_errand_2"), SubResource("line_errand_3"), SubResource("line_errand_wip"), SubResource("line_errand_report"), SubResource("line_errand_report_2"), SubResource("line_illfang_offer"), SubResource("line_illfang_offer_2"), SubResource("line_illfang_report"), SubResource("line_illfang_report_2")])
 start = &""

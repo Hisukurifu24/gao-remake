@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_antidote.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"antidote"
+display_name = "Antidote"
+description = "Bitter enough to be convincing. Clears every debuff you are carrying -- which only\nmeans anything mid-fight, so it does not open outside one."
+icon = ExtResource("icon")
+kind = 0
+rarity = 0
+max_stack = 10
+cures_debuffs = true
+usable_in_battle = true
+usable_in_field = false

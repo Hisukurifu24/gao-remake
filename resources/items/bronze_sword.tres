@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_bronze_sword.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"bronze_sword"
+display_name = "Bronze Sword"
+description = "Starter steel, and barely steel at that. Still better than your fists."
+icon = ExtResource("icon")
+kind = 1
+rarity = 0
+attack_bonus = 3

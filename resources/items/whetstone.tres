@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Item" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_whetstone.png" id="icon"]
+[ext_resource type="Resource" path="res://resources/statuses/focused.tres" id="status"]
+
+[resource]
+script = ExtResource("item")
+id = &"whetstone"
+display_name = "Whetstone"
+description = "A pass along the edge between blows. Sharpens your attack for a few turns."
+icon = ExtResource("icon")
+kind = 0
+rarity = 1
+max_stack = 5
+applies = ExtResource("status")
+usable_in_battle = true
+usable_in_field = false

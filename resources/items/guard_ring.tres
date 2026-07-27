@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_guard_ring.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"guard_ring"
+display_name = "Guard Ring"
+description = "A plain band that takes the edge off a hit you did not see coming."
+icon = ExtResource("icon")
+kind = 3
+rarity = 0
+defense_bonus = 2
+max_hp_bonus = 10

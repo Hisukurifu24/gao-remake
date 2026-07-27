@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="Quest" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
+[ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_level_2"]
+script = ExtResource("condition")
+test = 2
+number = 2
+
+[sub_resource type="Resource" id="obj_hides"]
+script = ExtResource("objective")
+id = &"hides"
+kind = 1
+target = &"boar_hide"
+required = 3
+description = "Bring Nezha 3 boar hides"
+
+[sub_resource type="Resource" id="obj_ovules"]
+script = ExtResource("objective")
+id = &"ovules"
+kind = 1
+target = &"nepent_ovule"
+required = 2
+description = "Bring Nezha 2 nepent ovules"
+
+[sub_resource type="Resource" id="reward_xp"]
+script = ExtResource("effect")
+kind = 2
+amount = 30
+
+[sub_resource type="Resource" id="reward_whetstones"]
+script = ExtResource("effect")
+kind = 3
+id = &"whetstone"
+amount = 2
+
+[resource]
+script = ExtResource("quest")
+id = &"nezha_first_blade"
+title = "An Edge Worth the Climb"
+giver = "Nezha"
+summary = "The smith by the well will put an edge on your blade, but he needs something to work with -- and he will not waste one on somebody who has never been in a fight. Hide for the grip, nepent oil for the stone."
+objectives = Array[ExtResource("objective")]([SubResource("obj_hides"), SubResource("obj_ovules")])
+prerequisites = Array[ExtResource("condition")]([SubResource("cond_level_2")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_whetstones")])

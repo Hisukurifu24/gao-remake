@@ -18,6 +18,10 @@ var player_name := "Kirito"
 var level := 1
 var xp := 0
 
+## Base stats: what the player is worth naked, before equipment. Nothing should
+## read these directly -- use the [code]total_*[/code] accessors below, which are
+## the single point where worn gear folds in. [member hp] is the exception: it is
+## a live value, not a base one.
 var max_hp := 60
 var hp := 60
 var attack := 8
@@ -71,9 +75,30 @@ func _level_up() -> void:
 	# outrunning every monster in Aincrad should take real levels.
 	if level % 2 == 0:
 		speed += 1
-	hp = max_hp
+	hp = total_max_hp()
 	EventBus.leveled_up.emit(level)
-	EventBus.hp_changed.emit(hp, max_hp)
+	EventBus.hp_changed.emit(hp, total_max_hp())
+
+
+# --- stats with equipment ---
+## Base stat plus whatever is worn. [Combatant.from_player] and the HUD read
+## these and never the bare fields, which is how gear reaches combat without a
+## single line of [CombatMath] or [CombatManager] knowing that items exist.
+
+func total_max_hp() -> int:
+	return maxi(1, max_hp + Inventory.bonus(&"max_hp"))
+
+
+func total_attack() -> int:
+	return maxi(1, attack + Inventory.bonus(&"attack"))
+
+
+func total_defense() -> int:
+	return maxi(0, defense + Inventory.bonus(&"defense"))
+
+
+func total_speed() -> int:
+	return maxi(1, speed + Inventory.bonus(&"speed"))
 
 
 # --- Vitals ---
@@ -82,15 +107,23 @@ func _level_up() -> void:
 ## poison on the map) will show up for free.
 
 func set_hp(value: int) -> void:
-	var clamped := clampi(value, 0, max_hp)
+	var clamped := clampi(value, 0, total_max_hp())
 	if clamped == hp:
 		return
 	hp = clamped
-	EventBus.hp_changed.emit(hp, max_hp)
+	EventBus.hp_changed.emit(hp, total_max_hp())
 
 
 func heal_to_full() -> void:
-	set_hp(max_hp)
+	set_hp(total_max_hp())
+
+
+## Re-reads the HP ceiling after something moved it -- taking off a coat with
+## +20 HP has to be able to lower current HP, which [method set_hp] alone cannot
+## do because it only ever moves HP towards a value it was given.
+func refresh_vitals() -> void:
+	hp = clampi(hp, 0, total_max_hp())
+	EventBus.hp_changed.emit(hp, total_max_hp())
 
 
 func is_down() -> bool:
@@ -101,7 +134,7 @@ func is_down() -> bool:
 ## before being staggered, and it should track their durability without being a
 ## third number to balance by hand.
 func max_poise() -> int:
-	return 30 + level * 3 + defense * 2
+	return 30 + level * 3 + total_defense() * 2
 
 
 # --- Floor progression ---

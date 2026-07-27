@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_anneal_blade.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"anneal_blade"
+display_name = "Anneal Blade"
+description = "Illfang's drop, and the reason the front line queued for the first boss.\nA one-handed blade with room to be sharpened further."
+icon = ExtResource("icon")
+kind = 1
+rarity = 2
+attack_bonus = 10
+defense_bonus = 2

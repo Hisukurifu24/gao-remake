@@ -48,18 +48,58 @@ branches and effects; 56 checks cover it in `test/dialogue_test.tscn`.
 Deliberately deferred: dialogue **portraits are one placeholder bust per speaker**
 (no expressions), and there is no history/backlog UI.
 
-### M3 — Inventory & items
-- [ ] `Item` resource (id, name, icon, type, stats, stack size, rarity, description).
-- [ ] `Inventory` autoload: add/remove/stack, weight or slot cap, signals (`item_added`, `item_used`).
-- [ ] Equipment slots (weapon/armor/accessory) that modify player stats.
-- [ ] Inventory UI: grid, tooltips, drag-to-move, use/equip/drop, sort/filter.
+### M3 — Inventory & items ✅
+- [x] `Item` resource (id, name, icon, type, stats, stack size, rarity, description).
+- [x] `Inventory` autoload: add/remove/stack, slot cap, signals (`item_added`, `item_used`).
+- [x] Equipment slots (weapon/armor/accessory) that modify player stats.
+- [x] Inventory UI: grid, rarity colours, detail panel, use/equip/drop, sort.
+- [x] **Consumables in battle** — pulled forward from M4's deferred list, because
+  `Second Wind` being the only heal made a bad opening round unrecoverable.
+- [x] **Mouse and drag-and-drop** — hover to inspect, right- or double-click to
+  use or equip, and drag a stack to reorder it, merge it, wear it, take it off
+  or throw it away.
+
+`Inventory` (autoload) owns the bag, `ui/inventory_screen.tscn` owns pixels, and
+the two meet only over signals — `test/inventory_test.tscn` runs 125 checks with
+no screen instantiated. **I** or **Tab** opens it; one cursor covers both the
+grid and the three equipment slots, and the mouse drives *that* cursor rather
+than a second one — hovering a slot is selecting it.
+
+Dragging added one thing to the model and nothing else: `move_stack(from, to)`,
+which merges into its own kind if there is room, moves to the back if the target
+is past the last used slot, and otherwise swaps. The screen greys out exactly
+what `move_stack` would refuse, because it paints with the same predicates it
+answers drops with — the alternative is a slot that lights up green and then
+does nothing.
+
+Two decisions worth keeping:
+
+- **`EventBus.item_granted` is the world handing something over; `item_added` is
+  the bag confirming it took it.** Loot, chests and dialogue rewards emit the
+  first and Inventory is its only listener. Without the split, a full bag reports
+  success it did not have, and `add()` re-triggers itself.
+- **Gear reaches combat through `GameState.total_*()` and nowhere else.**
+  `Combatant.from_player()` reads those accessors, so a sword is `+6 attack` by
+  the time the fight sees it and no line of `CombatMath` knows items exist. The
+  combat balance numbers did not move, because they were measured with an empty
+  bag and still are.
+
+A **slot cap, not weight** — weight means every item needs a mass and the player
+needs a number to watch, which is a system's worth of tuning for a bag that
+currently holds potions and one coat.
+
+Deliberately deferred: **no currency and no shops** (Argo sells a map for a flag,
+not for money), no crafting despite every monster dropping a material, no
+filtering or splitting a stack in the grid, and item effects are heal / cure /
+apply-a-status only — nothing throws a bomb at an enemy yet.
 
 ### M4 — Turn-based combat ✅
 - [x] Combat overlay separate from the overworld; enter on encounter, return with a result.
 - [x] Turn order by speed, recomputed every round so a slow debuff bites immediately.
 - [x] `Skill` resources; targeting; damage/heal formulas; `StatusEffect`s.
 - [x] Enemy AI (weighted choice + heal/finish heuristics). Party is deliberately 1.
-- [x] Rewards: XP into GameState, loot announced on `EventBus.item_added` for M3.
+- [x] Rewards: XP into GameState, loot announced on `EventBus.item_granted` — into an
+  empty room until M3, which is now the bag.
 - [x] **Visible, avoidable monsters on the map** — pulled forward from M6, because
   without a source of XP the boss gate is unreachable.
 
@@ -78,7 +118,7 @@ playthrough.
 
 Combat is complete as a *system* — it resolves, it terminates, it is balanced
 across all 100 floors. What's below is depth and polish on top of a working
-loop, not gaps in it. Nothing here blocks M3 or M5.
+loop, not gaps in it. Nothing here blocks M5.
 
 *Feel — available any time, no dependencies (see also "Suggestions" below):*
 - [ ] **Timed hits.** The single biggest one: a well-timed press on attack/defend
@@ -96,20 +136,21 @@ loop, not gaps in it. Nothing here blocks M3 or M5.
 - [ ] Combat SFX and music (bundled into M7 with the rest of audio).
 
 *Blocked on another milestone:*
-- [ ] **Items in battle** (M3). `Second Wind` is currently the only way to heal,
-  which makes a bad opening round unrecoverable. Adding an **Item** command means
-  a new entry in `CombatScreen.Command` and a `CombatAction.Kind` to match.
-- [ ] **Loot actually being received** (M3). Every enemy has a populated `loot`
-  array and drops fire on `EventBus.item_added` — into an empty room until
-  Inventory exists.
-- [ ] **Equipment changing combat stats** (M3). `Combatant.from_player()` reads
-  `GameState` directly; gear has to fold in there, not in the combat code.
+- [x] **Items in battle** — landed with M3. `CombatAction.Kind.ITEM` costs the
+  turn but no cooldown and no post-motion; `submit()` re-checks the bag because
+  it can empty between the menu being drawn and the answer arriving.
+- [x] **Loot actually being received** — landed with M3, via
+  `EventBus.item_granted`. Every enemy's `loot` array now names a real `.tres`,
+  and the inventory test fails if one ever doesn't.
+- [x] **Equipment changing combat stats** — landed with M3. Gear folds into
+  `GameState.total_attack()` & co., exactly where this predicted it had to.
 - [ ] **Party of two** (M6). The runner is plural throughout — `_party` is an
   array, `ALL_ALLIES` targeting works, the AI can pick ally targets — but it only
   ever holds one member. `Bestiary._escort_count` is capped at one *because* of
   this; both lift together.
-- [ ] **Kill objectives** (M5). `EventBus.enemy_defeated` fires with the enemy id
-  already; nothing listens.
+- [x] **Kill objectives** — landed with M5. `EventBus.enemy_defeated` already fired
+  with the enemy id; `QuestLog` is now the thing listening, and `CombatManager` did
+  not change a line.
 
 *Design questions worth answering before building further:*
 - [ ] **Damage types / weaknesses.** There are none — no elements, no resistances.
@@ -128,15 +169,63 @@ loop, not gaps in it. Nothing here blocks M3 or M5.
   immediately re-interactable. Fine while monsters are stationary; revisit if they
   ever chase.
 
-### M5 — Quests & progression
-- [ ] `Quest` resource: objectives (kill/collect/talk/reach), rewards, prerequisites, states.
-- [ ] `QuestLog` autoload tracking active/completed; `EventBus` updates objectives from combat/inventory/dialogue.
-- [ ] Quest journal UI + on-screen objective tracker.
+### M5 — Quests & progression ✅
+- [x] `Quest` resource: objectives (kill/collect/talk/reach), rewards, prerequisites, states.
+- [x] `QuestLog` autoload tracking active/ready/completed; `EventBus` updates objectives from combat/inventory/dialogue.
+- [x] Quest journal UI + on-screen objective tracker.
 - [x] Floor-boss gate to progress to the next floor (`BossGate` + `GameState.is_floor_unlocked`).
 - [x] Stat growth per level; the XP curve is in `GameState`, the floor curve in `FloorTuning`.
   The XP curve is **linear, not exponential** — monsters pay out linearly in their
   level, so an exponential curve diverges from them and the climb stalls (measured
   at around floor 17). Changing one without the other re-breaks it.
+
+**The prediction held: quests cost one autoload and no edits anywhere else.** Every
+input a `QuestLog` needed was already being announced into an empty room —
+`enemy_defeated` for kills, `inventory_changed` for collect, `dialogue_finished`
+for talk, `floor_cleared` for reach, and `quest_started`, which Argo's errand had
+been emitting since M2. Combat, inventory, dialogue and the floor system are
+untouched by this milestone and still do not know `QuestLog` exists. `QuestLog`
+(autoload) owns the state, `ui/quest_journal.tscn` and `ui/quest_tracker.tscn` own
+pixels, and 136 checks in `test/quest_test.tscn` run the whole thing with neither
+instantiated.
+
+Four decisions worth keeping:
+
+- **Quest state is mirrored into `GameState` flags** (`quest_<id>_started`,
+  `_ready`, `_done`). That one line of bookkeeping is what lets an NPC gate a
+  line on a quest, and a quest gate itself on another quest, through
+  `DialogueCondition`'s existing `FLAG_SET` test. No `QUEST_COMPLETED` condition
+  type, no dialogue→QuestLog dependency, and one condition language in the game
+  instead of two that drift. Argo's follow-up is gated on the errand's `_done`
+  flag and reads it with a condition written in M2.
+- **A collect objective reads the bag; it does not count deliveries.** Counting
+  `item_added` would let a player satisfy "bring me five hides" by picking five up
+  and throwing them away, and the objective could never go back down. Kills and
+  conversations are the opposite — events with no lasting record, so they have to
+  be tallied when they happen. That split (`QuestObjective.is_state_based`) is the
+  only real decision in the data model, and it is why *ready* can come back off
+  again when the player spends the thing they were asked for.
+- **Prerequisites are `DialogueCondition`s and rewards are `DialogueEffect`s.** A
+  prerequisite asks `GameState` exactly what a dialogue line asks, and a reward
+  does exactly what a dialogue effect does — so a quest paying out by starting the
+  next one needed no code. Both classes are misnamed for the second job; renaming
+  them would rewrite every dialogue `.tres` for a word.
+- **Turning in is a step, not a side effect.** `needs_turn_in` parks a finished
+  quest at `READY` until the player walks back, because "go and tell them" is the
+  half of a quest that makes the giver a character rather than a dispenser. The
+  turn-in re-checks the collect items *and* room for the reward, since a quest
+  that pays into a full bag has destroyed what it paid.
+
+**The materials have a purpose now**, which was the second item on the old
+next-steps list: Nezha's `nezha_first_blade` eats three boar hides and two nepent
+ovules and pays two whetstones, so the field's drop tables feed a real sink
+instead of filling the bag.
+
+Deliberately deferred: **no quest markers on the map or minimap** (the tracker
+names the giver — "report to Argo" — and the town is four buildings wide), no
+timed or failable quests, no branching quests where a choice picks between two
+endings, and **the tracker shows one quest at a time** rather than every live
+objective.
 
 ### M6 — World depth & floor content
 The 100-floor architecture is in (see *Floors of Aincrad* below); this is the pass that
@@ -240,13 +329,13 @@ what M4 actually landed; the rest are still open and cross-referenced from
 
 **Systems that reward mastery**
 - **Skill-tree / build variety** instead of linear stats — one-handed vs. dual-wield vs. rapier playstyles (nod to Kirito's dual-blades, Asuna's rapier). *Today `SkillLibrary.for_level()` is a pure function of level.*
-- **Meaningful loot & crafting.** Rarity tiers, item enhancement/upgrade (SAO's "+N" weapon sharpening), and a blacksmith NPC. Loot with real stat identity beats vendor-trash.
-- **Cooking/consumables buffs** — small, flavorful SAO reference (Asuna's cooking) that gives pre-battle buffs and a reason to gather.
+- ◐ **Meaningful loot & crafting.** Rarity tiers are in, and M5 gave the materials their first sink — Nezha takes hides and ovules for whetstones, so the drops are no longer vendor-trash with nowhere to go. *Actual enhancement (SAO's "+N" sharpening) is still open, and is the natural second use for the same materials and the same smith.*
+- ◐ **Cooking/consumables buffs** — the Whetstone is the shape of it: a battle-only item that buys three turns of `+30%` attack. *Pre-battle buffs are impossible until statuses can live outside a fight — they currently ride on `Combatant`, which is why a field-use item can only heal.*
 
 **Presence & polish (cheap, huge payoff)**
 - ◐ **Juice:** floating damage numbers (crits bigger and oranger) are in. *Hit-stop, screen shake, particle bursts and flash-on-hit are all still open and all view-only — `action_resolved` already carries what they'd need.*
 - ◐ **Diegetic MMO UI** — the green/amber/red cursor colour is in and shared by the HUD and the combat screen. *The menu ring and full in-fiction framing are open.*
-- **NPC schedules / reactive dialogue** — NPCs comment on your progress and cleared floors so the world feels alive.
+- ◐ **NPC schedules / reactive dialogue** — reactive is in and got a second layer with M5: Argo and Nezha now change what they offer based on which quests you hold, how far into them you are, and whether you have reported back, on top of the met/cleared-floor conditions from M2. *Schedules — NPCs being somewhere different at a different hour — are still open, and want a clock first.*
 
 **Scope discipline**
 - ◐ **Party of 1–2 to start.** Currently exactly 1, and the balance is tuned for it — boss escorts are capped at one *because* of it. The runner is already plural (`_party` is an array, ally targeting works), so adding Asuna is a content and UI job, not a rewrite.
@@ -256,13 +345,23 @@ what M4 actually landed; the rest are still open and cross-referenced from
 
 ## Where it stands
 
-M0, M1, M2, M4 and the 100-floor spine are in. Running the project drops you in the Town
-of Beginnings: walk with WASD/arrows, **E** to talk to Argo — ask about the boss, take her
-errand, watch the Floor Two map stay greyed out until Illfang falls — open a chest, walk
+M0, M1, M2, M3, M4, M5 and the 100-floor spine are in. Running the project drops you in the
+Town of Beginnings: walk with WASD/arrows, **E** to talk to Argo — ask about the boss, take
+her errand, watch the Floor Two map stay greyed out until Illfang falls — open a chest, walk
 out the south gate into the field, fight the boars and nepents standing in it, level up,
 then take the labyrinth door in the south-east and fight Illfang for real. Beat him and
 you climb into a generated Floor 2 with its own monsters and its own boss; the same loop
 runs all the way to 100.
+
+Loot now lands somewhere: **I** opens the bag, chests hand over real items, boars
+drop hides, and Illfang drops the Anneal Blade — which you can put on and feel.
+Potions are a command in battle, so a bad opening round is survivable.
+
+And the fighting is now *for* something. Argo's errand is a real quest: the corner
+tracker counts the boars down as you kill them, the smith's gossip ticks off when
+you talk to him, and reporting back pays. Nezha wants three hides and two ovules
+and pays in whetstones, which is where the field's drops finally go. **J** opens
+the journal. Beat Illfang and Argo pays for the exclusive.
 
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
@@ -270,10 +369,12 @@ runs all the way to 100.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 34-check game loop test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 41-check game loop test
 "$GODOT" --headless --path . res://test/floor_test.tscn     # 20-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
+"$GODOT" --headless --path . res://test/inventory_test.tscn # 125-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 73-check combat test
+"$GODOT" --headless --path . res://test/quest_test.tscn     # 136-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -287,20 +388,23 @@ painting maps in the editor, stop running it. `build_biomes.gd` is always safe �
 touches derived resources.
 
 ## Immediate next steps
-1. **M3 inventory**, now the obvious next one — combat already emits
-   `EventBus.item_added` for every loot drop, and enemy `loot` arrays are full of item ids
-   (`anneal_blade`, `boar_hide`, `nepent_ovule`) that nothing yet receives. `Chest.contents`
-   is still a plain string and should become the same `Item` resource. Consumables in
-   battle are the missing combat verb: `Second Wind` is currently the only way to heal.
-2. **M5 quests** — `EventBus.enemy_defeated` and `quest_started` both fire already, so
-   objectives have their inputs the day `QuestLog` exists.
-3. Replace placeholder art when the systems settle, not before.
+1. **M6 readability, starting with terrain/autotiling.** The single biggest visual
+   win on the board and blocked on nothing: TileSet terrain sets plus
+   `set_cells_terrain_connect` so generated rooms get wall edges and corners
+   instead of reading as flat rectangles. Every one of the 99 generated floors
+   benefits at once. Raising floor/wall contrast in the `castle` and `sky` palettes
+   is the cheap half of the same job.
+2. **M6 authored content, now that quests can carry it.** The other nine milestone
+   floors are each a `.tres` plus a hand-built scene, and a milestone floor with a
+   quest on it is a different thing from one without. Floor 10 first.
+3. **M7 save/load is the one thing getting more expensive with every milestone.**
+   `QuestLog` just added a third autoload's worth of state to serialise
+   (`_active`/`_completed`/`_order`/`_tracked`), on top of `GameState` and
+   `Inventory`. `world_seed` **must** be in the save or every generated floor
+   reshuffles on load.
+4. Replace placeholder art when the systems settle, not before.
 
-**Available any time, not blocked on anything:** the two rendering items at the top of M6
-(terrain/autotiling, palette contrast). Autotiling is the single biggest visual win on the
-board — every generated floor benefits at once.
-
-**Cheapest combat-feel wins**, if the fights start to feel flat before M3 lands: the
+**Cheapest combat-feel wins**, if the fights start to feel flat: the
 stagger *bonus turn* (poise already costs the victim a turn; granting the attacker one is
 a few lines in `CombatManager._take_turn`), and hit-stop/shake in the combat screen, which
 is a view-only change. The full list of what M4 left on the table — with why, and what

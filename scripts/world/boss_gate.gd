@@ -59,7 +59,9 @@ func _fight() -> void:
 ## the floor also puts its monsters back, which is the point: the way through a
 ## wall you can't clear is levels.
 func _revive() -> void:
-	GameState.set_hp(maxi(1, roundi(GameState.max_hp * DEFEAT_HP_RATIO)))
+	# total_max_hp(), not the base stat: a coat with +HP has to count towards
+	# what "on your last legs" means.
+	GameState.set_hp(maxi(1, roundi(GameState.total_max_hp() * DEFEAT_HP_RATIO)))
 	EventBus.message_requested.emit("", PackedStringArray([
 		"%s stands over you." % _boss_label(),
 		"You come to at the entrance to the floor, barely.",

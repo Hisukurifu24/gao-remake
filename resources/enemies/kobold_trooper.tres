@@ -24,5 +24,5 @@ skill_bias = 0.45
 xp_reward = 10
 xp_growth = 4.0
 skills = Array[ExtResource("skill")]([ExtResource("shield_bash")])
-loot = Array[StringName]([&"kobold_blade"])
+loot = Array[StringName]([&"kobold_fang"])
 loot_chance = 0.3

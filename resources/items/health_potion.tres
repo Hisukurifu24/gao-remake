@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_health_potion.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"health_potion"
+display_name = "Health Potion"
+description = "Thicker, redder, and worth three of the small ones. Restores most of your health."
+icon = ExtResource("icon")
+kind = 0
+rarity = 1
+max_stack = 10
+heal_percent = 60
+usable_in_battle = true
+usable_in_field = true

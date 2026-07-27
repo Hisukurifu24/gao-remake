@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_map_floor_2.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"map_floor_2"
+display_name = "Map of Floor Two"
+description = "Argo's own survey of the second floor, sold at Argo's own prices.\nThe labyrinth is marked; the boss room is not."
+icon = ExtResource("icon")
+kind = 5
+rarity = 1

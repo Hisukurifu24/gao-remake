@@ -71,7 +71,10 @@ func _on_combat_finished(_result: CombatResult) -> void:
 
 func _refresh() -> void:
 	# The player keeps its target while talking; the prompt just steps aside.
-	if _target == null or DialogueRunner.is_running() or CombatManager.is_running():
+	# The input lock covers everything else that takes over the screen -- the
+	# bag, a map fade -- without this file having to know about any of them.
+	if _target == null or GameState.is_input_locked() \
+			or DialogueRunner.is_running() or CombatManager.is_running():
 		_prompt.hide()
 		return
 	_prompt_label.text = "[E]  %s" % _target.get_prompt()
@@ -79,9 +82,11 @@ func _refresh() -> void:
 
 
 func _refresh_vitals() -> void:
-	var ratio := float(GameState.hp) / float(maxi(1, GameState.max_hp))
+	# total_max_hp(), not max_hp: a +HP coat has to show up in the bar it raised.
+	var max_hp := GameState.total_max_hp()
+	var ratio := float(GameState.hp) / float(maxi(1, max_hp))
 	_vitals_label.text = "%s  Lv %d   %d/%d" % [
-			GameState.player_name, GameState.level, GameState.hp, GameState.max_hp]
+			GameState.player_name, GameState.level, GameState.hp, max_hp]
 	_hp_bar.value = ratio * 100.0
 
 	var fill := StyleBoxFlat.new()

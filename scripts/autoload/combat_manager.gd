@@ -129,6 +129,13 @@ func submit(action: CombatAction) -> bool:
 		CombatAction.Kind.FLEE:
 			if not _encounter.can_flee:
 				return false
+		CombatAction.Kind.ITEM:
+			# Checked here and not only in the menu: the bag can empty between
+			# the menu being drawn and the answer arriving.
+			if action.item == null or not action.item.usable_in_battle:
+				return false
+			if not action.item.has_effect() or not Inventory.has(action.item.id):
+				return false
 	_awaiting = false
 	_pending = action
 	_command_submitted.emit(action)
@@ -266,6 +273,38 @@ func _resolve(actor: Combatant, action: CombatAction, result: CombatResult) -> v
 			await _resolve_flee(actor, result)
 		CombatAction.Kind.SKILL:
 			await _resolve_skill(actor, action)
+		CombatAction.Kind.ITEM:
+			await _resolve_item(actor, action)
+
+
+## Spending an item costs the turn but no cooldown and no post-motion: reaching
+## for a bottle is the cheap, safe, always-available answer to a bad round, and
+## it is limited by how many you brought rather than by a timer.
+func _resolve_item(actor: Combatant, action: CombatAction) -> void:
+	var item := action.item
+	# Emptied first. An item is spent whether or not it healed for its full
+	# value -- a potion drunk at 90% HP is a wasted potion, not a free one.
+	if not Inventory.consume(item.id):
+		return
+
+	# Items only ever land on your own side, and only on someone still standing.
+	var allies := _living(_party if actor.is_player else _enemies)
+	var target := action.target
+	if target == null or not target.is_alive() or target not in allies:
+		target = actor
+
+	var report := CombatReport.make(CombatReport.Kind.ITEM, actor,
+			"%s uses %s." % [actor.display_name, item.label()])
+	report.item = item
+
+	var hit := CombatReport.Hit.new(target)
+	hit.amount = target.heal(item.heal_amount(target.max_hp))
+	if item.cures_debuffs:
+		target.clear_debuffs()
+	if item.applies != null:
+		target.apply_status(item.applies)
+	report.add_hit(hit)
+	await _report(report)
 
 
 func _resolve_flee(actor: Combatant, result: CombatResult) -> void:
@@ -434,7 +473,7 @@ func _end(result: CombatResult) -> void:
 		if result.xp > 0:
 			GameState.grant_xp(result.xp)
 		for item_id in result.loot:
-			EventBus.item_added.emit(item_id, 1)
+			EventBus.item_granted.emit(item_id, 1)
 
 	_actor = null
 	_awaiting = false

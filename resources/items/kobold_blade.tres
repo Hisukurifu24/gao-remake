@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_kobold_blade.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"kobold_blade"
+display_name = "Kobold Shortsword"
+description = "Taken off a Ruin Kobold Trooper. Crude, heavy, and it bites."
+icon = ExtResource("icon")
+kind = 1
+rarity = 1
+attack_bonus = 6
+speed_bonus = -1

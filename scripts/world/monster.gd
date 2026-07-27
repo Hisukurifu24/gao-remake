@@ -58,7 +58,7 @@ func _level() -> int:
 ## Losing to a roaming monster costs HP and nothing else -- no reload, no lost
 ## progress. The monster is still standing there, which is punishment enough.
 func _knock_out() -> void:
-	GameState.set_hp(maxi(1, roundi(GameState.max_hp * 0.35)))
+	GameState.set_hp(maxi(1, roundi(GameState.total_max_hp() * 0.35)))
 	EventBus.message_requested.emit("", PackedStringArray([
 		"%s knocks you flat. You crawl out of reach." % display_name,
 	]))
