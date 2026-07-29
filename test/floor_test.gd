@@ -134,6 +134,15 @@ func _run() -> void:
 	_check(broken.is_empty(), "all 99 generated floors are completable%s" % (
 			"" if broken.is_empty() else " -- " + ", ".join(broken)))
 
+	# --- and so is every authored one ---
+	var broken_authored: PackedStringArray = PackedStringArray()
+	for floor_number in FloorRegistry.AUTHORED:
+		var problem := _audit_authored(floor_number)
+		if not problem.is_empty():
+			broken_authored.append(problem)
+	_check(broken_authored.is_empty(), "every authored floor is completable%s" % (
+			"" if broken_authored.is_empty() else " -- " + ", ".join(broken_authored)))
+
 
 # --- helpers ---------------------------------------------------------------
 
@@ -238,6 +247,113 @@ func _sealed(walls: TileMapLayer, cell: Vector2i) -> bool:
 	return walls.get_cell_source_id(cell) != -1
 
 
+## The same completability guarantee, for the floors a person built by hand.
+##
+## Hand-authoring fails at this exactly the way generation does -- a door with no
+## path to it is invisible until somebody plays that far -- and it is worse here,
+## because there is no seed to blame and no second floor that got it right. It
+## also has to cope with a shape generation never produces: an authored floor may
+## span several maps. Floor 1 is a town and a field joined by a MapExit with the
+## labyrinth door in the field, so the walk follows exits instead of stopping at
+## the first map it is handed.
+func _audit_authored(floor_number: int) -> String:
+	# [map, the spawn point it was entered at, a name for error messages]
+	var pending: Array = [[FloorRegistry.build_floor(floor_number), &"", "floor %d" % floor_number]]
+	var visited := {}
+	var found_gate := false
+	var found_exit := false
+	var problem := ""
+
+	while not pending.is_empty():
+		var job: Array = pending.pop_back()
+		var map: Node2D = job[0]
+		var arrival: StringName = job[1]
+		var label: String = job[2]
+		if map == null:
+			problem = "%s built nothing" % label
+			break
+
+		var walls := map.get_node_or_null("Walls") as TileMapLayer
+		var spawns := map.get_node_or_null("SpawnPoints")
+		if walls == null or spawns == null or spawns.get_child_count() == 0 \
+				or map.get_node_or_null("Player") == null:
+			problem = "%s is missing Walls/SpawnPoints/Player" % label
+			map.free()
+			break
+
+		var marker := spawns.get_node_or_null(String(arrival)) as Node2D
+		if marker == null:
+			marker = spawns.get_child(0) as Node2D
+		var start: Vector2i = walls.local_to_map(marker.position)
+		if walls.get_cell_source_id(start) != -1:
+			problem = "%s spawns inside a wall" % label
+			map.free()
+			break
+
+		# Bounded, unlike the generated-floor fill: an authored map is allowed
+		# holes in its border where a MapExit sits in them, and an unbounded fill
+		# walks out through one of those and expands across empty space forever.
+		var reachable := _flood_within(walls, start, walls.get_used_rect())
+		var stranded: PackedStringArray = PackedStringArray()
+		for child in map.get_children():
+			var node := child as Node2D
+			if node == null or node is TileMapLayer:
+				continue
+			if node.name == "SpawnPoints" or node.name == "Player":
+				continue
+			if not reachable.has(walls.local_to_map(node.position)):
+				stranded.append(node.name)
+				continue
+			if node.name == "BossGate" and int(node.get(&"floor_number")) == floor_number:
+				found_gate = true
+			if "target_map" in node and not str(node.get(&"target_map")).is_empty():
+				found_exit = true
+				var target := str(node.get(&"target_map"))
+				var spawn: StringName = node.get(&"target_spawn")
+				var key := "%s|%s" % [target, spawn]
+				if not visited.has(key) and ResourceLoader.exists(target):
+					visited[key] = true
+					pending.append([(load(target) as PackedScene).instantiate(), spawn, target])
+
+		if not stranded.is_empty():
+			problem = "%s strands %s" % [label, ", ".join(stranded)]
+			map.free()
+			break
+
+		# A floor with no way off it is a floor whose walls are all there is
+		# between the player and the void, so the outer ring has to hold -- the
+		# same check the generated floors get, and for the same reason: autotiling
+		# rewrote every one of those walls. A floor that *does* have a MapExit has
+		# legitimate holes in its border (Floor 1's town opens onto its field
+		# through one), and they are its exits rather than mistakes.
+		if not found_exit:
+			var used := walls.get_used_rect()
+			for x in range(used.position.x, used.end.x):
+				if not _sealed(walls, Vector2i(x, used.position.y)) \
+						or not _sealed(walls, Vector2i(x, used.end.y - 1)):
+					problem = "%s has a hole in its outer wall" % label
+					break
+			for y in range(used.position.y, used.end.y):
+				if not _sealed(walls, Vector2i(used.position.x, y)) \
+						or not _sealed(walls, Vector2i(used.end.x - 1, y)):
+					problem = "%s has a hole in its outer wall" % label
+					break
+
+		map.free()
+		if not problem.is_empty():
+			break
+
+	for job in pending:
+		if job[0] != null:
+			(job[0] as Node).free()
+
+	if not problem.is_empty():
+		return problem
+	if not found_gate:
+		return "floor %d has no reachable boss gate" % floor_number
+	return ""
+
+
 func _flood(walls: TileMapLayer, from: Vector2i) -> Dictionary:
 	var seen := {from: true}
 	var queue: Array[Vector2i] = [from]
@@ -246,6 +362,23 @@ func _flood(walls: TileMapLayer, from: Vector2i) -> Dictionary:
 		for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
 			var next: Vector2i = cell + offset
 			if seen.has(next) or walls.get_cell_source_id(next) != -1:
+				continue
+			seen[next] = true
+			queue.append(next)
+	return seen
+
+
+## [method _flood], kept inside [param bounds]. See its one caller for why.
+func _flood_within(walls: TileMapLayer, from: Vector2i, bounds: Rect2i) -> Dictionary:
+	var seen := {from: true}
+	var queue: Array[Vector2i] = [from]
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_back()
+		for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var next: Vector2i = cell + offset
+			if seen.has(next) or not bounds.has_point(next):
+				continue
+			if walls.get_cell_source_id(next) != -1:
 				continue
 			seen[next] = true
 			queue.append(next)

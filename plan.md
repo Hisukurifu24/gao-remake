@@ -245,7 +245,9 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
 *Generation depth (wants combat first):*
 - [ ] Floor-shape variety: not every floor should be a full dungeon crawl. Short
   field-and-boss floors between the big ones — the anime skips floors for this reason.
-- [ ] Town hubs / settlements on generated floors; currently dungeon-only.
+- [ ] Town hubs / settlements on *generated* floors; still dungeon-only. Ashlow (Floor 10)
+  is the authored proof that a hub belongs on a floor rather than only at the bottom of
+  the tower — what's open is teaching the generator to build one.
 - [x] Enemy spawning on the map (visible, avoidable), populated from the biome's enemy
   pool and `FloorTuning.enemy_level`. **Landed early with M4** — the boss gate is
   unreachable without something to level on. Monsters have no collision, so they can
@@ -254,9 +256,44 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
   `Bestiary._escort_count` is where that cap lifts.
 
 *Authored content (wants combat and dialogue first):*
-- [ ] The other 9 milestone floors (each is a `.tres` + a hand-built scene).
+- [x] **Floor 10 — Ashlow Wood.** The first milestone floor above the starting one, and
+  the pattern for the other eight. See below.
+- [ ] The other 8 milestone floors (each is a `.tres` + a hand-built scene). 25 next.
 - [ ] **Floor 100: the final boss — *you* — as an authored multi-phase fight.** The one
   encounter that should be hand-built end to end.
+
+#### Floor 10 — Ashlow Wood ✅
+
+A logging village that cannot reach its own tree line, three glades joined in a loop, and
+a hollow at the far corner with **Nerith the Hollow Warden** in it. Built by
+`tools/build_floor_10.gd`, defined by `resources/floors/floor_10.tres`, registered in
+`FloorRegistry.AUTHORED` and `Bestiary.AUTHORED_BOSSES`.
+
+Four decisions worth keeping:
+
+- **One map, where Floor 1 is two.** Floor 1 splits its town and its field across a
+  `MapExit`, which works there because the boss is a one-way trip you take once. Ashlow's
+  second quest sends you to the Warden and then *back to the village to report*, so the
+  walk home has to exist — and one map is the version of that walk that costs no fade, no
+  second scene and no second set of spawn points.
+- **Authored does not mean exempt from the curve.** Nine monsters is
+  `FloorTuning.monster_count(10)` and level 12 is `FloorTuning.enemy_level(10)`; what is
+  authored is *where* they stand, not how many or how hard. The boss went in at numbers
+  near the archetype it replaced and the combat suite's measured floor-10 win rate did not
+  move.
+- **A quest handed out by another quest's reward.** "Past the Tree Line" pays out by
+  starting "What the Wood Is Hiding", whose prerequisite is the first one's `_done` flag.
+  That only works because `turn_in()` sets the flag *before* it applies the rewards — which
+  was a comment in `QuestLog` and is now a check in `test/quest_test.tscn`. No new
+  machinery: the arrangement M5 predicted would be free actually was.
+- **The floor test walks authored floors too, and it had to learn a new shape to do it.**
+  Hand-building strands a boss door exactly the way generation does, with no seed to blame.
+  The walk follows `MapExit`s, because an authored floor may span several maps — Floor 1's
+  door is in the field, not the town, which is why that floor had never been checked at all.
+  Its flood fill is *bounded*, unlike the generated one: an authored map is allowed holes in
+  its border where an exit sits in them, and an unbounded fill walks out through Floor 1's
+  south gate and expands across empty space forever. That was not a hypothetical — it hung
+  the suite the first time it ran.
 
 Three decisions worth keeping from the autotiling pass:
 
@@ -300,7 +337,7 @@ which it got.
 
 | | |
 |---|---|
-| **Authored** | Floors 1, 10, 25, 40, 50, 60, 74, 80, 90, 100 (schedule in `FloorTuning.is_milestone`). Only floor 1 exists so far. |
+| **Authored** | Floors 1, 10, 25, 40, 50, 60, 74, 80, 90, 100 (schedule in `FloorTuning.is_milestone`). Floors 1 and 10 exist so far. |
 | **Generated** | The other ~90. Rooms joined by L-corridors, a boss room at the far end, chests, stairs down. |
 | **Biomes** | Ten bands of ten: meadow → forest → cave → ruins → swamp → desert → ice → volcanic → sky → **Ruby Palace** (90–100). |
 | **Determinism** | Seed is `hash(world_seed, floor_number)`. Floor 37 is always the same floor 37 *in that save*, so quests can reference it and bugs reproduce. |
@@ -308,8 +345,10 @@ which it got.
 | **Bosses** | 10 affixes × 10 archetypes = 100 distinct generated names, deterministic per floor. Milestone floors override with authored bosses. |
 
 `test/floor_test.tscn` generates **all 99 non-authored floors and flood-fills each one** to
-prove the boss door and every chest are reachable. An unfinishable dungeon is the bug
-procgen reliably ships and it cannot be caught by playing.
+prove the boss door and every chest are reachable, and **walks every authored floor the
+same way**, following map exits between the maps one floor is made of. An unfinishable
+dungeon is the bug procgen reliably ships and it cannot be caught by playing; a
+hand-authored one fails at it just as easily and with nothing to blame.
 
 ### Extending it
 - **New biome**: a palette entry in `tools/gen_placeholder_art.py` + a row in
@@ -400,15 +439,22 @@ match.
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
 
+And the climb now has a second place to stop. **Floor 10 is Ashlow Wood**: you come up the
+stairs into a logging village that has not reached its own tree line in a month, Rue wants
+four wolves out of the glades, Sable has been mapping the deep hollow in pencil for a year
+and can finally tell you why, and Nerith the Hollow Warden is at the end of it with the
+Heartwood Blade. Nine floors of generated dungeon on either side, and this one was built by
+hand.
+
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 41-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 24-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 25-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 125-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 73-check combat test
-"$GODOT" --headless --path . res://test/quest_test.tscn     # 136-check quest test
+"$GODOT" --headless --path . res://test/quest_test.tscn     # 153-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -416,6 +462,7 @@ python3 tools/gen_placeholder_art.py
 "$GODOT" --headless --path . --import                       # not optional -- see below
 "$GODOT" --headless --path . --script res://tools/build_biomes.gd
 "$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd
+"$GODOT" --headless --path . --script res://tools/build_floor_10.gd
 ```
 
 ⚠ The `--import` step is load-bearing, not housekeeping. `build_biomes.gd` reads the
@@ -423,14 +470,17 @@ python3 tools/gen_placeholder_art.py
 atlases are now 7 rows rather than 1, a stale cache means the wall blob is cut from
 nothing at all.
 
-⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn` / `field.tscn`. Once you start
-painting maps in the editor, stop running it. `build_biomes.gd` is always safe — it only
+⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn` / `field.tscn`, and
+`build_floor_10.gd` **overwrites** `floor_10.tscn`. Once you start painting a map in the
+editor, stop running the tool that writes it. `build_biomes.gd` is always safe — it only
 touches derived resources.
 
 ## Immediate next steps
-1. **M6 authored content, now that quests can carry it.** The other nine milestone
-   floors are each a `.tres` plus a hand-built scene, and a milestone floor with a
-   quest on it is a different thing from one without. Floor 10 first.
+1. **Floor 25, on the pattern Floor 10 set.** Ashlow answered the questions that were
+   actually open — how big a hand-built floor is, where the hub goes, how a floor's quests
+   hang off its NPCs, and what has to be true before the test suite will accept one — so
+   the next milestone floor is a content job rather than a design one. Twenty-five sits in
+   the cave band, so it wants a shape Ashlow's open glades deliberately weren't.
 2. **M7 save/load is the one thing getting more expensive with every milestone.**
    `QuestLog` just added a third autoload's worth of state to serialise
    (`_active`/`_completed`/`_order`/`_tracked`), on top of `GameState` and

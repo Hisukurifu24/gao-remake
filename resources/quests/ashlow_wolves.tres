@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="Quest" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
+[ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_floor_9_cleared"]
+script = ExtResource("condition")
+test = 1
+number = 9
+
+[sub_resource type="Resource" id="obj_wolves"]
+script = ExtResource("objective")
+id = &"wolves"
+kind = 0
+target = &"dire_wolf"
+required = 4
+description = "Cull 4 Dire Wolves from the Ashlow glades"
+
+[sub_resource type="Resource" id="reward_xp"]
+script = ExtResource("effect")
+kind = 2
+amount = 140
+
+[sub_resource type="Resource" id="reward_potions"]
+script = ExtResource("effect")
+kind = 3
+id = &"health_potion"
+amount = 2
+
+[sub_resource type="Resource" id="reward_next"]
+script = ExtResource("effect")
+kind = 4
+id = &"ashlow_warden"
+
+[resource]
+script = ExtResource("quest")
+id = &"ashlow_wolves"
+title = "Past the Tree Line"
+giver = "Rue"
+summary = "Ashlow fells timber, or it would if the pack in the glades let anyone reach the tree line. Rue wants four of them down -- not the whole pack, just enough that the rest remember to be afraid."
+objectives = Array[ExtResource("objective")]([SubResource("obj_wolves")])
+prerequisites = Array[ExtResource("condition")]([SubResource("cond_floor_9_cleared")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_potions"), SubResource("reward_next")])

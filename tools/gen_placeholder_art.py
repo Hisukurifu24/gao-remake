@@ -362,6 +362,7 @@ BATTLERS = {
     "golem":     ("golem",    (122, 118, 126), (172, 148, 96)),
     "drake":     ("drake",    (154, 82, 62),   (236, 176, 96)),
     "illfang":   ("humanoid", (152, 88, 58),   (228, 96, 72)),
+    "warden":    ("plant",    (98, 78, 54),    (168, 202, 118)),
 }
 
 MENACE = (238, 96, 84, 255)  # every enemy's eye colour -- reads at 64px
@@ -529,10 +530,12 @@ ITEM_ICONS = {
     "bronze_sword":   ("sword",  (186, 132, 72)),
     "kobold_blade":   ("sword",  (150, 142, 124)),
     "anneal_blade":   ("sword",  (108, 168, 220)),
+    "heartwood_blade": ("sword", (168, 200, 116)),
     "leather_coat":   ("coat",   (140, 100, 64)),
     "blackwyrm_coat": ("coat",   (66, 70, 96)),
     "guard_ring":     ("ring",   (204, 180, 110)),
     "swift_charm":    ("ring",   (114, 200, 206)),
+    "warden_seal":    ("ring",   (126, 176, 100)),
     "boar_hide":      ("pelt",   (140, 102, 72)),
     "wolf_fang":      ("fang",   (222, 228, 238)),
     "bat_wing":       ("pelt",   (118, 98, 140)),
@@ -665,6 +668,8 @@ if __name__ == "__main__":
     portrait("portrait_kirito.png", (58, 82, 132, 255), (206, 210, 220, 255))
     portrait("portrait_argo.png", (124, 96, 66, 255), (208, 176, 108, 255), (152, 118, 72, 255))
     portrait("portrait_nezha.png", (86, 96, 116, 255), (188, 128, 76, 255))
+    portrait("portrait_rue.png", (72, 104, 66, 255), (198, 172, 108, 255), (128, 76, 52, 255))
+    portrait("portrait_sable.png", (62, 66, 92, 255), (172, 180, 200, 255), (36, 34, 44, 255))
     chest()
     boss_gate()
     for battler_name, (shape, body, accent) in BATTLERS.items():

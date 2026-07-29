@@ -9,6 +9,7 @@ extends Node
 ## directory listing is unreliable in exported builds.
 const AUTHORED := {
 	1: "res://resources/floors/floor_01.tres",
+	10: "res://resources/floors/floor_10.tres",
 }
 
 ## Which biome a floor belongs to. Ten bands of ten -- the higher you climb the

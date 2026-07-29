@@ -16,6 +16,7 @@ const ENEMY_PATH := "res://resources/enemies/%s.tres"
 const ENEMIES: PackedStringArray = [
 	"frenzy_boar", "dire_wolf", "little_nepent", "kobold_trooper", "cave_bat",
 	"ruin_wraith", "lizardman_soldier", "stone_golem", "ember_drake", "illfang",
+	"hollow_warden",
 ]
 
 ## Which monsters roam which biome band. Order matters: the first entry is the
@@ -51,6 +52,7 @@ const BOSS_TEMPLATES := {
 ## Milestone floors whose boss is a character rather than an archetype.
 const AUTHORED_BOSSES := {
 	1: &"illfang",
+	10: &"hollow_warden",
 }
 
 ## What being the floor boss is worth on top of the template's own numbers.

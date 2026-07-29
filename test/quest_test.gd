@@ -19,6 +19,8 @@ extends Node
 const ERRAND := &"argo_first_errand"
 const BLADE := &"nezha_first_blade"
 const ILLFANG := &"argo_illfang"
+const WOLVES := &"ashlow_wolves"
+const WARDEN := &"ashlow_warden"
 
 var _failures: PackedStringArray = PackedStringArray()
 var _checks := 0
@@ -64,6 +66,7 @@ func _run() -> void:
 	_test_rewards_and_chaining()
 	_test_auto_complete()
 	_test_flags_and_dialogue()
+	_test_ashlow()
 	_test_journal_ordering()
 
 
@@ -496,21 +499,21 @@ func _test_flags_and_dialogue() -> void:
 	_reset()
 	GameState.set_flag(&"met_argo")
 	var argo: Dialogue = load("res://resources/dialogue/argo.tres")
-	_check(_argo_offers(argo, "Got any work for me?"), "Argo offers the errand")
-	_check(not _argo_offers(argo, "The fields are handled."), "and does not offer to take it back yet")
-	_check(not _argo_offers(argo, "Still working on it."), "nor asks how it is going")
+	_check(_offers(argo, "Got any work for me?"), "Argo offers the errand")
+	_check(not _offers(argo, "The fields are handled."), "and does not offer to take it back yet")
+	_check(not _offers(argo, "Still working on it."), "nor asks how it is going")
 
 	QuestLog.start(ERRAND)
-	_check(not _argo_offers(argo, "Got any work for me?"), "once taken the offer is gone")
-	_check(_argo_offers(argo, "Still working on it."), "and she asks how it is going instead")
+	_check(not _offers(argo, "Got any work for me?"), "once taken the offer is gone")
+	_check(_offers(argo, "Still working on it."), "and she asks how it is going instead")
 
 	_finish_errand_objectives()
-	_check(_argo_offers(argo, "The fields are handled."), "with it done she will take the report")
-	_check(not _argo_offers(argo, "Still working on it."), "and stops asking")
+	_check(_offers(argo, "The fields are handled."), "with it done she will take the report")
+	_check(not _offers(argo, "Still working on it."), "and stops asking")
 
 	QuestLog.turn_in(ERRAND)
-	_check(not _argo_offers(argo, "The fields are handled."), "reported once is reported")
-	_check(_argo_offers(argo, "Anything bigger than boars?"),
+	_check(not _offers(argo, "The fields are handled."), "reported once is reported")
+	_check(_offers(argo, "Anything bigger than boars?"),
 			"and the follow-up is on offer")
 
 	# The one failure mode of gating quests in dialogue: a choice offered for a
@@ -518,10 +521,66 @@ func _test_flags_and_dialogue() -> void:
 	# at the moment it is visible.
 	_reset()
 	GameState.set_flag(&"met_argo")
-	_check(_argo_offers(argo, "Got any work for me?") == QuestLog.can_start(ERRAND),
+	_check(_offers(argo, "Got any work for me?") == QuestLog.can_start(ERRAND),
 			"the errand offer appears exactly when the errand can be started")
-	_check(_argo_offers(argo, "Anything bigger than boars?") == QuestLog.can_start(ILLFANG),
+	_check(_offers(argo, "Anything bigger than boars?") == QuestLog.can_start(ILLFANG),
 			"and the follow-up offer tracks its own prerequisites")
+
+
+# --- floor 10, Ashlow ------------------------------------------------------
+
+## Ashlow's pair of quests, and the one arrangement Floor 1 never exercised:
+## a quest handed out by [b]another quest's reward[/b] rather than by a dialogue
+## choice. Its prerequisite is the first quest's [code]_done[/code] flag, so it
+## can only land because [method QuestLog.turn_in] sets that flag before it pays
+## the rewards. That ordering is a comment in QuestLog today; here it is a check.
+func _test_ashlow() -> void:
+	print("\n-- floor 10, Ashlow --")
+	_reset()
+
+	var rue: Dialogue = load("res://resources/dialogue/rue.tres")
+	var sable: Dialogue = load("res://resources/dialogue/sable.tres")
+
+	_check(QuestLog.state_of(WOLVES) == QuestLog.State.LOCKED,
+			"Ashlow's first job is locked until Floor 9 falls")
+	_check(not _offers(rue, "I'll thin them out."), "and Rue does not offer it")
+
+	GameState.clear_floor(9)
+	_check(_offers(rue, "I'll thin them out.") == QuestLog.can_start(WOLVES),
+			"Rue's offer appears exactly when the job can be started")
+
+	QuestLog.start(WOLVES)
+	_check(not _offers(rue, "I'll thin them out."), "once taken the offer is gone")
+	_check(_offers(rue, "Still counting them."), "and he asks how it is going instead")
+
+	for i in QuestLibrary.get_quest(WOLVES).objective(&"wolves").required:
+		EventBus.enemy_defeated.emit(&"dire_wolf")
+	_check(QuestLog.is_ready(WOLVES), "four wolves is four wolves")
+	_check(_offers(rue, "The pack won't be back."), "and Rue will take the report")
+
+	_check(QuestLog.state_of(WARDEN) == QuestLog.State.LOCKED,
+			"the follow-up is locked while the first job is still open")
+	QuestLog.turn_in(WOLVES)
+	_check(QuestLog.is_active(WARDEN), "turning the first job in starts the follow-up")
+	_check(Inventory.count(&"health_potion") == 2, "and pays the potions it promised")
+
+	# Two objectives, and neither is the whole job. Note that reading Sable's
+	# menu *is* the TALK objective: _offers finishes a real conversation with her.
+	_check(not _offers(sable, "The hollow is empty. I made it empty."),
+			"Sable has nothing to take on the way out")
+	var survey := QuestLibrary.get_quest(WARDEN).objective(&"survey")
+	_check(QuestLog.progress_for(WARDEN).of(survey) == survey.required,
+			"but hearing her out ticks the survey off")
+	_check(not QuestLog.is_ready(WARDEN), "which is still not a cleared floor")
+
+	GameState.clear_floor(10)
+	_check(QuestLog.is_ready(WARDEN), "putting the Warden down finishes it")
+	_check(_offers(sable, "The hollow is empty. I made it empty."),
+			"and Sable's report branch opens exactly then")
+
+	QuestLog.turn_in(WARDEN)
+	_check(QuestLog.is_completed(WARDEN), "Ashlow's chain closes out")
+	_check(Inventory.count(&"warden_seal") == 1, "and the seal is in the bag")
 
 
 # --- the journal's view ---------------------------------------------------
@@ -633,9 +692,15 @@ func _fill_bag() -> void:
 		Inventory.add_id(&"leather_coat", 1)
 
 
-## Opens Argo's menu, reads whether [param text] is a selectable choice, closes it.
-func _argo_offers(argo: Dialogue, text: String) -> bool:
-	DialogueRunner.start(argo)
+## Opens an NPC's menu, reads whether [param text] is a selectable choice, closes
+## it again.
+##
+## Closing counts as finishing the conversation, so this emits
+## [signal EventBus.dialogue_finished] like any other talk -- which is correct,
+## and which a TALK objective watching this NPC will act on. Ask in the order the
+## player would.
+func _offers(dialogue: Dialogue, text: String) -> bool:
+	DialogueRunner.start(dialogue)
 	for i in 12:
 		if DialogueRunner.is_choosing():
 			break

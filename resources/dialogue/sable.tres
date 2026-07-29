@@ -1,0 +1,132 @@
+[gd_resource type="Resource" script_class="Dialogue" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/placeholder/portrait_sable.png" id="portrait"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue.gd" id="dialogue"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_line.gd" id="line"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_choice.gd" id="choice"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_warden_taken"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_ashlow_warden_started"
+
+[sub_resource type="Resource" id="cond_warden_ready"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_ashlow_warden_ready"
+
+[sub_resource type="Resource" id="cond_warden_done"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_ashlow_warden_done"
+
+[sub_resource type="Resource" id="cond_warden_not_done"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_ashlow_warden_done"
+
+[sub_resource type="Resource" id="eff_turn_in_warden"]
+script = ExtResource("effect")
+kind = 5
+id = &"ashlow_warden"
+
+[sub_resource type="Resource" id="choice_report"]
+script = ExtResource("choice")
+text = "The hollow is empty. I made it empty."
+next = &"report"
+conditions = Array[ExtResource("condition")]([SubResource("cond_warden_ready")])
+
+[sub_resource type="Resource" id="choice_warden"]
+script = ExtResource("choice")
+text = "Tell me about the Warden."
+next = &"warden"
+
+[sub_resource type="Resource" id="choice_maps"]
+script = ExtResource("choice")
+text = "You map the whole floor?"
+next = &"maps"
+
+[sub_resource type="Resource" id="choice_leave"]
+script = ExtResource("choice")
+text = "Later."
+next = &""
+
+[sub_resource type="Resource" id="line_done"]
+script = ExtResource("line")
+id = &"done"
+text = "Third redraw this week. The wood keeps giving ground back and I keep having to admit the map was wrong."
+conditions = Array[ExtResource("condition")]([SubResource("cond_warden_done")])
+
+[sub_resource type="Resource" id="line_done_2"]
+script = ExtResource("line")
+text = "It's a good kind of wrong. Go on -- Floor Eleven won't survey itself."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_brief"]
+script = ExtResource("line")
+id = &"brief"
+text = "Rue sent you. He always sends people to me when he'd rather not say the word 'Warden' out loud."
+conditions = Array[ExtResource("condition")]([SubResource("cond_warden_taken"), SubResource("cond_warden_not_done")])
+
+[sub_resource type="Resource" id="line_brief_2"]
+script = ExtResource("line")
+text = "The labyrinth door is south-east, in the deep hollow. Get to it before the wood does and put the thing behind it down."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_first"]
+script = ExtResource("line")
+id = &"first"
+text = "Careful of the table. Nine drafts of this floor and eight of them are already lies."
+
+[sub_resource type="Resource" id="line_first_2"]
+script = ExtResource("line")
+text = "The wood moves. That is not a figure of speech and I have stopped apologising for saying it."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_menu"]
+script = ExtResource("line")
+id = &"menu"
+text = "Ask. I would rather explain it twice than draw it wrong again."
+choices = Array[ExtResource("choice")]([SubResource("choice_report"), SubResource("choice_warden"), SubResource("choice_maps"), SubResource("choice_leave")])
+
+[sub_resource type="Resource" id="line_report"]
+script = ExtResource("line")
+id = &"report"
+text = "You went in and the hollow came back out the same shape. Do you know how long I have wanted to draw a fixed line on this floor?"
+effects = Array[ExtResource("effect")]([SubResource("eff_turn_in_warden")])
+
+[sub_resource type="Resource" id="line_report_2"]
+script = ExtResource("line")
+text = "Ashlow's charter seal. It is a village's worth of thank-you and there is nobody left who can refuse you it."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_warden"]
+script = ExtResource("line")
+id = &"warden"
+text = "Nerith. Older than the village, if you believe the loggers, and I do -- their grandfathers cut around it."
+
+[sub_resource type="Resource" id="line_warden_2"]
+script = ExtResource("line")
+text = "It is hollow through the middle and it does not chase. It grows the wood back over the door instead, and it can outlast anyone who is only patient."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_maps"]
+script = ExtResource("line")
+id = &"maps"
+text = "I map what stays put. The village, the cut paths, the glades on a good week."
+
+[sub_resource type="Resource" id="line_maps_2"]
+script = ExtResource("line")
+text = "Everything east of the glades I draw in pencil. Argo would sell you the pencil version and call it a map. I won't."
+next = &"menu"
+
+[resource]
+script = ExtResource("dialogue")
+id = &"sable"
+default_speaker = "Sable"
+default_portrait = ExtResource("portrait")
+lines = Array[ExtResource("line")]([SubResource("line_done"), SubResource("line_done_2"), SubResource("line_brief"), SubResource("line_brief_2"), SubResource("line_first"), SubResource("line_first_2"), SubResource("line_menu"), SubResource("line_report"), SubResource("line_report_2"), SubResource("line_warden"), SubResource("line_warden_2"), SubResource("line_maps"), SubResource("line_maps_2")])
+start = &""

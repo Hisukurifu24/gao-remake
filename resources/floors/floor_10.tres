@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="FloorDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/floor_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" path="res://scenes/world/floor_10.tscn" id="2_scene"]
+[ext_resource type="Resource" path="res://resources/biomes/forest.tres" id="3_biome"]
+
+[resource]
+script = ExtResource("1_def")
+floor_number = 10
+display_name = "Ashlow Wood"
+authored_scene = ExtResource("2_scene")
+biome = ExtResource("3_biome")
+size = Vector2i(78, 58)
+boss_name = "Nerith the Hollow Warden"
+enemy_level = 12
+is_milestone = true

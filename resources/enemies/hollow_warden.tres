@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_warden.png" id="battler"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/slam.tres" id="slam"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/wither.tres" id="wither"]
+
+[resource]
+script = ExtResource("enemy")
+id = &"hollow_warden"
+display_name = "Nerith the Hollow Warden"
+battler = ExtResource("battler")
+max_hp = 30
+attack = 7
+defense = 5
+speed = 6
+poise = 44
+hp_growth = 6.4
+attack_growth = 0.85
+defense_growth = 0.7
+speed_growth = 0.25
+poise_growth = 2.0
+skill_bias = 0.5
+xp_reward = 14
+xp_growth = 4.5
+skills = Array[ExtResource("skill")]([ExtResource("slam"), ExtResource("wither")])
+loot = Array[StringName]([&"heartwood_blade"])
+loot_chance = 1.0

@@ -1,0 +1,157 @@
+[gd_resource type="Resource" script_class="Dialogue" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/placeholder/portrait_rue.png" id="portrait"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue.gd" id="dialogue"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_line.gd" id="line"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_choice.gd" id="choice"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_floor_9_cleared"]
+script = ExtResource("condition")
+test = 1
+number = 9
+
+[sub_resource type="Resource" id="cond_floor_10_cleared"]
+script = ExtResource("condition")
+test = 1
+number = 10
+
+[sub_resource type="Resource" id="cond_wolves_not_taken"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_ashlow_wolves_started"
+
+[sub_resource type="Resource" id="cond_wolves_taken"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_ashlow_wolves_started"
+
+[sub_resource type="Resource" id="cond_wolves_ready"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_ashlow_wolves_ready"
+
+[sub_resource type="Resource" id="cond_wolves_not_ready"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_ashlow_wolves_ready"
+
+[sub_resource type="Resource" id="cond_wolves_not_done"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_ashlow_wolves_done"
+
+[sub_resource type="Resource" id="eff_start_wolves"]
+script = ExtResource("effect")
+kind = 4
+id = &"ashlow_wolves"
+
+[sub_resource type="Resource" id="eff_turn_in_wolves"]
+script = ExtResource("effect")
+kind = 5
+id = &"ashlow_wolves"
+
+[sub_resource type="Resource" id="choice_wolves_report"]
+script = ExtResource("choice")
+text = "The pack won't be back."
+next = &"wolves_report"
+conditions = Array[ExtResource("condition")]([SubResource("cond_wolves_ready")])
+
+[sub_resource type="Resource" id="choice_wolves"]
+script = ExtResource("choice")
+text = "I'll thin them out."
+next = &"wolves"
+conditions = Array[ExtResource("condition")]([SubResource("cond_wolves_not_taken"), SubResource("cond_floor_9_cleared")])
+
+[sub_resource type="Resource" id="choice_wolves_wip"]
+script = ExtResource("choice")
+text = "Still counting them."
+next = &"wolves_wip"
+conditions = Array[ExtResource("condition")]([SubResource("cond_wolves_taken"), SubResource("cond_wolves_not_ready"), SubResource("cond_wolves_not_done")])
+
+[sub_resource type="Resource" id="choice_about"]
+script = ExtResource("choice")
+text = "What happened to this wood?"
+next = &"about"
+
+[sub_resource type="Resource" id="choice_leave"]
+script = ExtResource("choice")
+text = "I'll be around."
+next = &""
+
+[sub_resource type="Resource" id="line_after_boss"]
+script = ExtResource("line")
+id = &"after_boss"
+text = "The saws started again this morning. First time in a month."
+conditions = Array[ExtResource("condition")]([SubResource("cond_floor_10_cleared")])
+
+[sub_resource type="Resource" id="line_after_boss_2"]
+script = ExtResource("line")
+text = "Whatever you left in that hollow, it isn't holding the wood shut any more."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_first"]
+script = ExtResource("line")
+id = &"first"
+text = "Ashlow. Nine floors up from wherever you started and still standing, which is more than the last two villages managed."
+
+[sub_resource type="Resource" id="line_first_2"]
+script = ExtResource("line")
+text = "We fell timber. We would fell more of it if the wolves would let us past the tree line."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_menu"]
+script = ExtResource("line")
+id = &"menu"
+text = "Say your piece. Daylight's the only thing here nobody's short of."
+choices = Array[ExtResource("choice")]([SubResource("choice_wolves_report"), SubResource("choice_wolves"), SubResource("choice_wolves_wip"), SubResource("choice_about"), SubResource("choice_leave")])
+
+[sub_resource type="Resource" id="line_wolves"]
+script = ExtResource("line")
+id = &"wolves"
+text = "Four of them, then. Not the whole pack -- four is what it takes before the rest remember to be afraid."
+effects = Array[ExtResource("effect")]([SubResource("eff_start_wolves")])
+
+[sub_resource type="Resource" id="line_wolves_2"]
+script = ExtResource("line")
+text = "They den in the glades east of here. Follow the cut path and you'll walk into them without trying."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_wolves_wip"]
+script = ExtResource("line")
+id = &"wolves_wip"
+text = "Four. I'll not round it down because you're tired."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_wolves_report"]
+script = ExtResource("line")
+id = &"wolves_report"
+text = "Four. The tree line's quiet. Take the potions -- you'll want them for what's actually wrong here."
+effects = Array[ExtResource("effect")]([SubResource("eff_turn_in_wolves")])
+
+[sub_resource type="Resource" id="line_wolves_report_2"]
+script = ExtResource("line")
+text = "Wolves don't come down for nothing. Something further in pushed them out. Go and see Sable -- she's been mapping it since before I stopped listening to her."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_about"]
+script = ExtResource("line")
+id = &"about"
+text = "It grew back. That's the trouble. We cut a stand in spring and by autumn it was standing again, thicker, and further out than it was."
+
+[sub_resource type="Resource" id="line_about_2"]
+script = ExtResource("line")
+text = "The labyrinth door is somewhere under all that, and the wood is closing over it. Nobody on this floor is climbing anywhere until it stops."
+next = &"menu"
+
+[resource]
+script = ExtResource("dialogue")
+id = &"rue"
+default_speaker = "Rue"
+default_portrait = ExtResource("portrait")
+lines = Array[ExtResource("line")]([SubResource("line_after_boss"), SubResource("line_after_boss_2"), SubResource("line_first"), SubResource("line_first_2"), SubResource("line_menu"), SubResource("line_wolves"), SubResource("line_wolves_2"), SubResource("line_wolves_wip"), SubResource("line_wolves_report"), SubResource("line_wolves_report_2"), SubResource("line_about"), SubResource("line_about_2")])
+start = &""

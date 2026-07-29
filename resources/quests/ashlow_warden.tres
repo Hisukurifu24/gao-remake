@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="Quest" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
+[ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_wolves_done"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_ashlow_wolves_done"
+
+[sub_resource type="Resource" id="obj_survey"]
+script = ExtResource("objective")
+id = &"survey"
+kind = 2
+target = &"sable"
+required = 1
+description = "Hear Sable out at the Ashlow chart-house"
+
+[sub_resource type="Resource" id="obj_warden"]
+script = ExtResource("objective")
+id = &"warden"
+kind = 3
+number = 10
+required = 1
+description = "Put Nerith the Hollow Warden down and clear Floor 10"
+
+[sub_resource type="Resource" id="reward_xp"]
+script = ExtResource("effect")
+kind = 2
+amount = 260
+
+[sub_resource type="Resource" id="reward_seal"]
+script = ExtResource("effect")
+kind = 3
+id = &"warden_seal"
+amount = 1
+
+[resource]
+script = ExtResource("quest")
+id = &"ashlow_warden"
+title = "What the Wood Is Hiding"
+giver = "Sable"
+summary = "The wolves came down because something further in pushed them out. Sable has been mapping the deep hollow in pencil for a year and can finally say why: the wood is growing over the labyrinth door, and the thing behind it is doing the growing."
+objectives = Array[ExtResource("objective")]([SubResource("obj_survey"), SubResource("obj_warden")])
+prerequisites = Array[ExtResource("condition")]([SubResource("cond_wolves_done")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_seal")])

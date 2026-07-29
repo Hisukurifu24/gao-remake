@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_heartwood_blade.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"heartwood_blade"
+display_name = "Heartwood Blade"
+description = "Cut from the Hollow Warden's core and still warm when it came out.\nNine floors of climbing between this and the Anneal Blade, and it shows."
+icon = ExtResource("icon")
+kind = 1
+rarity = 2
+attack_bonus = 15
+defense_bonus = 2

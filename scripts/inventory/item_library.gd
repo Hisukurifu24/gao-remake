@@ -19,11 +19,11 @@ const ITEMS: PackedStringArray = [
 	# Consumables
 	"small_potion", "health_potion", "antidote", "whetstone",
 	# Weapons
-	"bronze_sword", "kobold_blade", "anneal_blade",
+	"bronze_sword", "kobold_blade", "anneal_blade", "heartwood_blade",
 	# Armor
 	"leather_coat", "blackwyrm_coat",
 	# Accessories
-	"guard_ring", "swift_charm",
+	"guard_ring", "swift_charm", "warden_seal",
 	# Materials -- every monster's drop table points at one of these
 	"boar_hide", "wolf_fang", "bat_wing", "nepent_ovule", "kobold_fang",
 	"lizard_scale", "drake_scale", "golem_core", "spirit_ash",
