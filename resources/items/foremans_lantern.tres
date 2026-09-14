@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_foremans_lantern.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"foremans_lantern"
+display_name = "Foreman's Lantern"
+description = "Maren's own, trimmed and full. The first thing the Army lost\nin the lower workings was the light."
+icon = ExtResource("icon")
+kind = 3
+rarity = 2
+defense_bonus = 2
+speed_bonus = 2
+max_hp_bonus = 30

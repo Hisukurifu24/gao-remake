@@ -107,6 +107,13 @@ func _test_content() -> void:
 			chest_orphans.append(String(id))
 	_check(chest_orphans.is_empty(), "every generated-chest item exists (%s)" % chest_orphans)
 
+	# Authored floors fill their chests from a layout table rather than the pools
+	# above, and a typo there is just as silent -- the chest opens onto nothing.
+	var authored_orphans := PackedStringArray()
+	for floor_number in FloorRegistry.AUTHORED:
+		authored_orphans.append_array(_authored_chest_orphans(floor_number))
+	_check(authored_orphans.is_empty(), "every authored-floor chest item exists (%s)" % authored_orphans)
+
 	_check(ItemLibrary.exists(&"map_floor_2"),
 			"the item Argo sells exists (dialogue's only GIVE_ITEM)")
 
@@ -484,6 +491,28 @@ func _answer_with_rule_probes(_actor: Combatant) -> void:
 
 
 # --- chests ----------------------------------------------------------------
+
+## The chests on an authored floor whose item has no resource behind it. Follows
+## MapExits the way the floor test's walk does, because Floor 1's chests are
+## split across a town and a field and the registry only names the town.
+func _authored_chest_orphans(floor_number: int) -> PackedStringArray:
+	var orphans := PackedStringArray()
+	var pending: Array[String] = [FloorRegistry.get_floor(floor_number).authored_scene.resource_path]
+	var seen := {}
+	while not pending.is_empty():
+		var path: String = pending.pop_back()
+		if seen.has(path) or not ResourceLoader.exists(path):
+			continue
+		seen[path] = true
+		var map := (load(path) as PackedScene).instantiate()
+		for child in map.get_children():
+			if "item_id" in child and not ItemLibrary.exists(child.get(&"item_id")):
+				orphans.append("%s in %s holds %s" % [child.name, path.get_file(), child.get(&"item_id")])
+			if "target_map" in child and not str(child.get(&"target_map")).is_empty():
+				pending.append(str(child.get(&"target_map")))
+		map.free()
+	return orphans
+
 
 func _test_chest() -> void:
 	print("\n-- chests --")

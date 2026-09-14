@@ -60,7 +60,7 @@ Deliberately deferred: dialogue **portraits are one placeholder bust per speaker
   or throw it away.
 
 `Inventory` (autoload) owns the bag, `ui/inventory_screen.tscn` owns pixels, and
-the two meet only over signals — `test/inventory_test.tscn` runs 125 checks with
+the two meet only over signals — `test/inventory_test.tscn` runs 126 checks with
 no screen instantiated. **I** or **Tab** opens it; one cursor covers both the
 grid and the three equipment slots, and the mouse drives *that* cursor rather
 than a second one — hovering a slot is selecting it.
@@ -109,7 +109,7 @@ hundreds of battles with no screen instantiated. `BossGate._fight()` is real now
 lose and you wake at the floor entrance on 35% HP with the monsters respawned,
 which makes levelling the way through a wall.
 
-The 73-check suite includes **measured** balance assertions (Illfang beatable at
+The 74-check suite includes **measured** balance assertions (Illfang beatable at
 level 5, every band's boss beatable at its floor's level, an underlevelled player
 reliably losing). A stat edit that breaks the climb fails the test rather than a
 playthrough.
@@ -186,7 +186,7 @@ for talk, `floor_cleared` for reach, and `quest_started`, which Argo's errand ha
 been emitting since M2. Combat, inventory, dialogue and the floor system are
 untouched by this milestone and still do not know `QuestLog` exists. `QuestLog`
 (autoload) owns the state, `ui/quest_journal.tscn` and `ui/quest_tracker.tscn` own
-pixels, and 136 checks in `test/quest_test.tscn` run the whole thing with neither
+pixels, and 173 checks in `test/quest_test.tscn` run the whole thing with neither
 instantiated.
 
 Four decisions worth keeping:
@@ -236,8 +236,8 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
 *Readability (not blocked on anything):*
 - [x] Terrain/autotiling: TileSet terrain sets + `set_cells_terrain_connect` so rooms get
   wall edges and corners. **Landed** — every biome atlas now carries a 47-tile wall blob
-  and `FloorGenerator._join_walls()` joins the mass up as a final pass. All 99 generated
-  floors benefited at once.
+  and `FloorGenerator._join_walls()` joins the mass up as a final pass. Every generated
+  floor benefited at once.
 - [x] Raise floor/wall contrast in the `castle` and `sky` palettes. Both sat ~10
   luminance points apart and read as one flat colour; they are now 77 and 59.
 - [ ] Y-sorting (deferred from M1) — matters once floors have props to walk behind.
@@ -258,7 +258,10 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
 *Authored content (wants combat and dialogue first):*
 - [x] **Floor 10 — Ashlow Wood.** The first milestone floor above the starting one, and
   the pattern for the other eight. See below.
-- [ ] The other 8 milestone floors (each is a `.tres` + a hand-built scene). 25 next.
+- [x] **Floor 25 — Lanternfall.** A chain of caverns under a mining camp, and the first
+  floor built on the shared `tools/authored_floor.gd`. See below.
+- [ ] The other 7 milestone floors (each is a layout script on `tools/authored_floor.gd`,
+  a `.tres`, and its NPCs, quests and boss). 40 next.
 - [ ] **Floor 100: the final boss — *you* — as an authored multi-phase fight.** The one
   encounter that should be hand-built end to end.
 
@@ -320,6 +323,56 @@ bodies are still within a couple of luminance points of each other: the rim and 
 cap carry the room outline, not the fill colour. Those four are worth a look eventually,
 but they are no longer the problem they were.
 
+#### Floor 25 — Lanternfall ✅
+
+A mining camp in a cavern at the top of the floor, and under it the workings the miners
+dug looking for iron: the upper galleries, Stillwater (a cavern split round an underground
+lake), the lower workings, and **the Breach** — the labyrinth door they broke into by
+accident, with **Karvos the Twin-Headed** behind it. Built by `tools/build_floor_25.gd`,
+defined by `resources/floors/floor_25.tres`, registered in `FloorRegistry.AUTHORED` and
+`Bestiary.AUTHORED_BOSSES`. Dorran, what is left of the Army's raid, wants the fallen
+raiders' tags out of the dead ends; Maren the foreman wants the kobolds thinned and the door
+shut, and sends nobody down there under level 30.
+
+Five decisions worth keeping:
+
+- **A chain, where Ashlow is a loop.** Camp → upper galleries → Stillwater → lower
+  workings → the Breach, one way down, with three dead-end galleries hanging off it. The
+  dead ends are the content rather than the cost: a broken raid runs into them, so that is
+  where the tags are. Main tunnels are three wide and branches two, so a side passage reads
+  as one before anyone walks down it.
+- **A one-way lift is how a chain gets you home.** The Breach sits directly under the camp,
+  and a lift runs up the shaft between them — only up, so the long way down is still the
+  only way down. It is an ordinary `MapExit` pointed back into its own scene at a
+  `from_lift` spawn; no new entity. The reload brings the floor's monsters back, which is
+  the fare.
+- **Caverns, not rooms.** `_carve_cave()` carves wobbled ellipses rather than rectangles.
+  The wobble only ever pulls the edge *in*, so a cave never spills out of the rect its
+  layout table gave it, and two caves the table keeps apart stay apart.
+- **Authored floors share one builder now.** The Floor 10 tool's plumbing — painting,
+  joining, placing, checking, saving — moved into `tools/authored_floor.gd`; a floor script
+  is its layout tables plus a `_build()`. Floor 10 still regenerates byte-identical apart
+  from Godot's per-save node ids, which is how the move was checked. `-- --preview` prints a
+  floor as text, and the builder's reachability check reads entities off the map rather
+  than the tables, so the lift was checked without anybody listing it.
+- **Karvos went in on the Drake archetype's numbers, and the win rate did not move** —
+  18/24 against Karvos and 19/24 against the Drake he replaced at level 30, 24/24 for both
+  from 33 up. Twin Roar is the one new move: status-only, it weakens the whole party while
+  Slam is the other head's answer.
+
+And what the tests learned from it:
+
+- The authored walk used to switch the outer-ring check off for a whole floor as soon as it
+  saw any `MapExit`. It is decided per map now, and an exit back into the *same* map does
+  not count — a lift needs no hole in the border, so one appearing beside it is a real one.
+- It also checks every authored floor carries `FloorTuning.monster_count(n)` monsters.
+  "Authored does not mean exempt from the curve" was a comment; it is a check now.
+- The inventory sweep covered generated chests only. It walks every authored floor's chests
+  too — Floor 10's had never been checked.
+- The balance section fights every authored boss past Illfang, not just the band bosses.
+- The generated-floor check said "all 99" and had been counting fewer since Floor 10. It
+  counts now: 97.
+
 ### M7 — Save/load, polish, audio
 - [ ] Serialize GameState/Inventory/QuestLog to `user://` save files. **`world_seed` must
   be in the save** — without it every generated floor reshuffles on load.
@@ -337,16 +390,17 @@ which it got.
 
 | | |
 |---|---|
-| **Authored** | Floors 1, 10, 25, 40, 50, 60, 74, 80, 90, 100 (schedule in `FloorTuning.is_milestone`). Floors 1 and 10 exist so far. |
+| **Authored** | Floors 1, 10, 25, 40, 50, 60, 74, 80, 90, 100 (schedule in `FloorTuning.is_milestone`). Floors 1, 10 and 25 exist so far. |
 | **Generated** | The other ~90. Rooms joined by L-corridors, a boss room at the far end, chests, stairs down. |
 | **Biomes** | Ten bands of ten: meadow → forest → cave → ruins → swamp → desert → ice → volcanic → sky → **Ruby Palace** (90–100). |
 | **Determinism** | Seed is `hash(world_seed, floor_number)`. Floor 37 is always the same floor 37 *in that save*, so quests can reference it and bugs reproduce. |
 | **Difficulty** | One curve in `FloorTuning`, not 100 tuned files. Level ≈ `floor × 1.2`, so floor 100 is ~level 120. |
 | **Bosses** | 10 affixes × 10 archetypes = 100 distinct generated names, deterministic per floor. Milestone floors override with authored bosses. |
 
-`test/floor_test.tscn` generates **all 99 non-authored floors and flood-fills each one** to
-prove the boss door and every chest are reachable, and **walks every authored floor the
-same way**, following map exits between the maps one floor is made of. An unfinishable
+`test/floor_test.tscn` generates **every non-authored floor and flood-fills each one** —
+97 of them, now that 1, 10 and 25 are hand-built — to prove the boss door and every chest
+are reachable, and **walks every authored floor the same way**, following map exits between
+the maps one floor is made of. An unfinishable
 dungeon is the bug procgen reliably ships and it cannot be caught by playing; a
 hand-authored one fails at it just as easily and with nothing to blame.
 
@@ -356,8 +410,11 @@ hand-authored one fails at it just as easily and with nothing to blame.
   layout in row 0 (`0 floor, 1 floor-alt, 2 path, 3 special, 4 liquid, 5 obstacle,
   6 wall, 7 wall-alt`; slots 4–7 collide), and the 47-tile wall blob in rows 1–6 is
   derived from the palette's stone colour, so a new biome autotiles for free.
-- **New milestone floor**: build the scene, add a `FloorDefinition` `.tres` in
-  `resources/floors/`, register it in `FloorRegistry.AUTHORED`.
+- **New milestone floor**: a `tools/build_floor_NN.gd` extending `tools/authored_floor.gd`
+  — layout tables plus a `_build()`, since the base does the painting, wall joining,
+  entity placing, reachability check and save — then a `FloorDefinition` `.tres` in
+  `resources/floors/`, registered in `FloorRegistry.AUTHORED`. An authored boss also wants
+  an id in `Bestiary.AUTHORED_BOSSES`.
 - **Rebalance**: `FloorTuning` only. Never tune individual floors.
 - **Never use unseeded `randi()` in generation** — it breaks save consistency and makes
   bugs irreproducible.
@@ -446,15 +503,23 @@ and can finally tell you why, and Nerith the Hollow Warden is at the end of it w
 Heartwood Blade. Nine floors of generated dungeon on either side, and this one was built by
 hand.
 
+Fifteen floors further up there is a third. **Floor 25 is Lanternfall**, a mining camp over
+the workings that broke into the labyrinth. The Army took a raid through that door and came
+back seven short: Dorran wants the dead raiders' tags out of the dead-end galleries they ran
+into, Maren the foreman wants the kobolds thinned and the door shut and won't send anyone
+under level 30, and Karvos the Twin-Headed is at the bottom — one head roars you weak, the
+other swings while you are. The way down is long and there is only one. The lift at the
+bottom only goes up.
+
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 41-check game loop test
 "$GODOT" --headless --path . res://test/floor_test.tscn     # 25-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
-"$GODOT" --headless --path . res://test/inventory_test.tscn # 125-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 73-check combat test
-"$GODOT" --headless --path . res://test/quest_test.tscn     # 153-check quest test
+"$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 74-check combat test
+"$GODOT" --headless --path . res://test/quest_test.tscn     # 173-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -463,6 +528,8 @@ python3 tools/gen_placeholder_art.py
 "$GODOT" --headless --path . --script res://tools/build_biomes.gd
 "$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd
 "$GODOT" --headless --path . --script res://tools/build_floor_10.gd
+"$GODOT" --headless --path . --script res://tools/build_floor_25.gd
+# either floor tool with `-- --preview` prints the layout instead of writing it
 ```
 
 ⚠ The `--import` step is load-bearing, not housekeeping. `build_biomes.gd` reads the
@@ -470,17 +537,17 @@ python3 tools/gen_placeholder_art.py
 atlases are now 7 rows rather than 1, a stale cache means the wall blob is cut from
 nothing at all.
 
-⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn` / `field.tscn`, and
-`build_floor_10.gd` **overwrites** `floor_10.tscn`. Once you start painting a map in the
-editor, stop running the tool that writes it. `build_biomes.gd` is always safe — it only
-touches derived resources.
+⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn` / `field.tscn`, and each
+`build_floor_NN.gd` **overwrites** its `floor_NN.tscn`. Once you start painting a map in
+the editor, stop running the tool that writes it (`-- --preview` is still safe).
+`build_biomes.gd` is always safe — it only touches derived resources.
 
 ## Immediate next steps
-1. **Floor 25, on the pattern Floor 10 set.** Ashlow answered the questions that were
-   actually open — how big a hand-built floor is, where the hub goes, how a floor's quests
-   hang off its NPCs, and what has to be true before the test suite will accept one — so
-   the next milestone floor is a content job rather than a design one. Twenty-five sits in
-   the cave band, so it wants a shape Ashlow's open glades deliberately weren't.
+1. **Floor 40, on the builder Floor 25 extracted.** A milestone floor is now a layout
+   script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest each and
+   an authored boss — Lanternfall took that from a design job to a content job, and the
+   suite checks everything a hand-built floor tends to get wrong. Forty opens the swamp
+   band; Ashlow was a loop and Lanternfall a chain, so it wants a third shape.
 2. **M7 save/load is the one thing getting more expensive with every milestone.**
    `QuestLog` just added a third autoload's worth of state to serialise
    (`_active`/`_completed`/`_order`/`_tracked`), on top of `GameState` and

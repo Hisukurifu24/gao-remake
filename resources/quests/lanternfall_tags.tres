@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="Quest" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
+[ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_floor_24_cleared"]
+script = ExtResource("condition")
+test = 1
+number = 24
+
+[sub_resource type="Resource" id="obj_tags"]
+script = ExtResource("objective")
+id = &"tags"
+kind = 1
+target = &"raid_tag"
+required = 3
+description = "Recover 3 raid tags from the galleries that go nowhere"
+
+[sub_resource type="Resource" id="reward_xp"]
+script = ExtResource("effect")
+kind = 2
+amount = 320
+
+[sub_resource type="Resource" id="reward_potions"]
+script = ExtResource("effect")
+kind = 3
+id = &"health_potion"
+amount = 3
+
+[resource]
+script = ExtResource("quest")
+id = &"lanternfall_tags"
+title = "Names for the Wall"
+giver = "Dorran"
+summary = "The Army's raid on the Breach broke, and the seven who didn't come back ran the way people run when a raid breaks -- not back, just away, into the galleries that go nowhere. Dorran can't bring them up. He wants their tags, so the names can go on Lanternfall's wall."
+objectives = Array[ExtResource("objective")]([SubResource("obj_tags")])
+prerequisites = Array[ExtResource("condition")]([SubResource("cond_floor_24_cleared")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_potions")])

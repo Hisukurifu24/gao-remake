@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The world is **100 floors** of a stacked castle, each ending in a boss; floor 100 is the final fight. Milestone floors are hand-authored, the rest are procedurally generated — see "The floor system" below.
 
-`plan.md` is the roadmap and the source of truth for what's built. **M0 (foundation), M1 (overworld, movement, interaction, map transitions), M2 (dialogue), M3 (inventory & items), M4 (turn-based combat), M5 (quests) and the 100-floor spine are done.** What's left is M6 (world depth, authored floors) and M7 (save/load, polish, audio). **Wall autotiling landed**, so generated floors read as rooms rather than as flat rectangles, and **Floor 10 — Ashlow Wood — is the second authored floor**: a village hub, three glades, a hollow with an authored boss, and two quests on it.
+`plan.md` is the roadmap and the source of truth for what's built. **M0 (foundation), M1 (overworld, movement, interaction, map transitions), M2 (dialogue), M3 (inventory & items), M4 (turn-based combat), M5 (quests) and the 100-floor spine are done.** What's left is M6 (world depth, authored floors) and M7 (save/load, polish, audio). **Wall autotiling landed**, so generated floors read as rooms rather than as flat rectangles, **Floor 10 — Ashlow Wood — is the second authored floor**: a village hub, three glades, a hollow with an authored boss, and two quests on it. **Floor 25 — Lanternfall — is the third**: a mining camp over a chain of caverns, three dead-end galleries, a one-way lift home, an authored boss and two more quests. Authored floors share one builder, `tools/authored_floor.gd`.
 
 The core loop is completable end to end: walk, talk, take a job, fight the monsters on the floor, level up, beat the floor boss, climb. No placeholders remain in it.
 
@@ -59,10 +59,13 @@ python3 tools/gen_placeholder_art.py
 #    are being painted in the editor.
 "$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd
 
-# 5. The authored Floor 10 map. Same caveat: OVERWRITES scenes/world/floor_10.tscn.
-#    Refuses to write a floor whose gate, chests or NPCs are unreachable from the
-#    spawn, so a bad edit to its layout tables fails here rather than in the game.
+# 5. The authored Floor 10 and 25 maps. Same caveat: each OVERWRITES its
+#    scenes/world/floor_NN.tscn. Both extend tools/authored_floor.gd, which refuses
+#    to write a floor with anything on it unreachable from the spawn, so a bad edit
+#    to a layout table fails here rather than in the game. Add `-- --preview` to
+#    print the layout as text instead of writing it.
 "$GODOT" --headless --path . --script res://tools/build_floor_10.gd
+"$GODOT" --headless --path . --script res://tools/build_floor_25.gd
 
 # Boot the game, capture frames to user://screenshots, exit (needs a real window)
 "$GODOT" --path . res://tools/screenshot.tscn
@@ -82,8 +85,9 @@ Maps are engine-generated because `tile_map_data` is a binary blob inside the `.
 "$GODOT" --headless --path . res://test/smoke_test.tscn
 
 # The floor system: registry, biome bands, seed determinism, progression gating,
-# wall autotiling, a flood-fill of ALL 99 generated floors proving each is
+# wall autotiling, a flood-fill of EVERY generated floor proving each is
 # completable and still sealed, and the same walk over every authored floor
+# (plus its monster count against the curve)
 "$GODOT" --headless --path . res://test/floor_test.tscn
 
 # The dialogue system: conditions, entry selection, branching, effects, the input
@@ -109,9 +113,9 @@ Maps are engine-generated because `tile_map_data` is a binary blob inside the `.
 
 All six exit non-zero on failure. Four checks are load-bearing and should not be weakened:
 
-- **The floor test's completability flood fill.** An unreachable boss door is the failure mode procedural generation reliably ships, and playtesting will not find it. It also checks the outer ring is still sealed: autotiling rewrites every wall on the floor, and dropping one instead of replacing it would open the map onto the void — which the flood fill alone would answer by quietly reaching *further*, not by failing. **Authored floors get the same walk**, since hand-building fails at this the same way and with no seed to blame; that walk follows `MapExit`s, because an authored floor may span several maps (Floor 1's door is in the field, not the town). Its flood fill is *bounded* to the walls' used rect — an authored map is allowed holes in its border where an exit sits in them, and an unbounded fill walks out through one and expands forever.
+- **The floor test's completability flood fill.** An unreachable boss door is the failure mode procedural generation reliably ships, and playtesting will not find it. It also checks the outer ring is still sealed: autotiling rewrites every wall on the floor, and dropping one instead of replacing it would open the map onto the void — which the flood fill alone would answer by quietly reaching *further*, not by failing. **Authored floors get the same walk**, since hand-building fails at this the same way and with no seed to blame; that walk follows `MapExit`s, because an authored floor may span several maps (Floor 1's door is in the field, not the town). Its flood fill is *bounded* to the walls' used rect — an authored map is allowed holes in its border where an exit sits in them, and an unbounded fill walks out through one and expands forever. Whether a map's ring must be sealed is decided *per map*: an exit to another map excuses holes, an exit back into the same map (Lanternfall's lift) does not.
 - **The combat test's balance section.** Its numbers were measured, not chosen. A stat, curve or growth-rate edit that makes floor 50 unwinnable fails here instead of 20 hours into a playthrough. If one moves, decide whether the climb *should* have changed shape before re-baselining it.
-- **The inventory test's item-id sweep.** Every id the rest of the game emits — `EnemyType.loot`, `FloorGenerator.CHEST_*`, dialogue's `GIVE_ITEM` — must name a real `.tres`. A typo is silent everywhere else: the drop simply never arrives.
+- **The inventory test's item-id sweep.** Every id the rest of the game emits — `EnemyType.loot`, `FloorGenerator.CHEST_*`, every authored floor's chests, dialogue's `GIVE_ITEM` — must name a real `.tres`. A typo is silent everywhere else: the drop simply never arrives.
 - **The quest test's objective-target sweep.** The same failure, one layer up: every KILL must name an enemy id, every COLLECT an item id, every TALK a conversation, every REACH a floor in range. A typo makes an objective that can never be completed, and nothing else in the game will say so.
 
 Run it as a **scene**, not with `--script`: autoloads are registered *after* a script main loop is compiled, so `EventBus`/`GameState`/`SceneRouter` don't resolve there.
@@ -207,8 +211,9 @@ Physics layers: 1 world, 2 player, 3 enemy, 4 interactable. Input actions: `move
 - **`FloorTuning`** holds the whole 100-floor curve (level, map size, room/chest counts, boss names). Balance changes go there, not into individual floors.
 - **Progression** is `GameState.clear_floor(n)` → `is_floor_unlocked(n+1)`. `BossGate` is the gate, and it runs a real fight (`Bestiary.boss_encounter(n)`). Losing drops the player at the floor entrance on 35% HP with the floor rebuilt, so its monsters are back — the way through a wall is levels.
 - **Every generated floor carries `FloorTuning.monster_count(n)` roaming monsters.** That count is not decoration: it is the measured number of kills that puts a player at the level the floor's boss expects. Monsters have no collision, so they can never wall off a corridor and the completability flood fill never sees them.
-- Adding a milestone floor: build the scene, add a `FloorDefinition` `.tres` in `resources/floors/`, and register it in `FloorRegistry.AUTHORED` (explicit dictionary — `res://` directory scanning is unreliable in exported builds). An authored boss also wants an id in `Bestiary.AUTHORED_BOSSES`, which overrides the archetype the floor would otherwise have been given.
+- Adding a milestone floor: a `tools/build_floor_NN.gd` that extends `tools/authored_floor.gd` — layout tables plus a `_build()`; the base does painting, wall joining, placing entities, the reachability check and the save — then a `FloorDefinition` `.tres` in `resources/floors/`, registered in `FloorRegistry.AUTHORED` (explicit dictionary — `res://` directory scanning is unreliable in exported builds). An authored boss also wants an id in `Bestiary.AUTHORED_BOSSES`, which overrides the archetype the floor would otherwise have been given; go in near that archetype's numbers and check the combat suite's win rate doesn't move. **Authored does not mean exempt from the curve**: a floor carries at least `FloorTuning.monster_count(n)` monsters at `FloorTuning.enemy_level(n)`, and the floor test enforces the count.
 - **Floor 10 is one map, where Floor 1 is two.** Floor 1 splits town and field across a `MapExit`, which is fine there because the boss is a one-way trip. Ashlow has a quest that sends you to the Warden and then *back to the village to report*, so the walk home has to exist — and one map is the version of that walk costing no fade, no second scene and no second set of spawn points. `tools/build_floor_10.gd` is the authoring surface: layout tables at the top, the same carve/join passes the generator uses, and a flood fill that refuses to write an unfinishable floor.
+- **Floor 25 is a chain, where Floor 10 is a loop**, and a one-way lift is how the chain gets you home: a `MapExit` whose `target_map` is its own scene, arriving at a `from_lift` spawn in the camp. It stands at the bottom, so the long way down is still the only way down, and the reload is the fare — the floor's monsters come back. Its caverns are `_carve_cave()` ellipses rather than rects; the wobble only pulls inwards, so a cave stays inside the rect its table gives it.
 
 ## Godot 4.7 gotchas
 

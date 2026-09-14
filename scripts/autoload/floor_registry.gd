@@ -10,6 +10,7 @@ extends Node
 const AUTHORED := {
 	1: "res://resources/floors/floor_01.tres",
 	10: "res://resources/floors/floor_10.tres",
+	25: "res://resources/floors/floor_25.tres",
 }
 
 ## Which biome a floor belongs to. Ten bands of ten -- the higher you climb the

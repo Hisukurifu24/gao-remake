@@ -366,9 +366,14 @@ func _test_balance() -> void:
 	_check(illfang_at_3 < 12, "Illfang is not a walkover at level 3 (%d/12)" % illfang_at_3)
 	_check(illfang_at_5 >= 9, "Illfang is beatable at level 5 (%d/12)" % illfang_at_5)
 
-	# Every band's boss, fought at the level its floor expects. None of them
-	# should be hopeless and none should be free.
-	for floor_number in [10, 30, 50, 70, 90, 100]:
+	# Every band's boss, and every authored one past Illfang, fought at the level
+	# its floor expects. None of them should be hopeless and none should be free.
+	var floors: Array[int] = [10, 30, 50, 70, 90, 100]
+	for floor_number in Bestiary.AUTHORED_BOSSES:
+		if floor_number > 1 and floor_number not in floors:
+			floors.append(floor_number)
+	floors.sort()
+	for floor_number in floors:
 		var level := FloorTuning.enemy_level(floor_number) + 6
 		var wins := await _win_rate(floor_number, level, 8)
 		_check(wins >= 4, "floor %d's boss is beatable at level %d (%d/8)" % [

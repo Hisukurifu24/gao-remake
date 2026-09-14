@@ -26,9 +26,14 @@ that proves `QuestLog` is wired into a *running* game rather than into a test.
 ## Floor test
 
 Registry lookups, biome bands, seed determinism, progression gating — and a
-flood-fill of **all 99 generated floors** proving the boss door and every chest
+flood-fill of **every generated floor** proving the boss door and every chest
 are reachable. Keep that check: an unfinishable dungeon is the bug procgen
 reliably ships and playtesting will not find it.
+
+Every authored floor gets the same walk, following `MapExit`s across the maps a
+floor spans, plus two checks of its own: each map's outer ring is sealed unless an
+exit leads off it to *another* map (a lift back into the same map excuses nothing),
+and the floor carries at least `FloorTuning.monster_count(n)` monsters.
 
 ## Dialogue test
 
@@ -46,7 +51,8 @@ channel, consumables in the field and in battle, equipping and the swap, what
 the screen's drag-and-drop moves (`move_stack`: merge if it fits, else swap), and the
 one thing nothing else would catch: **every item id the rest of the game already
 emits has a resource behind it** — enemy loot tables, generated-chest contents,
-dialogue's `GIVE_ITEM`. An id with no `.tres` lands in an empty bag silently.
+every authored floor's chests, dialogue's `GIVE_ITEM`. An id with no `.tres` lands
+in an empty bag silently.
 
 It also checks that gear reaches the fight. Equipment folds into `GameState`'s
 `total_*` accessors and nowhere else, and `Combatant.from_player()` reads those,
@@ -66,10 +72,11 @@ fails here rather than 20 hours into a playthrough.
 Availability and prerequisites, all four objective kinds, ready coming back *off*
 again, turn-in (including the two things it re-checks: the collect items, and room
 for the reward), rewards chaining into the next quest, the `GameState` flag bridge,
-journal ordering, and the tracker's fallback. It drives Argo's **real** conversation
-through the runner to prove the offers and the turn-in branch appear exactly when
-the log would accept them — the one failure mode of gating quests in dialogue is a
-choice offered for a quest `QuestLog.start()` would refuse.
+journal ordering, and the tracker's fallback. It drives the **real** conversations —
+Argo's, and the quest-givers on Floors 10 and 25 — through the runner to prove the
+offers and the turn-in branches appear exactly when the log would accept them. The
+one failure mode of gating quests in dialogue is a choice offered for a quest
+`QuestLog.start()` would refuse.
 
 The load-bearing part is the **objective-target sweep**: every KILL names an enemy
 id, every COLLECT an item id, every TALK a conversation, every REACH a floor in

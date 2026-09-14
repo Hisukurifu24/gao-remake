@@ -122,17 +122,19 @@ func _run() -> void:
 
 	# --- every generated floor is completable ---
 	var broken: PackedStringArray = PackedStringArray()
+	var generated := 0
 	for floor_number in range(2, FloorTuning.TOP_FLOOR + 1):
 		var definition := FloorRegistry.get_floor(floor_number)
 		if definition.is_authored():
 			continue
+		generated += 1
 		var map := FloorGenerator.generate(definition, FloorRegistry.seed_for(floor_number))
 		var problem := _audit(map, definition)
 		if not problem.is_empty():
 			broken.append(problem)
 		map.free()
-	_check(broken.is_empty(), "all 99 generated floors are completable%s" % (
-			"" if broken.is_empty() else " -- " + ", ".join(broken)))
+	_check(broken.is_empty(), "all %d generated floors are completable%s" % [generated,
+			"" if broken.is_empty() else " -- " + ", ".join(broken)])
 
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
@@ -261,7 +263,8 @@ func _audit_authored(floor_number: int) -> String:
 	var pending: Array = [[FloorRegistry.build_floor(floor_number), &"", "floor %d" % floor_number]]
 	var visited := {}
 	var found_gate := false
-	var found_exit := false
+	var monsters := 0
+	var counted := {}
 	var problem := ""
 
 	while not pending.is_empty():
@@ -295,6 +298,10 @@ func _audit_authored(floor_number: int) -> String:
 		# walks out through one of those and expands across empty space forever.
 		var reachable := _flood_within(walls, start, walls.get_used_rect())
 		var stranded: PackedStringArray = PackedStringArray()
+		var leaves := false
+		# The lift walks Lanternfall twice; its monsters are only there once.
+		var first_visit := not counted.has(map.scene_file_path)
+		counted[map.scene_file_path] = true
 		for child in map.get_children():
 			var node := child as Node2D
 			if node == null or node is TileMapLayer:
@@ -304,11 +311,16 @@ func _audit_authored(floor_number: int) -> String:
 			if not reachable.has(walls.local_to_map(node.position)):
 				stranded.append(node.name)
 				continue
+			if first_visit and node.name.begins_with("Monster"):
+				monsters += 1
 			if node.name == "BossGate" and int(node.get(&"floor_number")) == floor_number:
 				found_gate = true
 			if "target_map" in node and not str(node.get(&"target_map")).is_empty():
-				found_exit = true
 				var target := str(node.get(&"target_map"))
+				# An exit back into the map it stands in -- Lanternfall's lift -- is
+				# a shortcut across the map, not a way off it.
+				if target != map.scene_file_path:
+					leaves = true
 				var spawn: StringName = node.get(&"target_spawn")
 				var key := "%s|%s" % [target, spawn]
 				if not visited.has(key) and ResourceLoader.exists(target):
@@ -320,13 +332,15 @@ func _audit_authored(floor_number: int) -> String:
 			map.free()
 			break
 
-		# A floor with no way off it is a floor whose walls are all there is
-		# between the player and the void, so the outer ring has to hold -- the
-		# same check the generated floors get, and for the same reason: autotiling
-		# rewrote every one of those walls. A floor that *does* have a MapExit has
+		# A map with no way off it is a map whose walls are all there is between
+		# the player and the void, so the outer ring has to hold -- the same check
+		# the generated floors get, and for the same reason: autotiling rewrote
+		# every one of those walls. A map with an exit to *another* map has
 		# legitimate holes in its border (Floor 1's town opens onto its field
-		# through one), and they are its exits rather than mistakes.
-		if not found_exit:
+		# through one), and they are its exits rather than mistakes. Decided per
+		# map, and not excused by an exit that leads back into the same map: a lift
+		# needs no hole, so one appearing next to it would be a real one.
+		if not leaves:
 			var used := walls.get_used_rect()
 			for x in range(used.position.x, used.end.x):
 				if not _sealed(walls, Vector2i(x, used.position.y)) \
@@ -351,6 +365,12 @@ func _audit_authored(floor_number: int) -> String:
 		return problem
 	if not found_gate:
 		return "floor %d has no reachable boss gate" % floor_number
+	# Authored does not mean exempt from the curve. The monster count is the
+	# measured number of kills that levels a player for the floor's boss; what an
+	# authored floor gets to choose is where they stand, not how many there are.
+	if monsters < FloorTuning.monster_count(floor_number):
+		return "floor %d carries %d monsters where the curve wants %d" % [
+				floor_number, monsters, FloorTuning.monster_count(floor_number)]
 	return ""
 
 

@@ -19,16 +19,16 @@ const ITEMS: PackedStringArray = [
 	# Consumables
 	"small_potion", "health_potion", "antidote", "whetstone",
 	# Weapons
-	"bronze_sword", "kobold_blade", "anneal_blade", "heartwood_blade",
+	"bronze_sword", "kobold_blade", "anneal_blade", "heartwood_blade", "deepiron_blade",
 	# Armor
 	"leather_coat", "blackwyrm_coat",
 	# Accessories
-	"guard_ring", "swift_charm", "warden_seal",
+	"guard_ring", "swift_charm", "warden_seal", "foremans_lantern",
 	# Materials -- every monster's drop table points at one of these
 	"boar_hide", "wolf_fang", "bat_wing", "nepent_ovule", "kobold_fang",
 	"lizard_scale", "drake_scale", "golem_core", "spirit_ash",
 	# Key items
-	"map_floor_2",
+	"map_floor_2", "raid_tag",
 ]
 
 static var _cache: Dictionary[StringName, Item] = {}

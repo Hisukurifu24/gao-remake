@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/placeholder/item_raid_tag.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"raid_tag"
+display_name = "Raid Tag"
+description = "A stamped iron tag on a cord. The Army issues two:\none to wear, and one for somebody to carry home."
+icon = ExtResource("icon")
+kind = 5
+rarity = 0

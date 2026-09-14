@@ -1,0 +1,168 @@
+[gd_resource type="Resource" script_class="Dialogue" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/placeholder/portrait_maren.png" id="portrait"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue.gd" id="dialogue"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_line.gd" id="line"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_choice.gd" id="choice"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_level_30"]
+script = ExtResource("condition")
+test = 2
+number = 30
+
+[sub_resource type="Resource" id="cond_breach_not_taken"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_lanternfall_breach_started"
+
+[sub_resource type="Resource" id="cond_breach_taken"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_lanternfall_breach_started"
+
+[sub_resource type="Resource" id="cond_breach_ready"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_lanternfall_breach_ready"
+
+[sub_resource type="Resource" id="cond_breach_not_ready"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_lanternfall_breach_ready"
+
+[sub_resource type="Resource" id="cond_breach_done"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_lanternfall_breach_done"
+
+[sub_resource type="Resource" id="cond_breach_not_done"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_lanternfall_breach_done"
+
+[sub_resource type="Resource" id="eff_start_breach"]
+script = ExtResource("effect")
+kind = 4
+id = &"lanternfall_breach"
+
+[sub_resource type="Resource" id="eff_turn_in_breach"]
+script = ExtResource("effect")
+kind = 5
+id = &"lanternfall_breach"
+
+[sub_resource type="Resource" id="choice_report"]
+script = ExtResource("choice")
+text = "The Breach is shut. For good."
+next = &"report"
+conditions = Array[ExtResource("condition")]([SubResource("cond_breach_ready")])
+
+[sub_resource type="Resource" id="choice_breach"]
+script = ExtResource("choice")
+text = "Point me at the Breach."
+next = &"breach"
+conditions = Array[ExtResource("condition")]([SubResource("cond_breach_not_taken"), SubResource("cond_level_30")])
+
+[sub_resource type="Resource" id="choice_breach_wip"]
+script = ExtResource("choice")
+text = "Still working on it."
+next = &"breach_wip"
+conditions = Array[ExtResource("condition")]([SubResource("cond_breach_taken"), SubResource("cond_breach_not_ready"), SubResource("cond_breach_not_done")])
+
+[sub_resource type="Resource" id="choice_about"]
+script = ExtResource("choice")
+text = "What's down in the Breach?"
+next = &"about"
+
+[sub_resource type="Resource" id="choice_leave"]
+script = ExtResource("choice")
+text = "Later."
+next = &""
+
+[sub_resource type="Resource" id="line_done"]
+script = ExtResource("line")
+id = &"done"
+text = "Picks on the lower seam again. First honest shift since the Army came back up the lift carrying people."
+conditions = Array[ExtResource("condition")]([SubResource("cond_breach_done")])
+
+[sub_resource type="Resource" id="line_done_2"]
+script = ExtResource("line")
+text = "Deep iron, the whole seam of it. Two years late and worth every one."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_brief"]
+script = ExtResource("line")
+id = &"brief"
+text = "Kobolds first. They come up through the hole in twos and threes, and I've run out of miners who'll go and see."
+conditions = Array[ExtResource("condition")]([SubResource("cond_breach_taken"), SubResource("cond_breach_not_done")])
+
+[sub_resource type="Resource" id="line_brief_2"]
+script = ExtResource("line")
+text = "Then the door. Bottom of the workings, west -- straight under where you're standing. Nobody dug it that way on purpose."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_first"]
+script = ExtResource("line")
+id = &"first"
+text = "Mind the carts. Lanternfall is a mine that people live in, not a town that happens to have a mine."
+
+[sub_resource type="Resource" id="line_first_2"]
+script = ExtResource("line")
+text = "We dug straight down for two years looking for iron and broke into a labyrinth door instead. The kobolds came up through the hole before we'd finished swearing."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_menu"]
+script = ExtResource("line")
+id = &"menu"
+text = "Quick, then. The lamps want trimming and nobody else trims them right."
+choices = Array[ExtResource("choice")]([SubResource("choice_report"), SubResource("choice_breach"), SubResource("choice_breach_wip"), SubResource("choice_about"), SubResource("choice_leave")])
+
+[sub_resource type="Resource" id="line_breach"]
+script = ExtResource("line")
+id = &"breach"
+text = "Four of those kobold sentinels, to start. Enough that the rest think twice about the lamps."
+effects = Array[ExtResource("effect")]([SubResource("eff_start_breach")])
+
+[sub_resource type="Resource" id="line_breach_2"]
+script = ExtResource("line")
+text = "Then through the door, and shut it properly. It's the long way down -- it's the only way down -- but the lift will bring you back."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_breach_wip"]
+script = ExtResource("line")
+id = &"breach_wip"
+text = "The hole's still open. I can hear it from here, and so can you if you stop talking."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_report"]
+script = ExtResource("line")
+id = &"report"
+text = "Shut. I'll believe it when the night shift does, but I'll believe it."
+effects = Array[ExtResource("effect")]([SubResource("eff_turn_in_breach")])
+
+[sub_resource type="Resource" id="line_report_2"]
+script = ExtResource("line")
+text = "Take my lantern. I'll trim another. The first thing the Army lost down there was the light, and you're going higher than they did."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_about"]
+script = ExtResource("line")
+id = &"about"
+text = "Kobolds, and under the kobolds a door, and behind the door the thing that sent the Army home."
+
+[sub_resource type="Resource" id="line_about_2"]
+script = ExtResource("line")
+text = "I send nobody down there under level thirty. The Army went at twenty-six because nobody told them not to. I'm telling you."
+next = &"menu"
+
+[resource]
+script = ExtResource("dialogue")
+id = &"maren"
+default_speaker = "Maren"
+default_portrait = ExtResource("portrait")
+lines = Array[ExtResource("line")]([SubResource("line_done"), SubResource("line_done_2"), SubResource("line_brief"), SubResource("line_brief_2"), SubResource("line_first"), SubResource("line_first_2"), SubResource("line_menu"), SubResource("line_breach"), SubResource("line_breach_2"), SubResource("line_breach_wip"), SubResource("line_report"), SubResource("line_report_2"), SubResource("line_about"), SubResource("line_about_2")])
+start = &""

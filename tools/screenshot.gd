@@ -44,8 +44,9 @@ func _ready() -> void:
 	await _capture_inventory(main)
 	await _capture_combat()
 
-	# Generated floors, one per biome band worth showing off.
-	for floor_number in [2, 24, 55, 87, 100]:
+	# One floor per biome band worth showing off, and the authored ones past the
+	# first -- 24 and 25 side by side are the same band generated and built.
+	for floor_number in [2, 10, 24, 25, 55, 87, 100]:
 		await _capture_floor(floor_number)
 
 	print("screenshots in ", ProjectSettings.globalize_path(SHOTS))

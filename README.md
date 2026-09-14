@@ -21,7 +21,7 @@ A 2D top-down RPG built in **Godot 4.7**, set in a *Sword Art Online*–inspired
 | **M3** — Inventory & items | ✅ | Stacking bag, equipment, consumables in and out of battle |
 | **M4** — Turn-based combat | ✅ | Turn loop, skills, statuses, stagger, AI, measured balance |
 | **M5** — Quests & progression | ✅ | `QuestLog`, four objective kinds, turn-in, journal and tracker |
-| **M6** — World depth | ◐ | The 100-floor spine is in; content and autotiling are not |
+| **M6** — World depth | ◐ | The 100-floor spine, wall autotiling, and authored Floors 10 and 25 are in; seven milestone floors are not |
 | **M7** — Save/load, polish, audio | ⬜ | |
 
 Art is programmer-generated placeholder throughout — deliberately, until the systems settle. See [`plan.md`](plan.md) for the full roadmap, including what was deferred and why.
@@ -108,20 +108,20 @@ Six headless suites, all exiting non-zero on failure:
 
 ```sh
 "$GODOT" --headless --path . res://test/smoke_test.tscn      #  41 checks — the game loop, end to end
-"$GODOT" --headless --path . res://test/floor_test.tscn      #  20 checks — registry, seeds, all 99 floors
+"$GODOT" --headless --path . res://test/floor_test.tscn      #  25 checks — registry, seeds, every floor walked
 "$GODOT" --headless --path . res://test/dialogue_test.tscn   #  56 checks — conditions, branching, effects
-"$GODOT" --headless --path . res://test/inventory_test.tscn  # 125 checks — stacking, equipment, item ids
-"$GODOT" --headless --path . res://test/combat_test.tscn     #  73 checks — formulas, turn loop, balance
-"$GODOT" --headless --path . res://test/quest_test.tscn      # 136 checks — objectives, turn-in, flag bridge
+"$GODOT" --headless --path . res://test/inventory_test.tscn  # 126 checks — stacking, equipment, item ids
+"$GODOT" --headless --path . res://test/combat_test.tscn     #  74 checks — formulas, turn loop, balance
+"$GODOT" --headless --path . res://test/quest_test.tscn      # 173 checks — objectives, turn-in, flag bridge
 ```
 
 Run them as **scenes**, not with `--script` — autoloads are registered after a script main loop is compiled, so `EventBus` and friends don't resolve there.
 
 Four checks are load-bearing:
 
-- **The floor test flood-fills all 99 generated floors** to prove the boss door and every chest are reachable. An unreachable boss door is the bug procedural generation reliably ships, and playtesting will not find it.
+- **The floor test flood-fills every generated floor**, and walks every hand-built one, to prove the boss door and every chest are reachable. An unreachable boss door is the bug procedural generation reliably ships, hand-building ships it just as easily, and playtesting will not find it.
 - **The combat test's balance section** fights hundreds of battles and asserts measured win rates — every band's boss beatable at its floor's level, an underlevelled player reliably losing. A stat edit that makes floor 50 unwinnable fails here instead of 20 hours into a playthrough.
-- **The inventory test's id sweep** checks that every item id the rest of the game already emits — enemy loot tables, generated-chest contents, dialogue rewards — has a resource behind it. A typo'd id is silent everywhere else: the drop just never arrives.
+- **The inventory test's id sweep** checks that every item id the rest of the game already emits — enemy loot tables, generated and authored chest contents, dialogue rewards — has a resource behind it. A typo'd id is silent everywhere else: the drop just never arrives.
 - **The quest test's objective-target sweep** is the same failure one layer up: every kill objective must name a real enemy, every collect a real item, every talk a real conversation. A typo makes an objective that can never be completed, and nothing else will say so.
 
 ---
@@ -132,13 +132,16 @@ Placeholder art and derived resources are generated, not committed by hand. Run 
 
 ```sh
 python3 tools/gen_placeholder_art.py                                          # atlases, sprites, portraits, item icons
+"$GODOT" --headless --path . --import                                         # so the next step cuts tiles from the new atlases
 "$GODOT" --headless --path . --script res://tools/build_biomes.gd             # TileSets + BiomeKits
 "$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd   # the authored Floor 1 maps
+"$GODOT" --headless --path . --script res://tools/build_floor_10.gd           # Ashlow Wood
+"$GODOT" --headless --path . --script res://tools/build_floor_25.gd           # Lanternfall
 ```
 
-Maps are engine-generated because `tile_map_data` is a binary blob inside the `.tscn` and can't be hand-authored as text. All biome atlases share one semantic slot layout, so a new biome is a palette entry plus a table row — no generator changes.
+Maps are engine-generated because `tile_map_data` is a binary blob inside the `.tscn` and can't be hand-authored as text. All biome atlases share one semantic slot layout, so a new biome is a palette entry plus a table row — no generator changes. The milestone-floor tools share `tools/authored_floor.gd`, so a new milestone floor is its layout tables and nothing else; run one with `-- --preview` to see the layout as text without writing it.
 
-> ⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn` and `field.tscn`. Stop running it once maps are being painted in the editor. `build_biomes.gd` is always safe — it only touches derived resources.
+> ⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn` and `field.tscn`, and each `build_floor_NN.gd` overwrites its `floor_NN.tscn`. Stop running a tool once its map is being painted in the editor. `build_biomes.gd` is always safe — it only touches derived resources.
 
 ---
 

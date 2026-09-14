@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/statuses/weakened.tres" id="status"]
+
+[resource]
+script = ExtResource("skill")
+id = &"twin_roar"
+display_name = "Twin Roar"
+description = "Both heads at once, a note apiece. It does no damage and does not need to: whatever you swing next, you swing weaker."
+kind = 2
+target = 1
+power = 0
+accuracy = 100
+crit_chance = 0
+stagger = 0
+cooldown = 4
+apply_chance = 85
+ai_weight = 0.9
+announce = "%s roars from both throats at once!"
+applies = ExtResource("status")

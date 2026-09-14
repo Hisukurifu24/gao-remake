@@ -21,6 +21,8 @@ const BLADE := &"nezha_first_blade"
 const ILLFANG := &"argo_illfang"
 const WOLVES := &"ashlow_wolves"
 const WARDEN := &"ashlow_warden"
+const TAGS := &"lanternfall_tags"
+const BREACH := &"lanternfall_breach"
 
 var _failures: PackedStringArray = PackedStringArray()
 var _checks := 0
@@ -67,6 +69,7 @@ func _run() -> void:
 	_test_auto_complete()
 	_test_flags_and_dialogue()
 	_test_ashlow()
+	_test_lanternfall()
 	_test_journal_ordering()
 
 
@@ -581,6 +584,71 @@ func _test_ashlow() -> void:
 	QuestLog.turn_in(WARDEN)
 	_check(QuestLog.is_completed(WARDEN), "Ashlow's chain closes out")
 	_check(Inventory.count(&"warden_seal") == 1, "and the seal is in the bag")
+
+
+# --- floor 25, Lanternfall -------------------------------------------------
+
+## Lanternfall's two jobs, and the two things Ashlow's never asked of the system.
+##
+## Dorran's is a COLLECT over [b]key items that come out of chests[/b], which is
+## the read-not-counted rule at its sharpest: a tag picked up before the job
+## existed still counts, and the tags are spent at the turn-in -- the one way a
+## key item may leave the bag. Maren's is offered on [b]a level[/b] rather than a
+## flag or a floor, so it is the one offer that nothing done on the floor itself
+## opens.
+func _test_lanternfall() -> void:
+	print("\n-- floor 25, Lanternfall --")
+	_reset()
+
+	var dorran: Dialogue = load("res://resources/dialogue/dorran.tres")
+	var maren: Dialogue = load("res://resources/dialogue/maren.tres")
+
+	_check(QuestLog.state_of(TAGS) == QuestLog.State.LOCKED,
+			"Dorran's job is locked until Floor 24 falls")
+	_check(not _offers(dorran, "What needs doing?"), "and he does not offer it")
+
+	GameState.clear_floor(24)
+	_check(_offers(dorran, "What needs doing?") == QuestLog.can_start(TAGS),
+			"Dorran's offer appears exactly when the job can be started")
+
+	# One tag found before the job was offered: the order a player who explores
+	# first will actually do it in.
+	Inventory.add_id(&"raid_tag", 1)
+	QuestLog.start(TAGS)
+	var tags := QuestLibrary.get_quest(TAGS).objective(&"tags")
+	_check(QuestLog.progress_for(TAGS).of(tags) == 1,
+			"a tag picked up before the job was taken still counts")
+	_check(_offers(dorran, "Still looking."), "and Dorran asks how the search is going")
+
+	Inventory.add_id(&"raid_tag", 2)
+	_check(QuestLog.is_ready(TAGS), "three tags is the job")
+	_check(_offers(dorran, "I found them. All three."), "and Dorran will take them")
+
+	QuestLog.turn_in(TAGS)
+	_check(QuestLog.is_completed(TAGS), "the names go on the wall")
+	_check(Inventory.count(&"raid_tag") == 0, "the tags leave the bag")
+	_check(Inventory.count(&"health_potion") == 3, "and the raid's potions come the other way")
+
+	_check(not QuestLog.can_start(BREACH), "Maren's job is refused below level 30")
+	_check(not _offers(maren, "Point me at the Breach."), "and she does not offer it")
+	_check(_offers(maren, "What's down in the Breach?"), "though she will say why")
+
+	GameState.level = 30
+	_check(QuestLog.can_start(BREACH), "at level 30 the job can be started")
+	_check(_offers(maren, "Point me at the Breach.") == QuestLog.can_start(BREACH),
+			"and her offer appears exactly then")
+
+	QuestLog.start(BREACH)
+	GameState.clear_floor(25)
+	_check(not QuestLog.is_ready(BREACH), "the door alone is not the whole job")
+	for i in QuestLibrary.get_quest(BREACH).objective(&"kobolds").required:
+		EventBus.enemy_defeated.emit(&"kobold_trooper")
+	_check(QuestLog.is_ready(BREACH), "the kobolds and the door together are")
+	_check(_offers(maren, "The Breach is shut. For good."), "and Maren's report branch opens")
+
+	QuestLog.turn_in(BREACH)
+	_check(QuestLog.is_completed(BREACH), "Lanternfall's second job closes out")
+	_check(Inventory.count(&"foremans_lantern") == 1, "and the lantern is in the bag")
 
 
 # --- the journal's view ---------------------------------------------------

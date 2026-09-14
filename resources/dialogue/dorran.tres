@@ -1,0 +1,168 @@
+[gd_resource type="Resource" script_class="Dialogue" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/placeholder/portrait_dorran.png" id="portrait"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue.gd" id="dialogue"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_line.gd" id="line"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_choice.gd" id="choice"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_floor_24_cleared"]
+script = ExtResource("condition")
+test = 1
+number = 24
+
+[sub_resource type="Resource" id="cond_tags_not_taken"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_lanternfall_tags_started"
+
+[sub_resource type="Resource" id="cond_tags_taken"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_lanternfall_tags_started"
+
+[sub_resource type="Resource" id="cond_tags_ready"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_lanternfall_tags_ready"
+
+[sub_resource type="Resource" id="cond_tags_not_ready"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_lanternfall_tags_ready"
+
+[sub_resource type="Resource" id="cond_tags_done"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_lanternfall_tags_done"
+
+[sub_resource type="Resource" id="cond_tags_not_done"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_lanternfall_tags_done"
+
+[sub_resource type="Resource" id="eff_start_tags"]
+script = ExtResource("effect")
+kind = 4
+id = &"lanternfall_tags"
+
+[sub_resource type="Resource" id="eff_turn_in_tags"]
+script = ExtResource("effect")
+kind = 5
+id = &"lanternfall_tags"
+
+[sub_resource type="Resource" id="choice_report"]
+script = ExtResource("choice")
+text = "I found them. All three."
+next = &"report"
+conditions = Array[ExtResource("condition")]([SubResource("cond_tags_ready")])
+
+[sub_resource type="Resource" id="choice_tags"]
+script = ExtResource("choice")
+text = "What needs doing?"
+next = &"tags"
+conditions = Array[ExtResource("condition")]([SubResource("cond_tags_not_taken"), SubResource("cond_floor_24_cleared")])
+
+[sub_resource type="Resource" id="choice_tags_wip"]
+script = ExtResource("choice")
+text = "Still looking."
+next = &"tags_wip"
+conditions = Array[ExtResource("condition")]([SubResource("cond_tags_taken"), SubResource("cond_tags_not_ready"), SubResource("cond_tags_not_done")])
+
+[sub_resource type="Resource" id="choice_giant"]
+script = ExtResource("choice")
+text = "What's behind the door?"
+next = &"giant"
+
+[sub_resource type="Resource" id="choice_leave"]
+script = ExtResource("choice")
+text = "Later."
+next = &""
+
+[sub_resource type="Resource" id="line_done"]
+script = ExtResource("line")
+id = &"done"
+text = "Seven more names on the wall. It's a better wall for them."
+conditions = Array[ExtResource("condition")]([SubResource("cond_tags_done")])
+
+[sub_resource type="Resource" id="line_done_2"]
+script = ExtResource("line")
+text = "Go on up. The Army won't be climbing again for a while, and somebody ought to."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_brief"]
+script = ExtResource("line")
+id = &"brief"
+text = "The galleries that go nowhere. That's where a raid runs when it breaks -- not back, just away."
+conditions = Array[ExtResource("condition")]([SubResource("cond_tags_taken"), SubResource("cond_tags_not_done")])
+
+[sub_resource type="Resource" id="line_brief_2"]
+script = ExtResource("line")
+text = "Three of them, off the main workings. The tags will be where the running stopped."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_first"]
+script = ExtResource("line")
+id = &"first"
+text = "Lanternfall. The Army's forward camp, or what the Army left of it."
+
+[sub_resource type="Resource" id="line_first_2"]
+script = ExtResource("line")
+text = "We went through the Breach door twenty-six strong and came back out with nineteen. The thing behind it didn't even chase us. It didn't need to."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_menu"]
+script = ExtResource("line")
+id = &"menu"
+text = "Say it. The miners are loud and I haven't slept."
+choices = Array[ExtResource("choice")]([SubResource("choice_report"), SubResource("choice_tags"), SubResource("choice_tags_wip"), SubResource("choice_giant"), SubResource("choice_leave")])
+
+[sub_resource type="Resource" id="line_tags"]
+script = ExtResource("line")
+id = &"tags"
+text = "Seven of ours are still down there. I can't bring them up. I can bring up their tags."
+effects = Array[ExtResource("effect")]([SubResource("eff_start_tags")])
+
+[sub_resource type="Resource" id="line_tags_2"]
+script = ExtResource("line")
+text = "Three galleries off the workings go nowhere. Look there. Bring me the tags and the names go on the wall with the rest."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_tags_wip"]
+script = ExtResource("line")
+id = &"tags_wip"
+text = "Three. I counted them out myself. I'll count them back in."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_report"]
+script = ExtResource("line")
+id = &"report"
+text = "...Three. That's all of them."
+effects = Array[ExtResource("effect")]([SubResource("eff_turn_in_tags")])
+
+[sub_resource type="Resource" id="line_report_2"]
+script = ExtResource("line")
+text = "The Monument on Floor One crossed them out the moment it happened. The wall here is so somebody remembers why. Take the potions -- they were the raid's, and they should go up with someone who's still climbing."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_giant"]
+script = ExtResource("line")
+id = &"giant"
+text = "Two heads on one body, and neither of them waits for the other."
+
+[sub_resource type="Resource" id="line_giant_2"]
+script = ExtResource("line")
+text = "One roars and your arms go to water. The other swings while they're still water. We learned that at level twenty-six, which was the other mistake."
+next = &"menu"
+
+[resource]
+script = ExtResource("dialogue")
+id = &"dorran"
+default_speaker = "Dorran"
+default_portrait = ExtResource("portrait")
+lines = Array[ExtResource("line")]([SubResource("line_done"), SubResource("line_done_2"), SubResource("line_brief"), SubResource("line_brief_2"), SubResource("line_first"), SubResource("line_first_2"), SubResource("line_menu"), SubResource("line_tags"), SubResource("line_tags_2"), SubResource("line_tags_wip"), SubResource("line_report"), SubResource("line_report_2"), SubResource("line_giant"), SubResource("line_giant_2")])
+start = &""

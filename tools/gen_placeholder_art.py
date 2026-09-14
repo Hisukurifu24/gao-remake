@@ -363,6 +363,7 @@ BATTLERS = {
     "drake":     ("drake",    (154, 82, 62),   (236, 176, 96)),
     "illfang":   ("humanoid", (152, 88, 58),   (228, 96, 72)),
     "warden":    ("plant",    (98, 78, 54),    (168, 202, 118)),
+    "giant":     ("giant",    (122, 106, 94),  (204, 158, 86)),
 }
 
 MENACE = (238, 96, 84, 255)  # every enemy's eye colour -- reads at 64px
@@ -381,6 +382,7 @@ def battler(name, shape, body, accent):
         "wraith": _wraith,
         "golem": _golem,
         "drake": _drake,
+        "giant": _giant,
     }[shape](c, body, dark, light, shade(accent, 1.0))
     _ground_shadow(c)
     c.save("enemy_%s.png" % name)
@@ -499,6 +501,24 @@ def _drake(c, body, dark, light, accent):
     c.rect(6, 40, 18, 4, dark)  # tail
 
 
+def _giant(c, body, dark, light, accent):
+    c.rect(16, 22, 32, 24, body)  # a barrel of a torso
+    c.rect(16, 22, 32, 3, light)
+    c.rect(18, 36, 28, 5, accent)  # belt
+    for x in (14, 36):  # two heads on one pair of shoulders
+        c.rect(x, 8, 14, 14, body)
+        c.rect(x, 8, 14, 3, light)
+        c.rect(x + 3, 13, 3, 3, MENACE)
+        c.rect(x + 8, 13, 3, 3, MENACE)
+        c.rect(x + 4, 18, 6, 2, (24, 18, 24, 255))  # jaw
+    c.rect(6, 24, 10, 20, body)  # arms
+    c.rect(48, 24, 10, 20, body)
+    c.rect(5, 44, 12, 6, dark)  # fists
+    c.rect(47, 44, 12, 6, dark)
+    c.rect(20, 46, 10, 13, dark)  # legs
+    c.rect(34, 46, 10, 13, dark)
+
+
 # --- props -----------------------------------------------------------------
 
 
@@ -531,11 +551,13 @@ ITEM_ICONS = {
     "kobold_blade":   ("sword",  (150, 142, 124)),
     "anneal_blade":   ("sword",  (108, 168, 220)),
     "heartwood_blade": ("sword", (168, 200, 116)),
+    "deepiron_blade": ("sword",  (112, 122, 146)),
     "leather_coat":   ("coat",   (140, 100, 64)),
     "blackwyrm_coat": ("coat",   (66, 70, 96)),
     "guard_ring":     ("ring",   (204, 180, 110)),
     "swift_charm":    ("ring",   (114, 200, 206)),
     "warden_seal":    ("ring",   (126, 176, 100)),
+    "foremans_lantern": ("flask", (232, 176, 72)),
     "boar_hide":      ("pelt",   (140, 102, 72)),
     "wolf_fang":      ("fang",   (222, 228, 238)),
     "bat_wing":       ("pelt",   (118, 98, 140)),
@@ -546,6 +568,7 @@ ITEM_ICONS = {
     "golem_core":     ("shard",  (172, 148, 96)),
     "spirit_ash":     ("shard",  (150, 196, 232)),
     "map_floor_2":    ("scroll", (212, 196, 156)),
+    "raid_tag":       ("tag",    (150, 158, 176)),
 }
 
 
@@ -561,6 +584,7 @@ def item_icon(name, shape, color):
         "fang": _icon_fang,
         "pelt": _icon_pelt,
         "scroll": _icon_scroll,
+        "tag": _icon_tag,
     }[shape](c, base, shade(color, 0.62), tint(color, 0.3))
     c.save("item_%s.png" % name)
 
@@ -644,6 +668,17 @@ def _icon_scroll(c, base, dark, light):
     c.rect(7, 7, 3, 3, light)  # the "you are here"
 
 
+def _icon_tag(c, base, dark, light):
+    cord = (150, 128, 96, 255)
+    for x, y in ((4, 1), (5, 2), (6, 3), (11, 1), (10, 2), (9, 3)):  # the cord
+        c.set(x, y, cord)
+    c.rect(4, 4, 8, 11, base)  # the tag
+    c.rect(4, 4, 8, 1, light)
+    c.rect(7, 5, 2, 2, dark)  # the hole the cord runs through
+    for y in (8, 10, 12):  # the stamping
+        c.rect(6, y, 4, 1, dark)
+
+
 def boss_gate():
     """A dark archway -- the labyrinth boss door."""
     c = Canvas(FRAME, FRAME)
@@ -670,6 +705,8 @@ if __name__ == "__main__":
     portrait("portrait_nezha.png", (86, 96, 116, 255), (188, 128, 76, 255))
     portrait("portrait_rue.png", (72, 104, 66, 255), (198, 172, 108, 255), (128, 76, 52, 255))
     portrait("portrait_sable.png", (62, 66, 92, 255), (172, 180, 200, 255), (36, 34, 44, 255))
+    portrait("portrait_dorran.png", (68, 86, 72, 255), (176, 170, 150, 255), (58, 48, 40, 255))
+    portrait("portrait_maren.png", (128, 92, 58, 255), (228, 184, 92, 255), (164, 84, 56, 255))
     chest()
     boss_gate()
     for battler_name, (shape, body, accent) in BATTLERS.items():

@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="Quest" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
+[ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_level_30"]
+script = ExtResource("condition")
+test = 2
+number = 30
+
+[sub_resource type="Resource" id="obj_kobolds"]
+script = ExtResource("objective")
+id = &"kobolds"
+kind = 0
+target = &"kobold_trooper"
+required = 4
+description = "Drive back 4 Ruin Kobold Sentinels in the workings"
+
+[sub_resource type="Resource" id="obj_giant"]
+script = ExtResource("objective")
+id = &"giant"
+kind = 3
+number = 25
+required = 1
+description = "Put Karvos the Twin-Headed down and clear Floor 25"
+
+[sub_resource type="Resource" id="reward_xp"]
+script = ExtResource("effect")
+kind = 2
+amount = 600
+
+[sub_resource type="Resource" id="reward_lantern"]
+script = ExtResource("effect")
+kind = 3
+id = &"foremans_lantern"
+amount = 1
+
+[resource]
+script = ExtResource("quest")
+id = &"lanternfall_breach"
+title = "The Door Under the Camp"
+giver = "Maren"
+summary = "Lanternfall dug straight down for two years looking for iron and broke into a labyrinth door instead. The kobolds came up through the hole, and the thing behind the door sent the Army home. Maren sends nobody down there under level thirty -- the Army went at twenty-six."
+objectives = Array[ExtResource("objective")]([SubResource("obj_kobolds"), SubResource("obj_giant")])
+prerequisites = Array[ExtResource("condition")]([SubResource("cond_level_30")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_lantern")])
