@@ -51,6 +51,10 @@ var _rows_text := PackedStringArray()
 var _staged: Skill = null
 
 var _actor: Combatant = null
+## The pause that hides the screen after a fight. Held so the next fight can
+## cancel it: a fight that starts inside the pause would otherwise be hidden when
+## it runs out, and the manager would wait forever on a menu nobody can see.
+var _outro: Tween = null
 ## Enemy [Combatant] to the panel drawing it, so a report can find its sprite.
 var _entries: Dictionary[Combatant, Control] = {}
 
@@ -159,6 +163,9 @@ func _send(action: CombatAction) -> void:
 # --- combat signals --------------------------------------------------------
 
 func _on_combat_began(encounter: Encounter, party: Array[Combatant], enemies: Array[Combatant]) -> void:
+	if _outro != null:
+		_outro.kill()
+		_outro = null
 	_set_visible(true)
 	_backdrop.color = encounter.backdrop
 	_log.text = "%s blocks the way." % encounter.label()
@@ -193,9 +200,9 @@ func _on_combat_finished(result: CombatResult) -> void:
 	if CombatManager.step_delay <= 0.0:
 		_set_visible(false)
 		return
-	var tween := create_tween()
-	tween.tween_interval(OUTRO_TIME)
-	tween.tween_callback(_set_visible.bind(false))
+	_outro = create_tween()
+	_outro.tween_interval(OUTRO_TIME)
+	_outro.tween_callback(_set_visible.bind(false))
 
 
 # --- menus -----------------------------------------------------------------
@@ -362,7 +369,7 @@ func _build_enemies(enemies: Array[Combatant]) -> void:
 		var sprite := TextureRect.new()
 		sprite.name = "Sprite"
 		sprite.texture = enemy.battler
-		sprite.custom_minimum_size = Vector2(64, 64)
+		sprite.custom_minimum_size = _battler_size(enemy.battler)
 		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		column.add_child(sprite)
@@ -489,3 +496,15 @@ func _set_visible(shown: bool) -> void:
 			child.queue_free()
 		for child in _floaters.get_children():
 			child.queue_free()
+
+
+## A battler scaled by a whole number, which is what keeps nearest filtering
+## crisp: a 16px monster four times over, a ~60px pack boss twice (so it towers
+## over its escort), and the 64px placeholders as they are.
+func _battler_size(texture: Texture2D) -> Vector2:
+	if texture == null:
+		return Vector2(64, 64)
+	var size := texture.get_size()
+	var longest := maxf(size.x, size.y)
+	var factor := 4.0 if longest <= 24.0 else (2.0 if longest < 64.0 else 1.0)
+	return size * factor

@@ -165,9 +165,10 @@ loop, not gaps in it. Nothing here blocks M5.
   function of level with no learn-state to save, which is why it's simple today.
   One-handed vs. rapier vs. dual-blades turns it into a `GameState` lookup.
 - [ ] No currency drops; loot is items only.
-- [ ] Fleeing returns the player exactly where they stood, so a fled monster is
+- [x] Fleeing returns the player exactly where they stood, so a fled monster is
   immediately re-interactable. Fine while monsters are stationary; revisit if they
-  ever chase.
+  ever chase. **They do now** — a monster that survives a fight is stunned for
+  `GRACE_SECONDS`, can't be pressed while it is, then walks home (M5.5 §2).
 
 ### M5 — Quests & progression ✅
 - [x] `Quest` resource: objectives (kill/collect/talk/reach), rewards, prerequisites, states.
@@ -227,6 +228,162 @@ timed or failable quests, no branching quests where a choice picks between two
 endings, and **the tracker shows one quest at a time** rather than every live
 objective.
 
+### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1 and §2 ✅
+
+Playtest feedback on the finished loop, and it lands on the overworld rather than on any
+one system: **the floors work, but exploring them isn't a game yet.** The camera shows the
+whole room and past it, monsters stand still until you walk up and press **E** on them, and
+the boss door is wherever the farthest room is — which, with that camera, you can usually
+see. All three change what a floor *is* to walk through, so they come before Floor 40:
+every authored floor built before them would be laid out for a game that no longer exists,
+and 1, 10 and 25 already need a revisit (below).
+
+Order matters — each step leans on the one before.
+
+#### 0. Art: the Ninja Adventure pack — Floor 1 slice ✅
+Playtest said the floors don't feel alive, and every floor authored on placeholder art is a
+floor laid out twice — so the look settles before more floors, the same argument as the rest
+of M5.5. Picked the **Ninja Adventure Asset Pack** (Pixel-boy & AAA, CC0): 16 px, top-down,
+and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
+- [x] **Whole pack in `assets/ninja_adventure/`** with its LICENSE — everything on hand in
+  the editor.
+- [x] **Walls are a style per biome**, not cliffs everywhere: the pack's own outdoor maps
+  wall with dense trees, and its cliff tiles are raised ground. Forest for the outdoor bands,
+  cliffs/rock for caves and ruins, stone for the castle.
+- [x] **`MapDresser`**: one pass after layout for generated and authored floors — forest over
+  the wall mass (y-sorted, no collision), grass/dirt and shoreline transitions by nearest
+  match, decor scatter. Floor test: no bare forest edge, exact ground edges, no dressing
+  layer collides, deterministic per seed.
+- [x] **Meadow + Floor 1 converted**: town houses you walk behind, roads and plaza, a pond
+  with a shore, the cave-mouth labyrinth door, forest borders two deep.
+- [x] **Cast so far**: Kirito = SamuraiBlue, Argo = NinjaYellow, Nezha = Hunter, the scout =
+  CamouflageGreen; Frenzy Boar = WildBoar, Little Nepent = Bamboo, Illfang = GiantRacoon.
+  Battlers scale ×4 (bosses ×2). All swappable in one line each.
+- [ ] **The other nine biomes**, forest band first (Floor 10 is on it), then cave for
+  Lanternfall — each is a `PACK_BIOMES` entry, plus a cliff wall style for the first
+  underground one.
+- [ ] **Floors 10 and 25** re-dressed (their tools already call the dresser; they need a pack
+  biome and houses/props), and their NPCs, portraits and bosses cast.
+- [ ] The rest of the roster (wolf, kobold, bat, wraith, lizardman, golem, drake, giant,
+  warden), item icons from `Items/`, the chest's open frame checked in play, UI theme and
+  font from `Ui/`. Audio stays with M7 — it is in the pack already.
+
+#### 1. Camera closer
+- [x] Zoom the player's `Camera2D` in (start from **2×**: 320×180 visible, 20×11 tiles,
+  down from 40×22 — a room stops fitting on screen, and so does the next one).
+  One property in `scenes/player/player.tscn`; the HUD, dialogue box and combat screen are
+  `CanvasLayer`s and don't move. *Landed at 2×.*
+- [x] Check `GameMap`'s camera limits for maps *smaller* than the view (Town of Beginnings
+  was sized for zoom 1) — Godot's behaviour when limits are tighter than the viewport needs
+  to be looked at, not assumed. *Looked at: `Camera2D` clamps left/top first and right/bottom
+  second, so a too-small map pins to its right/bottom edge and shows the void top-left. No
+  map is anywhere near that — the smallest, Floor 1's field, is 3×4 views — and
+  `floor_test` now refuses any authored map smaller than one view.*
+- [x] Re-measure **walk time per floor**. A closer camera makes the same map feel bigger;
+  `FloorTuning.map_size` was chosen for a camera that showed half of it. It may want to
+  shrink, or rooms to shrink while corridors grow. *Measured (world seed 12345, shortest
+  walk spawn → boss door at 90 px/s):*
+
+  | Floor | Map (tiles) | Views at 2× | Spawn → door |
+  |---|---|---|---|
+  | 1 (field) | 60×44 | 3.0×3.9 | 60 tiles, 11 s |
+  | 2 | 50×38 | 2.5×3.4 | 48 tiles, 9 s |
+  | 10 Ashlow | 78×58 | 3.9×5.2 | 89 tiles, 16 s |
+  | 24 | 56×42 | 2.8×3.7 | 61 tiles, 11 s |
+  | 25 Lanternfall | 80×62 | 4.0×5.5 | 153 tiles, 27 s |
+  | 50 | 62×46 | 3.1×4.1 | 48 tiles, 9 s |
+  | 100 | 75×54 | 3.8×4.8 | 55 tiles, 10 s |
+
+  *Decision: `map_size` stays.* Ten seconds to the door is short, not long — the zoom is
+  what stops you seeing it, and §3 (a door you have to find, a labyrinth in front of it) is
+  what should add the time, not bigger empty rooms. Revisit once §3 lands.
+- [x] `tools/screenshot.gd` frames and anything else that assumed the old framing. *Nothing
+  did — every capture positions the player relative to what it frames. The pass did turn up
+  a real bug: the interact prompt survived a map change ("Talk to Argo" on floor 2), because
+  the freed player never announced losing its target. `Player._exit_tree()` now does.*
+- [ ] **Open decision.** Decide whether dark biomes (cave, volcanic, the lower Lanternfall workings) want a
+  light radius on top of the zoom. Cheap with a `PointLight2D` + `CanvasModulate`, and it is
+  the other half of "you can't see the boss from here".
+
+#### 2. Monsters that move and engage
+~~Today~~ *Before M5.5* a `Monster` was an `Interactable`: it waits, you press **E**, the
+fight starts. It should behave like something living on the floor. *Landed — see
+`scripts/world/monster.gd` and CLAUDE.md "Roaming monsters".*
+- [x] **Wander**: idle drift inside the room it spawned in (a leash radius round its spawn
+  point), using runtime RNG — this is behaviour, not generation, so seeded determinism
+  does not apply to it.
+- [x] **Notice → chase → contact starts the fight.** An aggro radius with line of sight
+  (a raycast on the world layer), a chase speed *below* the player's 90, and a leash that
+  sends it home if you outrun it. Contact is an `Area2D` overlap, not a keypress.
+- [x] **Stay avoidable.** This is the rule M4 built monsters on and it survives: slower
+  than the player, a leash, and a body that collides with walls (mask 1) but *never* with
+  the player (layer 2), so a monster still cannot wall off a corridor and the floor test's
+  flood fill still never has to know about it.
+- [x] **Who struck first matters** (the "pre-emptive strike" from *Suggestions*): hit it
+  with **E** before it notices you → you act first / free hit; it catches you from behind
+  → it acts first. The hook is the encounter `Monster` builds — `CombatManager` should
+  receive an "ambush" flag on the encounter, not grow knowledge of the overworld.
+- [x] **Grace period after a fight.** Fleeing or being knocked flat currently leaves you
+  standing on the monster (the M4 deferred note predicted this: *"revisit if they ever
+  chase"*). A few seconds of the monster stunned / not aggroing, or it resetting to its
+  spawn, or the fight never re-triggers instantly.
+- [x] **Never engage through the input lock** — not during dialogue, a menu, a fade, or a
+  fight already running. `GameState`'s counted lock is the one check; monsters also pause
+  their movement while it is held.
+- [x] Tests: the smoke test's "interact with Monster0" path still works (pressing **E** is
+  still a way in), plus a headless check that a monster in range with line of sight starts
+  a fight and one behind a wall doesn't.
+- *How it landed, where it differs from the notes above:* the "body that collides with walls"
+  is not a physics body — the monster asks the space whether a 5 px probe fits before each
+  step and slides per axis, so it is still an `Area2D` nothing can bump into. Chase speed
+  62, aggro 72 px, lose at 120 px / 176 px from home / 1 s out of sight. The grace period is
+  both halves: stunned in place for 3 s (blinking, not pressable), then home without looking
+  at you; separately, every monster is calm for 1 s after *any* fight. The first round is
+  `Encounter.opening` (`PARTY_FIRST` for **E** on a monster that isn't chasing — the prompt
+  says *Ambush* rather than *Fight* — `ENEMIES_FIRST` when it runs you down facing away),
+  honoured only in round 1 by `CombatManager._turn_order()` and covered in `combat_test`.
+  A "!" pops over a monster when it notices you.
+
+#### 3. Hidden boss room
+In the source material, finding the boss room *is* the first half of the floor — the
+front line spends days mapping the labyrinth before anyone sees the door. Here the door is
+predictably in the farthest room and often on screen.
+- [ ] **Fog of war / explored map.** Cells are revealed as the player walks near them; a
+  map screen (and/or minimap) shows only what has been explored. Explored state per floor
+  is a `GameState` set of cells — which puts it in the M7 save, and is one more reason
+  `world_seed` has to be there.
+- [ ] **The door is not where you'd guess.** Seeded choice among the *far* rooms rather
+  than always the farthest; and generated floors grow a **labyrinth section** in front of
+  the boss room (tighter, twistier corridors, dead ends) — the labyrinth tower is how SAO
+  floors actually end.
+- [ ] **Candidates to decide between, not all to build:** a secret wall / hidden passage
+  on the last stretch; a boss room that only shows its door once you are inside it; a
+  boss room whose location Argo will *sell* you (she is an information broker — this is the
+  most in-fiction version, and dialogue can already give flags).
+- [ ] **Found stays found.** Reaching the door sets `boss_found_<n>`; the map marks it from
+  then on. Losing to the boss already sends you back to the entrance — making you re-find
+  the door on top of that would be punishment, not difficulty.
+- [ ] **The floor test must keep proving completability** with whatever hides the door:
+  a secret wall counts as passable for the flood fill, *and* a new check that the hidden
+  thing is discoverable (it has a tell), or procgen will ship an unfindable boss the way it
+  used to ship unreachable ones.
+- [ ] Revisit authored floors: Illfang's door sits in plain view in the field, Nerith's
+  hollow and Karvos's Breach are both at the obvious end of their layouts.
+
+#### 4. "Something's missing" in floor structure — design pass
+The layouts aren't bad but don't hold attention yet. Decide what the missing thing is
+**after** 1–3 land, because a close camera, moving monsters and a hidden door will change
+the answer. Candidates to weigh:
+- **Safe zones** inside dungeons (a room monsters won't enter) — very SAO, and a place to
+  rest that isn't the stairs.
+- **Traps**: an alarm chest that summons a pack, a teleport trap into a worse room. The
+  anime's most memorable dungeon death is a trapped chest.
+- **Landmarks** so a floor has places rather than rooms — a lake, a statue, a collapsed
+  bridge — which also matter more once you can't see the whole map.
+- **Room shape variety** in the generator: `_carve_cave()` already exists in the authored
+  builder; generated floors are still rects and L-corridors.
+- Ties into M6's *floor-shape variety* and *town hubs on generated floors*.
+
 ### M6 — World depth & floor content
 The 100-floor architecture is in (see *Floors of Aincrad* below); this is the pass that
 makes those floors worth climbing. **Deliberately placed after M4** — you cannot size a
@@ -250,8 +407,9 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
   the tower — what's open is teaching the generator to build one.
 - [x] Enemy spawning on the map (visible, avoidable), populated from the biome's enemy
   pool and `FloorTuning.enemy_level`. **Landed early with M4** — the boss gate is
-  unreachable without something to level on. Monsters have no collision, so they can
-  never wall off a corridor and the floor test's flood fill never sees them.
+  unreachable without something to level on. Monsters have no solid body (since M5.5
+  they test walls to move, but nothing collides with them), so they can never wall off a
+  corridor and the floor test's flood fill never sees them.
 - [ ] Party of two (Asuna). Boss escorts are capped at one *because* the party is one;
   `Bestiary._escort_count` is where that cap lifts.
 
@@ -448,7 +606,7 @@ what M4 actually landed; the rest are still open and cross-referenced from
 - **Fast, skippable combat.** Let players hold a button to speed up animations and auto-repeat the last action for trash mobs. Modern players hate slow random battles. *`CombatManager.step_delay` is the hook.*
 
 **Exploration & encounters**
-- ◐ **Visible enemies on the map**, not random encounters — in, and avoidable: monsters have no collision, so you can always walk past. *Sneaking and pre-emptive strikes are still open; the hook is `Monster.interact()`, which is the one place that knows how a fight was started.*
+- ◐ **Visible enemies on the map**, not random encounters — in, and avoidable: monsters have no collision, so you can always walk past. *Pre-emptive strikes are in (M5.5 §2): **E** on a monster that hasn't noticed you wins round 1, being run down from behind loses it.* Monsters wander, notice you by line of sight and chase — sneaking is keeping out of their sight; a real stealth stat is still open.
 - ◐ **Floor-based structure** (very SAO): themed zone, dungeon and boss gate per floor are in. *Town hubs on generated floors are the missing piece — see M6.*
 
 **Systems that reward mastery**
@@ -493,6 +651,12 @@ rooms have edges, corridors have sides and a doorway is visibly a doorway. The `
 and `sky` bands, which had almost no floor-to-wall contrast at all, got repalettes to
 match.
 
+And it has started to look like a place. **Floor 1 is on the Ninja Adventure pack**: the
+Town of Beginnings has roads with worn grass edges, houses you walk behind and flowers in
+the lawns; the field has a real pond, a forest two trees deep round it, and Illfang behind a
+cave mouth in the rock. Floors 2–9 grow the same forest on generated layouts. The other
+bands still draw placeholders.
+
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
 
@@ -514,11 +678,11 @@ bottom only goes up.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 41-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 25-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 54-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 31-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 74-check combat test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 84-check combat test
 "$GODOT" --headless --path . res://test/quest_test.tscn     # 173-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
@@ -535,7 +699,8 @@ python3 tools/gen_placeholder_art.py
 ⚠ The `--import` step is load-bearing, not housekeeping. `build_biomes.gd` reads the
 *imported* atlas, so without it every tile is cut from the stale one — and since the
 atlases are now 7 rows rather than 1, a stale cache means the wall blob is cut from
-nothing at all.
+nothing at all. Pack biomes (`PACK_BIOMES`) are the exception: they are cut from the pack's
+sheets directly and embedded, so no import step can leave them stale.
 
 ⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn` / `field.tscn`, and each
 `build_floor_NN.gd` **overwrites** its `floor_NN.tscn`. Once you start painting a map in
@@ -543,17 +708,26 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 `build_biomes.gd` is always safe — it only touches derived resources.
 
 ## Immediate next steps
-1. **Floor 40, on the builder Floor 25 extracted.** A milestone floor is now a layout
-   script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest each and
-   an authored boss — Lanternfall took that from a design job to a content job, and the
-   suite checks everything a hand-built floor tends to get wrong. Forty opens the swamp
+1. **Finish the art rollout, before any new floor** (M5.5 §0). Floor 1 and the meadow are the
+   worked example; next the forest band and Floor 10, then cave and Lanternfall with a cliff
+   wall style. Same reason as the rest of M5.5: a floor laid out on placeholder art is laid
+   out twice.
+2. **M5.5 — Exploration feel, before any new floor.** Camera zoom and moving monsters are
+   in. **Next: §3, a boss room you have to find** — which starts with picking among its
+   candidates (secret wall, door that only shows from inside, Argo selling the location),
+   then the §4 design pass on what floors are still missing. Building Floor 40 first would mean laying it out for a
+   camera and an encounter model that are about to change — and revisiting it along with
+   1, 10 and 25.
+3. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
+   a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest
+   each and an authored boss — Lanternfall took that from a design job to a content job, and
+   the suite checks everything a hand-built floor tends to get wrong. Forty opens the swamp
    band; Ashlow was a loop and Lanternfall a chain, so it wants a third shape.
-2. **M7 save/load is the one thing getting more expensive with every milestone.**
+4. **M7 save/load is the one thing getting more expensive with every milestone.**
    `QuestLog` just added a third autoload's worth of state to serialise
    (`_active`/`_completed`/`_order`/`_tracked`), on top of `GameState` and
    `Inventory`. `world_seed` **must** be in the save or every generated floor
    reshuffles on load.
-3. Replace placeholder art when the systems settle, not before.
 
 **Cheapest combat-feel wins**, if the fights start to feel flat: the
 stagger *bonus turn* (poise already costs the victim a turn; granting the attacker one is

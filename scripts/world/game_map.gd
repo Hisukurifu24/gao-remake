@@ -44,8 +44,10 @@ func _resolve_spawn(requested: StringName) -> Vector2:
 
 
 ## Keeps the camera inside the painted area so it never shows the void.
-## Merges every tile layer: a generated floor's Ground only covers carved cells,
-## while its Walls cover the whole rectangle.
+## Merges Ground and Walls: a generated floor's Ground only covers carved cells,
+## while its Walls cover the whole rectangle. Not the dressing layers -- a crown
+## on the forest's top row hangs a row above the map, and a limit that followed
+## it would show that row's void.
 func _apply_camera_limits(player: Player) -> void:
 	var camera := player.get_node_or_null("Camera2D") as Camera2D
 	if camera == null:
@@ -55,7 +57,7 @@ func _apply_camera_limits(player: Player) -> void:
 	var tile := Vector2i(16, 16)
 	for child in get_children():
 		var layer := child as TileMapLayer
-		if layer == null or layer.tile_set == null:
+		if layer == null or layer.tile_set == null or not (layer.name in [&"Ground", &"Walls"]):
 			continue
 		var used := layer.get_used_rect()
 		if used.size == Vector2i.ZERO:

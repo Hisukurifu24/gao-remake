@@ -44,6 +44,8 @@ func _ready() -> void:
 	await _capture_inventory(main)
 	await _capture_combat()
 
+	await _capture_world(main)
+
 	# One floor per biome band worth showing off, and the authored ones past the
 	# first -- 24 and 25 side by side are the same band generated and built.
 	for floor_number in [2, 10, 24, 25, 55, 87, 100]:
@@ -207,6 +209,36 @@ func _capture_floor(floor_number: int) -> void:
 	await _frames(2)
 	await _capture("%02d_floor_%d_%s" % [
 		floor_number / 20 + 5, floor_number, FloorRegistry.biome_id(floor_number)])
+
+
+## Floor 1 up close: the depth sort, which is only visible with somebody standing
+## in the right place -- behind a roof, under a grove's crowns -- and the pieces a
+## generated floor never shows, the pond's shoreline and the labyrinth door.
+##
+## The input lock is held for each shot so the field's monsters stand still rather
+## than wandering into frame and starting a fight.
+func _capture_world(main: Node) -> void:
+	var world: Node = main.get_node("WorldRoot")
+	var spots := [
+		["res://scenes/world/town.tscn", Vector2(15 * 16 + 8, 9 * 16 + 10), "04j_town_behind_house"],
+		["res://scenes/world/field.tscn", Vector2(14 * 16 + 8, 26 * 16 + 8), "04k_field_pond"],
+		["res://scenes/world/field.tscn", Vector2(42 * 16, 14 * 16 + 12), "04l_field_under_grove"],
+		["res://scenes/world/field.tscn", Vector2(49 * 16 + 8, 35 * 16 + 8), "04m_field_door"],
+	]
+	for spot: Array in spots:
+		var current := world.get_child(0) if world.get_child_count() > 0 else null
+		if current == null or current.scene_file_path != spot[0]:
+			SceneRouter.change_map(spot[0], &"default")
+			await _frames(2)
+			while GameState.is_input_locked():
+				await get_tree().process_frame
+		var player := world.get_child(0).get_node("Player") as Node2D
+		GameState.push_input_lock()
+		player.global_position = spot[1]
+		await _frames(45)
+		await _capture(spot[2])
+		GameState.pop_input_lock()
+		await _frames(2)
 
 
 ## Taps an action as a real input event, so UI listening in _unhandled_input

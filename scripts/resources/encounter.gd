@@ -10,6 +10,14 @@ extends Resource
 ## floor's level, and difficulty comes from the curve in [FloorTuning], not from
 ## per-enemy tuning.
 
+## Who owns the first round. Decided on the overworld, by how the fight was
+## started, and honoured by [CombatManager] without it learning what a map is.
+enum Opening {
+	NORMAL,         ## Speed order from the first round.
+	PARTY_FIRST,    ## Struck before it noticed you: the enemies sit round 1 out.
+	ENEMIES_FIRST,  ## Caught from behind: the party sits round 1 out.
+}
+
 @export var id: StringName = &""
 @export var display_name := ""
 @export var enemies: Array[EnemyType] = []
@@ -19,6 +27,7 @@ extends Resource
 ## Boss fights can't be walked away from.
 @export var can_flee := true
 @export var is_boss := false
+@export var opening: Opening = Opening.NORMAL
 
 @export_group("Presentation")
 ## Renames the first enemy. Generated bosses get their name from

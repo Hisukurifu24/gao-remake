@@ -180,6 +180,141 @@ func _run() -> void:
 	GameState.grant_xp(GameState.xp_to_next_level())
 	_check(GameState.level == level_before + 1, "granting enough xp levels the player up")
 
+	await _test_roaming(floor_two, floor_two_player as Player)
+
+
+## Monsters that move, on a real generated floor with real walls: noticing needs
+## line of sight, nothing happens through the input lock, contact starts the fight,
+## a fight it survives leaves you room to leave, and pressing E first wins round 1.
+##
+## The floor is random per run, so the wall is painted here rather than hunted for:
+## a five-tall column through the middle of an open block, the player on one side
+## and the monster on the other, well inside [constant Monster.AGGRO_RADIUS].
+func _test_roaming(map: Node2D, player: Player) -> void:
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	await _physics(2)
+
+	var walls: TileMapLayer = map.get_node("Walls")
+	var block := _open_block(walls, Vector2i(5, 5))
+	_check(block.size != Vector2i.ZERO, "floor 2 has a 5x5 open block to test monsters in")
+	if block.size == Vector2i.ZERO:
+		return
+	var wall_cells: Array[Vector2i] = []
+	for y in 5:
+		wall_cells.append(block.position + Vector2i(2, y))
+	var any_wall := walls.get_used_cells()[0]
+	for cell in wall_cells:
+		walls.set_cell(cell, walls.get_cell_source_id(any_wall), walls.get_cell_atlas_coords(any_wall))
+
+	player.global_position = walls.map_to_local(block.position + Vector2i(0, 2))
+	player.facing = Vector2.LEFT  # away from where the monster will be
+	# A painted tile gets its collision on a later frame, and a monster looks on
+	# its first one -- let the wall exist before anything tries to see through it.
+	await _physics(3)
+	var monster_at := walls.map_to_local(block.position + Vector2i(4, 2))
+	var ray := PhysicsRayQueryParameters2D.create(
+			monster_at + Monster.FOOT, player.global_position + Monster.FOOT, 1)
+	_check(not map.get_world_2d().direct_space_state.intersect_ray(ray).is_empty(),
+			"the painted wall blocks a line of sight across it")
+	var monster := _spawn_monster(map, monster_at)
+	await _physics(60)
+	_check(monster.state != Monster.State.CHASE and not CombatManager.is_running(),
+			"a monster does not notice the player through a wall")
+
+	for cell in wall_cells:
+		walls.erase_cell(cell)
+	GameState.push_input_lock()
+	var held_at := monster.global_position
+	await _physics(30)
+	_check(monster.state != Monster.State.CHASE and monster.global_position == held_at \
+			and not CombatManager.is_running(),
+			"with the input lock held it neither moves, notices nor engages")
+	GameState.pop_input_lock()
+
+	var chased := false
+	for _i in 240:
+		await _physics()
+		if CombatManager.is_running():
+			break
+		chased = chased or monster.state == Monster.State.CHASE
+	_check(chased, "with the wall gone it notices the player and gives chase")
+	_check(CombatManager.is_running(), "reaching the player starts the fight -- no keypress")
+	_check(CombatManager.is_running() \
+			and CombatManager.current_encounter().opening == Encounter.Opening.ENEMIES_FIRST,
+			"catching the player facing away gives it the first round")
+
+	await _flee_battle()
+	await _close_dialogue()
+	_check(is_instance_valid(monster) and monster.state == Monster.State.STUNNED,
+			"a monster that survives the fight is stunned afterwards")
+	_check(not monster.is_available(), "and cannot be picked a fight with while it is")
+	await _physics(90)
+	_check(not CombatManager.is_running(),
+			"the grace period stops it re-engaging the player standing on it")
+	monster.queue_free()
+
+	var sleeper := _spawn_monster(map, player.global_position + Vector2(20, 0))
+	sleeper.interact(player)
+	_check(CombatManager.is_running() \
+			and CombatManager.current_encounter().opening == Encounter.Opening.PARTY_FIRST,
+			"pressing E on a monster that has not noticed you wins the first round")
+	await _auto_battle()
+	_check(not is_instance_valid(sleeper) or sleeper.is_queued_for_deletion(),
+			"and a pressed fight still ends the way it always did")
+
+	# The result stays on screen for a beat after a fight. A second fight started
+	# inside that beat must not be hidden when it runs out: the manager would sit
+	# waiting on a command from a menu nobody can see, holding the input lock.
+	var screen: CanvasLayer = find_child("CombatScreen", true, false)
+	var second := _spawn_monster(map, player.global_position + Vector2(20, 0))
+	second.interact(player)
+	await get_tree().create_timer(screen.OUTRO_TIME + 0.4).timeout
+	_check(CombatManager.is_running() and screen.visible,
+			"a fight started during the last one's outro keeps its screen")
+	await _auto_battle()
+
+
+func _spawn_monster(map: Node2D, at: Vector2) -> Monster:
+	var monster := (load("res://scenes/world/monster.tscn") as PackedScene).instantiate() as Monster
+	monster.enemy = Bestiary.pool_for_floor(2)[0]
+	monster.level = 1
+	monster.floor_number = 2
+	monster.position = at
+	map.add_child(monster)
+	return monster
+
+
+## The first rect of [param size] with no wall in it or round it.
+func _open_block(walls: TileMapLayer, size: Vector2i) -> Rect2i:
+	var used := walls.get_used_rect()
+	for y in range(used.position.y + 1, used.end.y - size.y - 1):
+		for x in range(used.position.x + 1, used.end.x - size.x - 1):
+			var clear := true
+			for dy in range(-1, size.y + 1):
+				for dx in range(-1, size.x + 1):
+					if walls.get_cell_source_id(Vector2i(x + dx, y + dy)) != -1:
+						clear = false
+						break
+				if not clear:
+					break
+			if clear:
+				return Rect2i(Vector2i(x, y), size)
+	return Rect2i()
+
+
+## Runs from whatever fight is on until it ends some way other than a win.
+func _flee_battle(timeout_frames := 6000) -> void:
+	for _i in timeout_frames:
+		if not CombatManager.is_running():
+			return
+		if CombatManager.is_awaiting_command():
+			if not CombatManager.submit(CombatAction.flee()):
+				CombatManager.submit(CombatAction.defend())
+		await _idle()
+	_check(false, "timed out fleeing the battle")
+
 
 # --- helpers ---------------------------------------------------------------
 

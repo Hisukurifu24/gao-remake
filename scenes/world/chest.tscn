@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/chest.gd" id="1_chest"]
-[ext_resource type="Texture2D" path="res://assets/placeholder/chest.png" id="2_tex"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Items/Treasure/LittleTreasureChest.png" id="2_tex"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_area"]
 radius = 11.0
@@ -19,7 +19,8 @@ display_name = "chest"
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_tex")
-offset = Vector2(0, -13)
+offset = Vector2(0, -8)
+hframes = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(0, -6)

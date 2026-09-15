@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The world is **100 floors** of a stacked castle, each ending in a boss; floor 100 is the final fight. Milestone floors are hand-authored, the rest are procedurally generated — see "The floor system" below.
 
-`plan.md` is the roadmap and the source of truth for what's built. **M0 (foundation), M1 (overworld, movement, interaction, map transitions), M2 (dialogue), M3 (inventory & items), M4 (turn-based combat), M5 (quests) and the 100-floor spine are done.** What's left is M6 (world depth, authored floors) and M7 (save/load, polish, audio). **Wall autotiling landed**, so generated floors read as rooms rather than as flat rectangles, **Floor 10 — Ashlow Wood — is the second authored floor**: a village hub, three glades, a hollow with an authored boss, and two quests on it. **Floor 25 — Lanternfall — is the third**: a mining camp over a chain of caverns, three dead-end galleries, a one-way lift home, an authored boss and two more quests. Authored floors share one builder, `tools/authored_floor.gd`.
+`plan.md` is the roadmap and the source of truth for what's built. **M0 (foundation), M1 (overworld, movement, interaction, map transitions), M2 (dialogue), M3 (inventory & items), M4 (turn-based combat), M5 (quests) and the 100-floor spine are done.** What's left is M5.5 (exploration feel), M6 (world depth, authored floors) and M7 (save/load, polish, audio). **M5.5 is under way**: the camera is zoomed 2× and monsters wander, chase and start fights on contact; the hidden boss room is next. **Wall autotiling landed**, so generated floors read as rooms rather than as flat rectangles, **Floor 10 — Ashlow Wood — is the second authored floor**: a village hub, three glades, a hollow with an authored boss, and two quests on it. **Floor 25 — Lanternfall — is the third**: a mining camp over a chain of caverns, three dead-end galleries, a one-way lift home, an authored boss and two more quests. Authored floors share one builder, `tools/authored_floor.gd`. **The art is moving to the Ninja Adventure pack** (CC0, whole, in `assets/ninja_adventure/`): the meadow biome and Floor 1 are converted — forest walls, grass/dirt and shoreline transitions, decor, houses, pack characters, portraits, monsters and battlers — while the other nine biomes, Floors 10 and 25, and the rest of the roster still draw placeholders. See "Map dressing and the art pack" below.
 
 The core loop is completable end to end: walk, talk, take a job, fight the monsters on the floor, level up, beat the floor boss, climb. No placeholders remain in it.
 
@@ -52,6 +52,8 @@ python3 tools/gen_placeholder_art.py
 "$GODOT" --headless --path . --import
 
 # 3. A TileSet + BiomeKit per biome. Safe to re-run; only touches derived resources.
+#    Biomes listed in PACK_BIOMES (meadow, so far) are cut straight from
+#    assets/ninja_adventure/ and embedded, so they don't depend on step 2.
 "$GODOT" --headless --path . --script res://tools/build_biomes.gd
 
 # 4. The authored Floor 1 maps.
@@ -73,6 +75,8 @@ python3 tools/gen_placeholder_art.py
 
 Biome atlases share one **semantic slot layout** in row 0 (`0 floor, 1 floor-alt, 2 path, 3 special, 4 liquid, 5 obstacle, 6 wall, 7 wall-alt`; slots 4–7 collide). The generator paints "wall" without knowing which biome it's in, so a new biome is a palette entry in `gen_placeholder_art.py` plus a row in `build_biomes.gd` — no generator changes.
 
+A **pack biome** keeps the same row-0 slots and adds the rows placeholders lack — grass/dirt and water transitions, 2×2 trees, decor, houses — laid out by `PACK_BIOMES` in `build_biomes.gd` as sheet-and-cell references into the pack. Its transitions' terrain peering bits are read off the pixels (`_links`), never typed in, for the reason the blob derives its masks from a rule.
+
 Rows 1–6 hold the **47-tile wall blob** for autotiling. Both tools derive the mask list from the same rule (`_blob_masks`) rather than sharing a table, so the art and the terrain peering bits cannot drift into a silent mis-pairing — and the floor test checks every chosen tile against its actual neighbours in case they do.
 
 Maps are engine-generated because `tile_map_data` is a binary blob inside the `.tscn` — it can't be hand-authored as text. Entity scenes (player, NPC, chest, exits) are plain hand-written `.tscn`.
@@ -81,11 +85,13 @@ Maps are engine-generated because `tile_map_data` is a binary blob inside the `.
 
 ```sh
 # Boots the real game, walks the loop: spawn, collision, interaction, transition,
-# clearing floor 1, ascending into a generated floor 2
+# clearing floor 1, ascending into a generated floor 2 -- then, on that floor,
+# monsters noticing through line of sight, chasing, engaging on contact, the
+# input lock, the grace period and who gets the first round
 "$GODOT" --headless --path . res://test/smoke_test.tscn
 
 # The floor system: registry, biome bands, seed determinism, progression gating,
-# wall autotiling, a flood-fill of EVERY generated floor proving each is
+# wall autotiling, the forest and ground dressing, a flood-fill of EVERY generated floor proving each is
 # completable and still sealed, and the same walk over every authored floor
 # (plus its monster count against the curve)
 "$GODOT" --headless --path . res://test/floor_test.tscn
@@ -136,7 +142,7 @@ Godot projects are trees of **scenes** (`.tscn`) composed of **nodes**, with beh
 - **Data as Resources.** Model items, enemies, skills, quests, and dialogue trees as custom `Resource` classes (`extends Resource`, `@export` fields) saved as `.tres` files. This keeps content data-driven and editable in the inspector rather than hard-coded. Combat and inventory operate on these resources, not on ad-hoc dictionaries.
 - **Scene boundaries mirror game modes.** The overworld (top-down exploration) and turn-based combat are typically separate scenes; entering combat swaps/overlays the combat scene and returns to the overworld afterward, carrying results through the autoloads.
 
-Top-level layout: `scenes/` (player, world, main), `scripts/` (`autoload/`, `combat/`, `inventory/`, `player/`, `quests/`, `resources/`, `world/`), `resources/` (the `.tres` data: `biomes/`, `dialogue/`, `enemies/`, `floors/`, `items/`, `quests/`, `skills/`, `statuses/`, `tilesets/`), `ui/`, `assets/`, `test/`, `tools/` (generators), `addons/` (plugins like GUT).
+Top-level layout: `assets/` (`placeholder/` generated art, `ninja_adventure/` the art pack with its LICENSE), `scenes/` (player, world, main), `scripts/` (`autoload/`, `combat/`, `inventory/`, `player/`, `quests/`, `resources/`, `world/`), `resources/` (the `.tres` data: `biomes/`, `dialogue/`, `enemies/`, `floors/`, `items/`, `quests/`, `skills/`, `statuses/`, `tilesets/`), `ui/`, `assets/`, `test/`, `tools/` (generators), `addons/` (plugins like GUT).
 
 ### What exists (M0/M1/M2)
 
@@ -201,19 +207,40 @@ Physics layers: 1 world, 2 player, 3 enemy, 4 interactable. Input actions: `move
 - **Flow and view are separate**, same as everything else. `QuestLog` owns state; `ui/quest_journal.tscn` (**J**) and `ui/quest_tracker.tscn` draw it; `test/quest_test.tscn` runs the whole system with neither instantiated. In the journal the `>` cursor is where the player *is* and colour-plus-glyph is what the quest *is* — never both on one cue, or the selected row and the ready row become indistinguishable.
 - Adding a quest: a `.tres` in `resources/quests/`, an id in `QuestLibrary.QUESTS`, and a dialogue branch that offers it (plus one that takes it back, if it needs turning in). `QuestLog.accept(quest)` takes a resource directly for anything that isn't shipped content — the library is a lookup, not a gatekeeper, but the rules still live in the log.
 
+### Roaming monsters
+
+- **A `Monster` is still an `Interactable`, and now it moves.** Wander (a leash round its spawn point) → notice (`AGGRO_RADIUS` plus a raycast on layer 1) → chase at `CHASE_SPEED` 62, *below* the player's 90 → give up past `LOSE_RADIUS` / `LEASH_RADIUS` / a second out of sight → walk home. Contact is its `Contact` area overlapping the player's body, not a keypress; pressing **E** is still a way in.
+- **It has no solid body.** It steps by asking the physics space whether its probe fits (`_free_at`), sliding per axis, so it respects walls while nothing can collide with *it*. That is what keeps "a monster can never wall off a corridor" true and keeps it out of the floor test's flood fill. Don't turn it into a `CharacterBody2D`.
+- **Who struck first is `Encounter.opening`.** E on a monster that isn't chasing → `PARTY_FIRST`; run down facing away → `ENEMIES_FIRST`; otherwise `NORMAL`. `CombatManager` only honours it in round 1 (`_turn_order()`) and announces it with a `CombatReport.Kind.OPENING`. **The monster decides, combat never learns what a map is.** Bosses stay `NORMAL`.
+- **Nothing engages through the input lock** — the monster freezes entirely while it is held. After a fight it survived, it is `STUNNED` for `GRACE_SECONDS` and then walks home ignoring the player; after *any* fight, every monster is calm for `CALM_SECONDS`, so winning one never drops you into the next. Keep it longer than the combat screen's `OUTRO_TIME`: the result covers the map while the player can already move.
+- Wandering uses the global RNG on purpose: behaviour, not generation. Nothing about a floor's seed depends on where a boar drifted.
+- The camera is `zoom = 2` in `player.tscn` (320×180 visible). The floor test refuses an authored map smaller than one view, because `Camera2D` resolves limits tighter than the screen by pinning right/bottom and showing the void top-left.
+
 ### The floor system
 
 - **`FloorDefinition`** (`.tres`) describes a floor. If it has an `authored_scene` it's hand-built; otherwise it's generated. `FloorRegistry` returns one for any floor 1–100, synthesising non-authored ones from the biome band table + `FloorTuning`.
 - **`FloorRegistry.build_floor(n)`** is the single entry point — it hides which kind you got. `SceneRouter.enter_floor(n, spawn)` is what gameplay calls.
 - **`FloorGenerator`** builds rooms + L-corridors and returns *the same node shape as an authored map* (`Ground` / `Walls` / `SpawnPoints` / `Player` + interactables). Keep it that way: `GameMap`, the camera and the router all depend on that shape and on nothing else.
-- **`_join_walls()` autotiles the wall mass, and it runs last.** It is a pass over the finished layout, not a step in building it — carving, decor and the reachability check all happen against the plain wall tile, so the layout can never depend on which tile a wall ended up drawing. It joins only cells still holding `wall_tile`: decor lives on the same layer but carries no terrain, so the mass correctly draws an edge against a boulder. `ignore_empty_terrains` must stay `false`, since a carved cell has no terrain and those are precisely the neighbours an edge tile is chosen against. A biome whose `BiomeKit.wall_terrain_set` is -1 simply skips the pass and ships flat.
+- **`MapDresser.dress()` dresses the finished layout, and it runs last** — called by `FloorGenerator` and by `authored_floor.gd`'s `_join_walls()` alike, so a built floor and a generated one follow one rule. It is a pass over the finished layout, not a step in building it: carving, decor and the reachability check all happen against plain slot tiles, so the layout can never depend on which tile a cell ended up drawing. A BLOB biome's wall mass is autotiled — only cells still holding `wall_tile` join (decor on the same layer carries no terrain, so the mass draws an edge against a boulder), and `ignore_empty_terrains` must stay `false`, since a carved cell has no terrain and those are precisely the neighbours an edge tile is chosen against. A biome whose `wall_terrain_set` is -1 ships flat. Forest walls, ground and water are under "Map dressing and the art pack".
 - **Determinism is a requirement, not a nicety.** Seeds come from `FloorRegistry.seed_for(n)` = `hash(world_seed, floor_number)`. Never use unseeded `randi()` in generation — it breaks save consistency and makes bugs irreproducible.
 - **`FloorTuning`** holds the whole 100-floor curve (level, map size, room/chest counts, boss names). Balance changes go there, not into individual floors.
 - **Progression** is `GameState.clear_floor(n)` → `is_floor_unlocked(n+1)`. `BossGate` is the gate, and it runs a real fight (`Bestiary.boss_encounter(n)`). Losing drops the player at the floor entrance on 35% HP with the floor rebuilt, so its monsters are back — the way through a wall is levels.
-- **Every generated floor carries `FloorTuning.monster_count(n)` roaming monsters.** That count is not decoration: it is the measured number of kills that puts a player at the level the floor's boss expects. Monsters have no collision, so they can never wall off a corridor and the completability flood fill never sees them.
+- **Every generated floor carries `FloorTuning.monster_count(n)` roaming monsters.** That count is not decoration: it is the measured number of kills that puts a player at the level the floor's boss expects. Monsters have no solid body (they test walls to move, but nothing collides with them), so they can never wall off a corridor and the completability flood fill never sees them.
 - Adding a milestone floor: a `tools/build_floor_NN.gd` that extends `tools/authored_floor.gd` — layout tables plus a `_build()`; the base does painting, wall joining, placing entities, the reachability check and the save — then a `FloorDefinition` `.tres` in `resources/floors/`, registered in `FloorRegistry.AUTHORED` (explicit dictionary — `res://` directory scanning is unreliable in exported builds). An authored boss also wants an id in `Bestiary.AUTHORED_BOSSES`, which overrides the archetype the floor would otherwise have been given; go in near that archetype's numbers and check the combat suite's win rate doesn't move. **Authored does not mean exempt from the curve**: a floor carries at least `FloorTuning.monster_count(n)` monsters at `FloorTuning.enemy_level(n)`, and the floor test enforces the count.
 - **Floor 10 is one map, where Floor 1 is two.** Floor 1 splits town and field across a `MapExit`, which is fine there because the boss is a one-way trip. Ashlow has a quest that sends you to the Warden and then *back to the village to report*, so the walk home has to exist — and one map is the version of that walk costing no fade, no second scene and no second set of spawn points. `tools/build_floor_10.gd` is the authoring surface: layout tables at the top, the same carve/join passes the generator uses, and a flood fill that refuses to write an unfinishable floor.
 - **Floor 25 is a chain, where Floor 10 is a loop**, and a one-way lift is how the chain gets you home: a `MapExit` whose `target_map` is its own scene, arriving at a `from_lift` spawn in the camp. It stands at the bottom, so the long way down is still the only way down, and the reload is the fare — the floor's monsters come back. Its caverns are `_carve_cave()` ellipses rather than rects; the wobble only pulls inwards, so a cave stays inside the rect its table gives it.
+
+### Map dressing and the art pack
+
+- **Everything dressing adds is visual.** `Walls` keeps every collision it had and gains none; standing things go on `Props` (y-sorted) and flat scatter on `Decor`, both with collision off. That is what keeps the floor test's flood fill — which only reads `Walls` — true without it knowing dressing exists. The floor test checks the layers stay that way.
+- **A biome's wall mass has a style.** `BLOB` autotiles it; `TREES` leaves the `wall_tile` cells alone (plain grass underneath, still solid) and plants 2×2 trees over them on a staggered lattice, then fills whatever the lattice missed with a tree or a bush. The floor test refuses a forest edge with nothing standing on it — the forest's version of a mis-paired blob tile. Caves and ruins are meant to get cliffs, the castle stone walls: the pack's outdoor maps wall with trees, and its cliff tiles are for raised ground.
+- **Ground and water join by nearest match, not `set_cells_terrain_connect`.** `MapDresser.TerrainMatcher` scores every tile of the right centre against the cell's neighbourhood and takes the closest (ties broken by the cell's hash, so repainting never reshuffles grass). Godot's solver propagates a missing arrangement into the neighbours instead of settling. Path and special slots are dirt, everything else grass.
+- **The pack draws a transition inside the terrain's own cells.** A path cell beside grass shows dirt on its inner half, a one-wide path is a strip down the middle, and the grass around a path is always plain grass. Two consequences: a 2-wide road *reads* 1 wide, so lay roads 3 wide; and the floor test can demand exact edges (it does) — a dirt cell must describe its real neighbourhood, a grass cell must be plain.
+- **Standing tiles are anchored at the bottom row of their footprint** and sort from its bottom edge. `build_biomes.gd`'s `_stand_up()` sets that (`texture_origin`, `y_sort_origin`) and `MapDresser.footprint()` is its inverse — change one, change both. The map root is `y_sort_enabled`; `Ground`/`Walls` sit at `z_index` -2 and `Decor` at -1. `GameMap`'s camera limits read only `Ground` and `Walls`, because a crown on the forest's top row hangs a row above the map.
+- **Houses on authored maps** are a footprint and a prop: the bottom rows painted in the invisible `wall_alt` slot (solid), the house tile placed on `Props` with `MapDresser.anchor_for()` *after* `dress()`. The roof's top row stays walkable, so you pass behind it.
+- **Characters use the pack's sheet layout**: 4 columns (down, up, left, right) by 7 rows, the first 4 the walk cycle; `Npc.sprite_sheet` picks a character, and dialogue portraits are the character's `Faceset.png`. Monsters get `EnemyType.sheet` + `sheet_frames` — 4×4 is four directions, N×1 a side view drawn facing right — and `battler` becomes an `AtlasTexture` frame of it. The combat screen scales a battler by a whole number (×4 at 16 px, ×2 under 64, placeholders ×1).
+- **Dressing is deterministic**: the seeded rng is asked in reading order, never in used-cell (hash map) order.
+- Converting a biome: an entry in `PACK_BIOMES`, rebuild, and look — `tools/screenshot.gd` stands the player behind a roof, under a grove, at the pond and at the door (`04j`–`04m`), which is the only way to see the depth sort.
 
 ## Godot 4.7 gotchas
 
@@ -223,4 +250,7 @@ Physics layers: 1 world, 2 player, 3 enemy, 4 interactable. Input actions: `move
 - `TileSetAtlasSource` must be added to the `TileSet` *before* creating tiles, or the tiles get no physics layers and every collision-polygon call fails silently-ish (an error per tile).
 - GDScript lambdas capture locals **by value** — a lambda that writes to a captured local silently discards the write. Use a member variable for signal spies and accumulators.
 - `Input.action_press()` sets the action's *state* but never synthesises an event, so nothing in `_unhandled_input` sees it. To drive UI from a tool or test, feed a real `InputEventAction` through `Input.parse_input_event()` (see `tools/screenshot.gd`).
+- **A tile painted at runtime gets its collision on a later frame.** `set_cell()` on a `TileMapLayer` queues the physics update; a raycast in the same physics tick sees through the new wall. A test that paints geometry should wait a few physics frames before anything looks at it.
+- **`PortableCompressedTexture2D` drops its source buffer outside the editor.** A `--script` tool that builds one and saves it writes an empty texture, and every tile of a TileSet using it then fails to load ("Cannot create tile... outside the texture"). Set `keep_compressed_buffer = true` before `create_from_image()`.
+- **`TileData.texture_origin` moves a tile's texture up and left** — it is drawn at the cell centre − size/2 − origin — and a multi-cell atlas tile is drawn centred on the cell it is placed in.
 - **`await some_signal` parks unconditionally**, even if the thing you are waiting for already happened during the emit that preceded it. Any coroutine that emits a request and then awaits the reply needs a "did it already answer?" check first, or a synchronous responder deadlocks it. `CombatManager._decide()` is the worked example.

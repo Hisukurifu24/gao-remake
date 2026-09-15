@@ -1,7 +1,11 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/floor_stairs.gd" id="1_stairs"]
-[ext_resource type="Texture2D" path="res://assets/placeholder/boss_gate.png" id="2_tex"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Backgrounds/Tilesets/TilesetReliefDetail.png" id="2_tex"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hole"]
+atlas = ExtResource("2_tex")
+region = Rect2(16, 0, 16, 16)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_area"]
 radius = 14.0
@@ -15,9 +19,8 @@ prompt_verb = "Descend"
 display_name = "the stairs down"
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-modulate = Color(0.55, 0.7, 0.9, 1)
-texture = ExtResource("2_tex")
-offset = Vector2(0, -15)
+texture = SubResource("AtlasTexture_hole")
+offset = Vector2(0, -8)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(0, -8)

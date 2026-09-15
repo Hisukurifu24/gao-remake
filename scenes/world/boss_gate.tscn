@@ -1,7 +1,11 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/boss_gate.gd" id="1_gate"]
-[ext_resource type="Texture2D" path="res://assets/placeholder/boss_gate.png" id="2_tex"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Backgrounds/Tilesets/TilesetReliefDetail.png" id="2_tex"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_door"]
+atlas = ExtResource("2_tex")
+region = Rect2(0, 112, 48, 48)
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_area"]
 radius = 16.0
@@ -18,8 +22,8 @@ prompt_verb = "Enter"
 display_name = "the labyrinth door"
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("2_tex")
-offset = Vector2(0, -15)
+texture = SubResource("AtlasTexture_door")
+offset = Vector2(0, -22)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(0, -8)

@@ -12,8 +12,14 @@ extends Resource
 
 @export var id: StringName = &""
 @export var display_name := ""
-## The 64x64 front-facing sprite drawn in the combat screen.
+## The front-facing sprite drawn in the combat screen. Pack art arrives small --
+## 16px monsters, ~60px bosses -- and the screen scales it by a whole number.
 @export var battler: Texture2D
+## Its walk sheet on the map, [member sheet_frames] columns by rows. A 4x4 sheet
+## is four directions (columns down, up, left, right) by a walk cycle; an Nx1
+## sheet is a side view drawn facing right. Empty draws [member battler] instead.
+@export var sheet: Texture2D
+@export var sheet_frames := Vector2i(4, 4)
 
 @export_group("Base stats")
 @export var max_hp := 24

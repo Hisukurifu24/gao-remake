@@ -69,4 +69,8 @@ func _say(text: String) -> void:
 
 
 func _show_opened() -> void:
-	_sprite.modulate = Color(0.55, 0.55, 0.6)
+	# The sheet's second frame is the lid thrown open; art without one just dims.
+	if _sprite.hframes > 1:
+		_sprite.frame = 1
+	else:
+		_sprite.modulate = Color(0.55, 0.55, 0.6)

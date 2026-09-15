@@ -214,19 +214,13 @@ func _house(rect: Rect2i) -> void:
 	_block(Rect2i(rect.position.x, rect.end.y - 1, rect.size.x, 1), _biome.wall_tile)
 
 
-## Autotiles the wall mass, last, as a pass over the finished layout -- the same
-## rule [method FloorGenerator._join_walls] follows and for the same reason.
-## Only cells still holding the plain wall tile join: roofs, boulders and pools
-## live on this layer too and are scenery, so the mass draws an edge against them.
+## Dresses the finished layout, last: joins the wall mass, the ground and the
+## water, plants forest and scatters decor. The same [MapDresser] pass a
+## generated floor gets, so a built floor and a generated one follow one rule.
+## Only cells still holding the plain wall tile join the mass -- roofs, boulders
+## and pools live on this layer too and are scenery.
 func _join_walls() -> void:
-	if _biome.wall_terrain_set < 0:
-		return
-	var wall_atlas := Vector2i(_biome.wall_tile, 0)
-	var cells: Array[Vector2i] = []
-	for cell in _walls.get_used_cells():
-		if _walls.get_cell_atlas_coords(cell) == wall_atlas:
-			cells.append(cell)
-	_walls.set_cells_terrain_connect(cells, _biome.wall_terrain_set, _biome.wall_terrain, false)
+	MapDresser.dress(_ground.get_parent() as Node2D, _biome, _ground, _walls, floor_number)
 
 
 ## The outer ring is never carved, so the map never opens onto the void.

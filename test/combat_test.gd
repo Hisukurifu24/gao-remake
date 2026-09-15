@@ -18,6 +18,8 @@ var _checks := 0
 
 ## Signal spies. Members, not captured locals: GDScript lambdas capture by value.
 var _reports: Array[CombatReport] = []
+## [round, is_player] for every turn taken while [method _spy_turns] is on.
+var _turns: Array = []
 var _defeated: Array[StringName] = []
 var _items: Array[StringName] = []
 ## What the auto-player does when asked for a command.
@@ -50,6 +52,7 @@ func _run() -> void:
 	_test_cooldowns_and_stagger()
 	await _test_one_fight()
 	await _test_rules()
+	await _test_opening()
 	await _test_determinism()
 	await _test_balance()
 
@@ -321,6 +324,61 @@ func _test_rules() -> void:
 	_check(GameState.hp == 0, "defeat writes the player's HP back as 0")
 	_check(not GameState.is_input_locked(), "a lost fight also releases the input lock")
 	_spy(false)
+
+
+## Who struck first on the map owns round 1, and nothing after it. The monster
+## decides which opening it was; this checks the runner honours whatever it is told.
+func _test_opening() -> void:
+	print("\n-- who struck first --")
+	_policy = &"attack"
+	_check(Bestiary.boss_encounter(1).opening == Encounter.Opening.NORMAL,
+			"a boss fight has no opening advantage")
+
+	for opening: Encounter.Opening in [Encounter.Opening.NORMAL,
+			Encounter.Opening.PARTY_FIRST, Encounter.Opening.ENEMIES_FIRST]:
+		_set_player(12)
+		_spy(true)
+		_turns.clear()
+		CombatManager.turn_began.connect(_spy_turn)
+		CombatManager.set_seed(808)
+		# A golem at the player's own level: sturdy enough that round 1 cannot end
+		# the fight before both sides would have had their turn in it.
+		var encounter := Bestiary.single_encounter(Bestiary.get_enemy(&"stone_golem"), 12)
+		encounter.opening = opening
+		var result: CombatResult = await CombatManager.start(encounter)
+		CombatManager.turn_began.disconnect(_spy_turn)
+
+		var party_in_1 := false
+		var enemy_in_1 := false
+		var enemy_later := false
+		for turn: Array in _turns:
+			if turn[0] == 1:
+				party_in_1 = party_in_1 or turn[1]
+				enemy_in_1 = enemy_in_1 or not turn[1]
+			elif not turn[1]:
+				enemy_later = true
+		var announced := not _reports.is_empty() \
+				and _reports[0].kind == CombatReport.Kind.OPENING
+		_spy(false)
+
+		match opening:
+			Encounter.Opening.NORMAL:
+				_check(party_in_1 and enemy_in_1, "no opening: both sides act in round 1")
+				_check(not announced, "and nothing is announced")
+			Encounter.Opening.PARTY_FIRST:
+				_check(party_in_1 and not enemy_in_1,
+						"a pre-emptive strike: only the party acts in round 1")
+				_check(announced, "and the log says so first")
+			Encounter.Opening.ENEMIES_FIRST:
+				_check(enemy_in_1 and not party_in_1,
+						"caught from behind: only the enemies act in round 1")
+				_check(announced, "and the log says so first")
+		_check(result != null and result.rounds > 1 and (enemy_later or result.victory),
+				"the opening costs one round, not the fight")
+
+
+func _spy_turn(actor: Combatant) -> void:
+	_turns.append([CombatManager.round_number(), actor.is_player])
 
 
 func _test_determinism() -> void:

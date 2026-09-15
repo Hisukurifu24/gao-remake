@@ -170,6 +170,8 @@ func _fight() -> CombatResult:
 	while _round < MAX_ROUNDS:
 		_round += 1
 		round_began.emit(_round)
+		if _round == 1:
+			await _announce_opening()
 		for actor in _turn_order():
 			if not actor.is_alive():
 				continue  # felled earlier this round
@@ -184,16 +186,35 @@ func _fight() -> CombatResult:
 
 ## Speed decides the order, recomputed every round so a slow debuff bites
 ## immediately. Ties go to the player: being outsped should cost a stat, not a
-## coin flip.
+## coin flip. The first round belongs to whichever side struck first, if either did.
 func _turn_order() -> Array[Combatant]:
+	var opening := _opening_this_round()
 	var order: Array[Combatant] = []
-	order.append_array(_living(_party))
-	order.append_array(_living(_enemies))
+	if opening != Encounter.Opening.ENEMIES_FIRST:
+		order.append_array(_living(_party))
+	if opening != Encounter.Opening.PARTY_FIRST:
+		order.append_array(_living(_enemies))
 	order.sort_custom(func(a: Combatant, b: Combatant) -> bool:
 		if a.effective_speed() != b.effective_speed():
 			return a.effective_speed() > b.effective_speed()
 		return a.is_player and not b.is_player)
 	return order
+
+
+func _opening_this_round() -> Encounter.Opening:
+	if _round != 1 or _encounter == null:
+		return Encounter.Opening.NORMAL
+	return _encounter.opening
+
+
+func _announce_opening() -> void:
+	match _opening_this_round():
+		Encounter.Opening.PARTY_FIRST:
+			await _report(CombatReport.make(CombatReport.Kind.OPENING, _party[0],
+					"You catch %s off guard!" % _encounter.label()))
+		Encounter.Opening.ENEMIES_FIRST:
+			await _report(CombatReport.make(CombatReport.Kind.OPENING, _enemies[0],
+					"%s catches you from behind!" % _encounter.label()))
 
 
 ## Runs one combatant's turn. Returns true when the battle ended during it.

@@ -15,6 +15,7 @@ enum Kind {
 	SKIPPED,  ## Staggered or stunned: the turn was lost.
 	DEFEAT,   ## A combatant went down.
 	ITEM,     ## Something was spent out of the bag.
+	OPENING,  ## One side struck first; the other sits out round 1.
 }
 
 ## One number over one sprite.

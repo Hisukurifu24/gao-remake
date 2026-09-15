@@ -104,10 +104,11 @@ func _run() -> void:
 	var without_terrain: PackedStringArray = PackedStringArray()
 	for floor_number in range(1, FloorTuning.TOP_FLOOR + 1):
 		var biome := FloorRegistry.get_biome(floor_number)
-		if biome != null and biome.wall_terrain_set < 0:
+		if biome != null and biome.wall_terrain_set < 0 \
+				and biome.wall_style != BiomeKit.WallStyle.TREES:
 			without_terrain.append(String(biome.id))
 	_check(without_terrain.is_empty(),
-			"every biome carries a wall terrain%s" % (
+			"every biome dresses its wall mass, as a blob or as forest%s" % (
 				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
 
 	var tiled := FloorGenerator.generate(thirty_seven, FloorRegistry.seed_for(37))
@@ -119,6 +120,36 @@ func _run() -> void:
 	_check(edges > 0, "the wall mass is joined up rather than left flat (%d edge tiles)" % edges)
 	_check(uncollidable == 0, "every autotiled wall still collides (%d that don't)" % uncollidable)
 	tiled.free()
+
+	# --- dressing: forest, ground and water ---
+	# Floor 5 is meadow, a pack biome: its wall mass is forest and its ground and
+	# water join into edges. None of that may touch collision, and all of it has
+	# to come out the same from the same seed.
+	var meadow_floor := FloorRegistry.get_floor(5)
+	var meadow_biome := meadow_floor.biome
+	_check(meadow_biome.wall_style == BiomeKit.WallStyle.TREES, "the meadow draws its walls as forest")
+	var dressed := FloorGenerator.generate(meadow_floor, FloorRegistry.seed_for(5))
+	var props := dressed.get_node_or_null(MapDresser.PROPS) as TileMapLayer
+	var decor := dressed.get_node_or_null(MapDresser.DECOR) as TileMapLayer
+	_check(dressed.y_sort_enabled and props != null and props.y_sort_enabled,
+			"a dressed map sorts its props with the player")
+	_check(props != null and not props.collision_enabled and decor != null and not decor.collision_enabled,
+			"neither the canopy nor the decor collides")
+	if props != null:
+		var bare := _bare_forest_edges(dressed.get_node("Walls") as TileMapLayer, props, meadow_biome)
+		_check(bare == 0, "every edge of the forest has a tree standing on it (%d bare)" % bare)
+	var ground_layer := dressed.get_node("Ground") as TileMapLayer
+	var off := _ground_mismatches(ground_layer, meadow_biome)
+	var ground_cells := ground_layer.get_used_cells().size()
+	_check(off == 0,
+			"ground edges match their neighbours (%d of %d cells off)" % [off, ground_cells])
+	var again := FloorGenerator.generate(meadow_floor, FloorRegistry.seed_for(5))
+	_check(_layer_signature(dressed, MapDresser.PROPS) == _layer_signature(again, MapDresser.PROPS)
+			and _layer_signature(dressed, "Ground") == _layer_signature(again, "Ground")
+			and _layer_signature(dressed, MapDresser.DECOR) == _layer_signature(again, MapDresser.DECOR),
+			"dressing is deterministic: one seed, one forest")
+	dressed.free()
+	again.free()
 
 	# --- every generated floor is completable ---
 	var broken: PackedStringArray = PackedStringArray()
@@ -293,6 +324,17 @@ func _audit_authored(floor_number: int) -> String:
 			map.free()
 			break
 
+		# The camera clamps to the painted area, and a map smaller than one view
+		# leaves it nowhere legal to stand: Camera2D resolves the conflict by
+		# pinning the right/bottom limits, so the void shows on the left and top.
+		var view := _view_size(map)
+		var painted := _painted_rect(map)
+		if painted.size.x * 16 < view.x or painted.size.y * 16 < view.y:
+			problem = "%s is %dx%d px, smaller than the %dx%d view" % [
+					label, painted.size.x * 16, painted.size.y * 16, view.x, view.y]
+			map.free()
+			break
+
 		# Bounded, unlike the generated-floor fill: an authored map is allowed
 		# holes in its border where a MapExit sits in them, and an unbounded fill
 		# walks out through one of those and expands across empty space forever.
@@ -374,6 +416,28 @@ func _audit_authored(floor_number: int) -> String:
 	return ""
 
 
+## What the player's camera shows, in world pixels.
+func _view_size(map: Node2D) -> Vector2i:
+	var viewport := Vector2(
+			ProjectSettings.get_setting("display/window/size/viewport_width"),
+			ProjectSettings.get_setting("display/window/size/viewport_height"))
+	var camera := map.get_node_or_null("Player/Camera2D") as Camera2D
+	var zoom := camera.zoom if camera else Vector2.ONE
+	return Vector2i((viewport / zoom).ceil())
+
+
+## Ground and Walls merged, the same area GameMap hands the camera as its limits.
+func _painted_rect(map: Node2D) -> Rect2i:
+	var rect := Rect2i()
+	for child in map.get_children():
+		var layer := child as TileMapLayer
+		if layer == null or layer.get_used_rect().size == Vector2i.ZERO \
+				or not (layer.name in [&"Ground", &"Walls"]):
+			continue
+		rect = layer.get_used_rect() if rect.size == Vector2i.ZERO else rect.merge(layer.get_used_rect())
+	return rect
+
+
 func _flood(walls: TileMapLayer, from: Vector2i) -> Dictionary:
 	var seen := {from: true}
 	var queue: Array[Vector2i] = [from]
@@ -423,3 +487,60 @@ func _check(condition: bool, description: String) -> void:
 	else:
 		print("  FAIL ", description)
 		_failures.append(description)
+
+
+## Wall-mass cells beside open ground that no tree or bush stands over. A bare one
+## shows the flat floor under the canopy: the forest's version of a mis-paired
+## blob tile, and just as invisible to every other check.
+func _bare_forest_edges(walls: TileMapLayer, props: TileMapLayer, biome: BiomeKit) -> int:
+	var covered := {}
+	var source := props.tile_set.get_source(0) as TileSetAtlasSource
+	for cell in props.get_used_cells():
+		var size := source.get_tile_size_in_atlas(props.get_cell_atlas_coords(cell))
+		var rect := MapDresser.footprint(cell, size)
+		for y in range(rect.position.y, rect.end.y):
+			for x in range(rect.position.x, rect.end.x):
+				covered[Vector2i(x, y)] = true
+	var bare := 0
+	var wall_atlas := Vector2i(biome.wall_tile, 0)
+	for cell in walls.get_used_cells():
+		if walls.get_cell_atlas_coords(cell) != wall_atlas or covered.has(cell):
+			continue
+		for side: Vector2i in SIDES.values():
+			if walls.get_cell_source_id(cell + side) == -1:
+				bare += 1
+				break
+	return bare
+
+
+## Ground cells drawing the wrong edge. A dirt cell's tile has to describe the
+## neighbourhood it actually has; a grass cell has to be plain grass, because the
+## pack draws every transition inside the path's own cells.
+func _ground_mismatches(ground: TileMapLayer, biome: BiomeKit) -> int:
+	var dirt := {}
+	for cell in ground.get_used_cells():
+		var data := ground.get_cell_tile_data(cell)
+		if data != null and data.terrain_set == biome.ground_terrain_set and data.terrain == biome.ground_dirt:
+			dirt[cell] = true
+	var off := 0
+	for cell in ground.get_used_cells():
+		var data := ground.get_cell_tile_data(cell)
+		if data == null or data.terrain_set != biome.ground_terrain_set:
+			off += 1
+		elif data.terrain == biome.ground_dirt:
+			if MapDresser.tile_flags(data, biome.ground_dirt) != MapDresser.expected_flags(cell, dirt):
+				off += 1
+		elif MapDresser.tile_flags(data, biome.ground_dirt) != 0:
+			off += 1
+	return off
+
+
+func _layer_signature(map: Node2D, layer_name: String) -> String:
+	var layer := map.get_node_or_null(layer_name) as TileMapLayer
+	if layer == null:
+		return ""
+	var parts := PackedStringArray()
+	for cell in layer.get_used_cells():
+		parts.append("%s=%s" % [cell, layer.get_cell_atlas_coords(cell)])
+	parts.sort()
+	return ",".join(parts)

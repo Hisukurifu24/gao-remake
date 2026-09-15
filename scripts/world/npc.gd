@@ -8,6 +8,10 @@ extends Interactable
 ## Wins over [member lines] when set.
 @export var dialogue: Dialogue
 
+## Their walk sheet, in the Ninja Adventure layout (4 columns by 7 rows). Empty
+## keeps the scene's default villager.
+@export var sprite_sheet: Texture2D
+
 @export_group("Simple text")
 @export var speaker := "Villager"
 @export_multiline var lines: PackedStringArray = PackedStringArray()
@@ -17,6 +21,11 @@ extends Interactable
 ## set *after* the talk, not before: a dialogue whose first line is gated on
 ## "have we met?" must still see the answer the player would expect.
 @export var met_flag: StringName = &""
+
+
+func _ready() -> void:
+	if sprite_sheet != null:
+		($Sprite2D as Sprite2D).texture = sprite_sheet
 
 
 func interact(by: Node) -> void:

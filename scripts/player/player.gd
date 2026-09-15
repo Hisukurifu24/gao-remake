@@ -2,17 +2,18 @@ class_name Player
 extends CharacterBody2D
 ## Top-down 8-direction player controller.
 ##
-## The sprite sheet is 4 columns (walk cycle) by 4 rows (down, up, left, right),
-## driven by [member Sprite2D.frame] rather than an AnimationPlayer -- placeholder
-## art, placeholder animation.
+## The sprite sheet is the Ninja Adventure layout: 4 columns (down, up, left,
+## right) by 7 rows, the first 4 of them the walk cycle. Driven by
+## [member Sprite2D.frame] rather than an AnimationPlayer.
 
-const DIR_ROWS := {
+const DIR_COLUMNS := {
 	Vector2i(0, 1): 0,   # down
 	Vector2i(0, -1): 1,  # up
 	Vector2i(-1, 0): 2,  # left
 	Vector2i(1, 0): 3,   # right
 }
 const WALK_FPS := 8.0
+const WALK_FRAMES := 4
 
 @export var speed := 90.0
 @export var acceleration := 1200.0
@@ -48,6 +49,15 @@ func _physics_process(delta: float) -> void:
 	_refresh_target()
 
 
+## A map swap frees the player with a target still set, and the next map's player
+## starts with none -- so nothing would ever announce the change, and the HUD would
+## keep offering to talk to someone two maps away.
+func _exit_tree() -> void:
+	if _target != null:
+		_target = null
+		EventBus.interact_target_changed.emit(null)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed(&"interact"):
 		return
@@ -65,10 +75,10 @@ func _snap_to_4(dir: Vector2) -> Vector2:
 
 
 func _update_sprite() -> void:
-	var row: int = DIR_ROWS[Vector2i(facing)]
-	var column := 0
+	var column: int = DIR_COLUMNS[Vector2i(facing)]
+	var row := 0
 	if _walk_time > 0.0:
-		column = int(_walk_time * WALK_FPS) % 4
+		row = int(_walk_time * WALK_FPS) % WALK_FRAMES
 	_sprite.frame = row * _sprite.hframes + column
 
 
