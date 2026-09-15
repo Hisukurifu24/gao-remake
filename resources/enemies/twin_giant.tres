@@ -2,15 +2,19 @@
 
 [ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
-[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_giant.png" id="battler"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantBlueSamurai/Idle.png" id="battler_art"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/slam.tres" id="slam"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/twin_roar.tres" id="twin_roar"]
+
+[sub_resource type="AtlasTexture" id="battler"]
+atlas = ExtResource("battler_art")
+region = Rect2(13, 5, 70, 40)
 
 [resource]
 script = ExtResource("enemy")
 id = &"twin_giant"
 display_name = "Karvos the Twin-Headed"
-battler = ExtResource("battler")
+battler = SubResource("battler")
 max_hp = 40
 attack = 11
 defense = 7

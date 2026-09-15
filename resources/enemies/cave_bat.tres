@@ -2,14 +2,19 @@
 
 [ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
-[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_bat.png" id="battler"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Monster/BlueBat/SpriteSheet.png" id="sheet"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/rend.tres" id="rend"]
+
+[sub_resource type="AtlasTexture" id="battler"]
+atlas = ExtResource("sheet")
+region = Rect2(0, 0, 16, 16)
 
 [resource]
 script = ExtResource("enemy")
 id = &"cave_bat"
 display_name = "Cave Bat"
-battler = ExtResource("battler")
+battler = SubResource("battler")
+sheet = ExtResource("sheet")
 max_hp = 14
 attack = 6
 defense = 1

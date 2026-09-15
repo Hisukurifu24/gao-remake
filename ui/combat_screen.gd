@@ -499,12 +499,13 @@ func _set_visible(shown: bool) -> void:
 
 
 ## A battler scaled by a whole number, which is what keeps nearest filtering
-## crisp: a 16px monster four times over, a ~60px pack boss twice (so it towers
-## over its escort), and the 64px placeholders as they are.
+## crisp: a 16px monster four times over, a pack boss twice (so it towers over its
+## escort), and the 64px placeholders as they are. Pack battlers are always frames
+## cut from a sheet, which is how a 70px-wide boss is told from a placeholder.
 func _battler_size(texture: Texture2D) -> Vector2:
 	if texture == null:
 		return Vector2(64, 64)
 	var size := texture.get_size()
 	var longest := maxf(size.x, size.y)
-	var factor := 4.0 if longest <= 24.0 else (2.0 if longest < 64.0 else 1.0)
+	var factor := 4.0 if longest <= 24.0 else (2.0 if longest < 64.0 or texture is AtlasTexture else 1.0)
 	return size * factor

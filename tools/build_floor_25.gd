@@ -89,25 +89,28 @@ const LIFT_CELL := Vector2i(15, 46)
 const LIFT_TOP := Vector2i(16, 17)
 const LIFT_HEAD := Rect2i(15, 18, 4, 2)
 
-## Three roofs round the square, see [method _house]. The Army took the western
-## one when it came up, which is why Dorran is standing outside it.
-const HUTS := [
-	Rect2i(9, 5, 6, 4),
-	Rect2i(20, 5, 6, 4),
-	Rect2i(21, 14, 6, 4),
+## Three tents round the square as [rect, house], see [method _house]. The cave
+## biome's houses are 0 and 1 two camp tents and 2 a torn one, all 3x3. The Army
+## took the western tent when it came up and has worn it through, which is why
+## Dorran is standing outside it.
+const TENTS := [
+	[Rect2i(10, 6, 3, 3), 2],
+	[Rect2i(21, 6, 3, 3), 0],
+	[Rect2i(22, 14, 3, 3), 1],
 ]
 
 const NPCS := [
-	{"at": Vector2i(11, 9), "name": "Dorran", "display": "Dorran of the Army",
+	{"at": Vector2i(11, 9), "name": "Dorran", "display": "Dorran of the Army", "look": "Knight",
 		"flag": &"met_dorran", "dialogue": "res://resources/dialogue/dorran.tres"},
-	{"at": Vector2i(22, 9), "name": "Maren", "display": "Maren the foreman",
+	{"at": Vector2i(22, 9), "name": "Maren", "display": "Maren the foreman", "look": "Villager2",
 		"flag": &"met_maren", "dialogue": "res://resources/dialogue/maren.tres"},
-	{"at": Vector2i(12, 15), "name": "Miner", "display": "a miner", "flag": &"",
+	{"at": Vector2i(12, 15), "name": "Miner", "display": "a miner", "look": "Caveman2", "flag": &"",
 		"lines": [
 			"Two years digging for iron. Found a door instead. Nobody pays for doors.",
 			"The bats are the worst of it. The kobolds at least have the decency to be afraid of lamps.",
 		]},
-	{"at": Vector2i(19, 18), "name": "LiftKeeper", "display": "the lift-keeper", "flag": &"",
+	{"at": Vector2i(19, 18), "name": "LiftKeeper", "display": "the lift-keeper", "look": "OldMan",
+		"flag": &"",
 		"lines": [
 			"She only runs up. The counterweight's at the bottom of the shaft, in the Breach.",
 			"Somebody has to walk all the way down and let it go. After that it's a short ride home.",
@@ -206,15 +209,15 @@ func _build() -> Node2D:
 
 
 ## A street across the cavern, one down the middle to the lift head, a lit square
-## where they cross, and three huts. Paved rather than carved, so the streets stop
+## where they cross, and three tents. Paved rather than carved, so the streets stop
 ## where the cavern does.
 func _furnish_camp() -> void:
 	_pave(Rect2i(CAMP.position.x, 11, CAMP.size.x, 2), _biome.path_tile)
 	_pave(Rect2i(16, CAMP.position.y, 2, CAMP.size.y), _biome.path_tile)
 	_pave(Rect2i(14, 10, 6, 4), _biome.special_tile)
 	_pave(LIFT_HEAD, _biome.special_tile)
-	for hut in HUTS:
-		_house(hut)
+	for tent in TENTS:
+		_house(tent[0], tent[1])
 
 
 func _decorate() -> void:

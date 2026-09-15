@@ -227,6 +227,11 @@ func _capture_world(main: Node) -> void:
 		["res://scenes/world/floor_10.tscn", Vector2(7 * 16 + 8, 4 * 16 + 10), "04n_ashlow_behind_house"],
 		["res://scenes/world/floor_10.tscn", Vector2(15 * 16 + 8, 14 * 16 + 8), "04o_ashlow_square"],
 		["res://scenes/world/floor_10.tscn", Vector2(36 * 16 + 8, 31 * 16 + 8), "04p_ashlow_pool"],
+		["res://scenes/world/floor_25.tscn", Vector2(11 * 16 + 8, 6 * 16 + 10), "04q_lanternfall_behind_tent"],
+		["res://scenes/world/floor_25.tscn", Vector2(17 * 16, 12 * 16 + 8), "04r_lanternfall_square"],
+		["res://scenes/world/floor_25.tscn", Vector2(52 * 16 + 8, 8 * 16 + 8), "04s_lanternfall_galleries"],
+		["res://scenes/world/floor_25.tscn", Vector2(60 * 16 + 8, 34 * 16 + 8), "04t_lanternfall_lake"],
+		["res://scenes/world/floor_25.tscn", Vector2(11 * 16 + 8, 49 * 16 + 8), "04u_lanternfall_breach"],
 	]
 	for spot: Array in spots:
 		var current := world.get_child(0) if world.get_child_count() > 0 else null

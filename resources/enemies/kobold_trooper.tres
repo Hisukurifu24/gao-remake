@@ -2,14 +2,19 @@
 
 [ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
-[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_kobold.png" id="battler"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Monster/Racoon/SpriteSheet.png" id="sheet"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/shield_bash.tres" id="shield_bash"]
+
+[sub_resource type="AtlasTexture" id="battler"]
+atlas = ExtResource("sheet")
+region = Rect2(0, 0, 16, 16)
 
 [resource]
 script = ExtResource("enemy")
 id = &"kobold_trooper"
 display_name = "Ruin Kobold Sentinel"
-battler = ExtResource("battler")
+battler = SubResource("battler")
+sheet = ExtResource("sheet")
 max_hp = 24
 attack = 7
 defense = 5

@@ -268,13 +268,34 @@ and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
   shed — on 3-wide streets; `authored_floor.gd`'s `_house()` places pack houses and refuses a
   rect that doesn't match its tile. The pack's orange twigs and leaf drifts were tried and
   dropped: drawn for sand, they shout on deep grass.
-- [ ] **The other eight biomes**, cave next for Lanternfall — each is a `PACK_BIOMES` entry,
-  plus a cliff wall style for the first underground one.
-- [ ] **Floor 25** re-dressed (its tool already calls the dresser; it needs the cave biome and
-  props), and Dorran, Maren and Karvos cast.
-- [ ] The rest of the roster (kobold, bat, wraith, lizardman, golem, drake,
-  giant), item icons from `Items/`, the chest's open frame checked in play, UI theme and
-  font from `Ui/`. Audio stays with M7 — it is in the pack already.
+- [x] **Cave band + Floor 25**: packed taupe earth with dark mud, Stillwater's shore repainted
+  onto it, stones and the odd skull, and **cliff walls** — black rock with the pack's grey
+  rims and a face wherever rock stands over open ground. The cliff wall is not a new dressing
+  style but a `BLOB`: the pack draws a dozen raised-ground arrangements, so `build_biomes.gd`
+  composes all 47 from quarters (`_compose_cliffs`), and the terrain pass and the floor test's
+  blob checks take it from there. Lanternfall's camp is three tents; Dorran = Knight, Maren =
+  Villager2, the miner = Caveman2, the lift-keeper = OldMan; cave bat = BlueBat, kobold =
+  Racoon (Illfang's kin), Karvos = GiantBlueSamurai.
+- [ ] **The other seven biomes** — ruins next, which can reuse the cliff blob from the relief
+  sheet's orange block.
+- [ ] Lanternfall's props: the camp sheet has lantern posts, crates, a campfire, and the relief
+  detail sheet has ladders and a mine mouth for the lift. Needs a way to place standing props
+  on authored maps that isn't `_house()`.
+- [ ] The rest of the roster (wraith, lizardman, golem, drake), item icons from `Items/`, and
+  the chest's open frame checked in play. Audio stays with M7 — it is in the pack already.
+- [ ] **Redo all the UI on the pack.** Every screen is still the placeholder look — flat
+  panels and the default font — and it no longer fits the maps and characters around it.
+  All six: `hud` (vitals, interact prompt), `dialogue_box`, `combat_screen`,
+  `inventory_screen`, `quest_journal`, `quest_tracker`. The pack's `Ui/` has what it takes:
+  `Theme/Theme Wood` nine-patch panels, `Dialog/` boxes with a faceset frame, a choice box
+  and yes/no buttons, `Font/` (`NormalFont.ttf` and 8×8 / 24×30 bitmap fonts),
+  `Receptacle/` hearts and life bars, `Skill Icon/`, `Input/` key prompts and an `Arrow`
+  cursor. Do it as one shared Godot `Theme` resource the screens inherit rather than six
+  restyles, so a later screen gets the look for free. Flow and view are already separate
+  for every system, so this is view-only: the six test suites should pass untouched, and
+  `tools/screenshot.gd` already frames every screen for review. Keep the colour-plus-glyph
+  cues (cursor colour, journal ready marker) readable on the new panels, and lay text out
+  for the pixel font at 640×360 — the current sizes were set for Godot's default.
 
 #### 1. Camera closer
 - [x] Zoom the player's `Camera2D` in (start from **2×**: 320×180 visible, 20×11 tiles,
@@ -662,8 +683,10 @@ match.
 And it has started to look like a place. **Floor 1 is on the Ninja Adventure pack**: the
 Town of Beginnings has roads with worn grass edges, houses you walk behind and flowers in
 the lawns; the field has a real pond, a forest two trees deep round it, and Illfang behind a
-cave mouth in the rock. Floors 2–9 grow the same forest on generated layouts, and Floors 10–19 a
-darker one of pines and dead oaks round deep grass. The other bands still draw placeholders.
+cave mouth in the rock. Floors 2–9 grow the same forest on generated layouts, Floors 10–19 a
+darker one of pines and dead oaks round deep grass, and Floors 20–29 are caverns cut out of
+black rock, with cliff faces where the rock stands over you. The other bands still draw
+placeholders.
 
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
@@ -687,7 +710,7 @@ bottom only goes up.
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 54-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 37-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 46-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 84-check combat test
@@ -716,10 +739,11 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 `build_biomes.gd` is always safe — it only touches derived resources.
 
 ## Immediate next steps
-1. **Finish the art rollout, before any new floor** (M5.5 §0). Floor 1 and the meadow are the
-   worked example; next the forest band and Floor 10, then cave and Lanternfall with a cliff
-   wall style. Same reason as the rest of M5.5: a floor laid out on placeholder art is laid
-   out twice.
+1. **Finish the art rollout, before any new floor** (M5.5 §0). Meadow, forest and cave are
+   done, and with them every authored floor so far; seven bands remain, ruins next on the
+   same composed cliff blob. **The UI is part of this**: every screen still wears the
+   placeholder look and has to be redone on the pack's `Ui/` sheets. Same reason as the rest of M5.5: a floor laid out on placeholder
+   art is laid out twice.
 2. **M5.5 — Exploration feel, before any new floor.** Camera zoom and moving monsters are
    in. **Next: §3, a boss room you have to find** — which starts with picking among its
    candidates (secret wall, door that only shows from inside, Argo selling the location),

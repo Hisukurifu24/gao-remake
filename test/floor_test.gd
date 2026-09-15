@@ -111,34 +111,46 @@ func _run() -> void:
 			"every biome dresses its wall mass, as a blob or as forest%s" % (
 				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
 
-	var tiled := FloorGenerator.generate(thirty_seven, FloorRegistry.seed_for(37))
-	var tiled_walls := tiled.get_node("Walls") as TileMapLayer
-	var mismatched := _mismatched_wall_tiles(tiled_walls)
-	var edges := _edge_tile_count(tiled_walls)
-	var uncollidable := _uncollidable_wall_tiles(tiled_walls)
-	_check(mismatched == 0, "every wall tile matches its neighbours (%d wrong)" % mismatched)
-	_check(edges > 0, "the wall mass is joined up rather than left flat (%d edge tiles)" % edges)
-	_check(uncollidable == 0, "every autotiled wall still collides (%d that don't)" % uncollidable)
-	tiled.free()
+	# Floor 37's blob is drawn by the placeholder generator; floor 24's is the cave's,
+	# put together from the pack's cliffs, on a Walls layer it shares with pools that
+	# carry a terrain of their own.
+	for sample: int in [37, 24]:
+		var sample_floor := FloorRegistry.get_floor(sample)
+		var wall_set := sample_floor.biome.wall_terrain_set
+		var label := "floor %d (%s)" % [sample, sample_floor.biome.id]
+		var tiled := FloorGenerator.generate(sample_floor, FloorRegistry.seed_for(sample))
+		var tiled_walls := tiled.get_node("Walls") as TileMapLayer
+		var mismatched := _mismatched_wall_tiles(tiled_walls, wall_set)
+		var edges := _edge_tile_count(tiled_walls, wall_set)
+		var uncollidable := _uncollidable_wall_tiles(tiled_walls, wall_set)
+		_check(wall_set >= 0, "%s has a wall terrain to join" % label)
+		_check(mismatched == 0, "every wall tile on %s matches its neighbours (%d wrong)" % [label, mismatched])
+		_check(edges > 0, "%s's wall mass is joined up rather than left flat (%d edge tiles)" % [label, edges])
+		_check(uncollidable == 0, "every autotiled wall on %s still collides (%d that don't)" % [label, uncollidable])
+		tiled.free()
 
 	# --- dressing: forest, ground and water ---
-	# Floors 5 and 15 are the meadow and the forest, both pack biomes: their wall
-	# mass is trees and their ground and water join into edges. None of that may
-	# touch collision, and all of it has to come out the same from the same seed.
-	for sample: int in [5, 15]:
+	# Floors 5, 15 and 24 are the meadow, the forest and the cave, all pack biomes:
+	# the first two wall with trees, the cave with cliffs, and all three join their
+	# ground and water into edges. None of that may touch collision, and all of it has
+	# to come out the same from the same seed.
+	var styles := {5: BiomeKit.WallStyle.TREES, 15: BiomeKit.WallStyle.TREES, 24: BiomeKit.WallStyle.BLOB}
+	for sample: int in styles:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var sample_biome := sample_floor.biome
 		var label := "floor %d (%s)" % [sample, sample_biome.id]
-		_check(sample_biome.wall_style == BiomeKit.WallStyle.TREES,
-				"%s draws its walls as trees" % label)
+		var trees: bool = styles[sample] == BiomeKit.WallStyle.TREES
+		_check(sample_biome.wall_style == styles[sample] and sample_biome.ground_terrain_set >= 0,
+				"%s is a pack biome walling with %s" % [label, "trees" if trees else "cliffs"])
 		var dressed := FloorGenerator.generate(sample_floor, FloorRegistry.seed_for(sample))
 		var props := dressed.get_node_or_null(MapDresser.PROPS) as TileMapLayer
 		var decor := dressed.get_node_or_null(MapDresser.DECOR) as TileMapLayer
-		_check(dressed.y_sort_enabled and props != null and props.y_sort_enabled,
-				"%s sorts its props with the player" % label)
-		_check(props != null and not props.collision_enabled and decor != null and not decor.collision_enabled,
-				"on %s neither the canopy nor the decor collides" % label)
-		if props != null:
+		if trees:
+			_check(dressed.y_sort_enabled and props != null and props.y_sort_enabled,
+					"%s sorts its props with the player" % label)
+		_check((props == null or not props.collision_enabled) and decor != null and not decor.collision_enabled,
+				"on %s no dressing layer collides" % label)
+		if trees and props != null:
 			var bare := _bare_forest_edges(dressed.get_node("Walls") as TileMapLayer, props, sample_biome)
 			_check(bare == 0, "every edge of %s's forest has a tree standing on it (%d bare)" % [label, bare])
 		var ground_layer := dressed.get_node("Ground") as TileMapLayer
@@ -150,7 +162,7 @@ func _run() -> void:
 		_check(_layer_signature(dressed, MapDresser.PROPS) == _layer_signature(again, MapDresser.PROPS)
 				and _layer_signature(dressed, "Ground") == _layer_signature(again, "Ground")
 				and _layer_signature(dressed, MapDresser.DECOR) == _layer_signature(again, MapDresser.DECOR),
-				"dressing %s is deterministic: one seed, one forest" % label)
+				"dressing %s is deterministic: one seed, one look" % label)
 		dressed.free()
 		again.free()
 
@@ -182,12 +194,12 @@ func _run() -> void:
 
 # --- helpers ---------------------------------------------------------------
 
-## True when a cell is part of the wall mass. Decor -- the boulders and pools
-## scattered inside rooms -- also lives on this layer but carries no terrain, so
-## the mass is correct to draw an edge against it.
-func _is_wall(walls: TileMapLayer, cell: Vector2i) -> bool:
+## True when a cell is part of the wall mass. Decor -- the boulders scattered inside
+## rooms -- also lives on this layer but carries no terrain, and a pack biome's
+## pools carry the water's, so the mass is correct to draw an edge against either.
+func _is_wall(walls: TileMapLayer, cell: Vector2i, wall_set: int) -> bool:
 	var data := walls.get_cell_tile_data(cell)
-	return data != null and data.terrain_set >= 0
+	return data != null and data.terrain_set == wall_set
 
 
 ## Counts wall cells whose chosen tile describes neighbours it doesn't have.
@@ -195,21 +207,21 @@ func _is_wall(walls: TileMapLayer, cell: Vector2i) -> bool:
 ## This is the check that catches the art and the terrain data drifting apart --
 ## a mis-paired blob leaves the floor perfectly completable and merely wrong to
 ## look at, so nothing else in the suite would say a word about it.
-func _mismatched_wall_tiles(walls: TileMapLayer) -> int:
+func _mismatched_wall_tiles(walls: TileMapLayer, wall_set: int) -> int:
 	var bad := 0
 	for cell in walls.get_used_cells():
-		var data := walls.get_cell_tile_data(cell)
-		if data == null or data.terrain_set < 0:
+		if not _is_wall(walls, cell, wall_set):
 			continue
+		var data := walls.get_cell_tile_data(cell)
 		var wrong := false
 		for bit in SIDES:
-			if (data.get_terrain_peering_bit(bit) >= 0) != _is_wall(walls, cell + SIDES[bit]):
+			if (data.get_terrain_peering_bit(bit) >= 0) != _is_wall(walls, cell + SIDES[bit], wall_set):
 				wrong = true
 		for bit in CORNERS:
 			var corner: Array = CORNERS[bit]
-			if not (_is_wall(walls, cell + corner[1]) and _is_wall(walls, cell + corner[2])):
+			if not (_is_wall(walls, cell + corner[1], wall_set) and _is_wall(walls, cell + corner[2], wall_set)):
 				continue
-			if (data.get_terrain_peering_bit(bit) >= 0) != _is_wall(walls, cell + corner[0]):
+			if (data.get_terrain_peering_bit(bit) >= 0) != _is_wall(walls, cell + corner[0], wall_set):
 				wrong = true
 		if wrong:
 			bad += 1
@@ -218,11 +230,11 @@ func _mismatched_wall_tiles(walls: TileMapLayer) -> int:
 
 ## Wall cells that border something other than wall -- i.e. the ones autotiling
 ## exists to draw. Zero of them means the pass silently did nothing.
-func _edge_tile_count(walls: TileMapLayer) -> int:
+func _edge_tile_count(walls: TileMapLayer, wall_set: int) -> int:
 	var edges := 0
 	for cell in walls.get_used_cells():
 		var data := walls.get_cell_tile_data(cell)
-		if data == null or data.terrain_set < 0:
+		if not _is_wall(walls, cell, wall_set):
 			continue
 		for bit in SIDES:
 			if data.get_terrain_peering_bit(bit) < 0:
@@ -231,11 +243,11 @@ func _edge_tile_count(walls: TileMapLayer) -> int:
 	return edges
 
 
-func _uncollidable_wall_tiles(walls: TileMapLayer) -> int:
+func _uncollidable_wall_tiles(walls: TileMapLayer, wall_set: int) -> int:
 	var open := 0
 	for cell in walls.get_used_cells():
 		var data := walls.get_cell_tile_data(cell)
-		if data == null or data.terrain_set < 0:
+		if not _is_wall(walls, cell, wall_set):
 			continue
 		if data.get_collision_polygons_count(0) == 0:
 			open += 1

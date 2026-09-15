@@ -78,8 +78,9 @@ const ROW_LIQUID := 8
 const ROW_TREES := 13
 const ROW_DECOR := 15
 const ROW_HOUSES := 16
-## Room under ROW_HOUSES for a house five cells tall.
-const PACK_ROWS := 21
+## Under the houses, which leave room for one five cells tall: a composed wall blob.
+const ROW_BLOB := 21
+const PACK_ROWS := ROW_BLOB + 6
 const GROUND_GRASS := 0
 const GROUND_DIRT := 1
 ## Variants that should be the exception on a lawn, not half of it.
@@ -90,6 +91,12 @@ const RARE := 0.12
 const EDGE_MARGIN := 3
 const EDGE_RUN := 3
 const BODY_PIXELS := 24
+## The pack's raised-ground autotile as TilesetRelief.png lays it out, from a spec's
+## "cliffs" origin: a 3x3 of outer corners and edges whose bottom row carries the cliff
+## face, beside a one-wide column, and under that column a 2x2 of inner corners -- the
+## open diagonal north-west, north-east / south-west, south-east.
+const CLIFF_BLOCK := Vector2i(1, 0)
+const CLIFF_INNER := Vector2i(0, 3)
 
 ## Biomes cut from the pack. Every entry names a sheet under PACK_TILESETS and a
 ## 16px cell (or cell rect) in it.
@@ -194,6 +201,52 @@ const PACK_BIOMES := {
 			["TilesetHouse.png", Rect2i(19, 19, 3, 3)],
 		],
 	},
+	"cave": {
+		# Raised rock: the pack's cliffs, their tops repainted the dark of its pits, so
+		# the rock between two caverns reads as the dark they were dug out of rather
+		# than as a snowy plateau. See _compose_cliffs.
+		"walls": "cliffs",
+		"cliffs": ["TilesetRelief.png", Vector2i(0, 0)],
+		"cliff_top": ["TilesetHole.png", Vector2i(1, 1)],
+		"slots": [
+			["TilesetFloor.png", Vector2i(11, 19)],  # floor: packed earth
+			["TilesetFloor.png", Vector2i(12, 19)],  # floor-alt: earth with a scuff
+			["TilesetFloor.png", Vector2i(12, 15)],  # path: dark mud
+			["TilesetFloor.png", Vector2i(12, 18)],  # special: mud with a pebble
+			["TilesetWater.png", Vector2i(1, 7)],    # liquid: open water
+			["TilesetReliefDetail.png", Vector2i(4, 0)],  # obstacle: a boulder
+			null,                                    # wall: the cliff blob's solid tile
+			null,                                    # wall-alt: invisible, a tent's footprint
+		],
+		# The meadow's block in the pack's taupe palette. Its mud is no warmer than its
+		# earth, so _is_dirt cannot tell them apart -- the links are read off the
+		# meadow's block instead, which is the same drawing.
+		"ground": ["TilesetFloor.png", Rect2i(11, 14, 11, 6)],
+		"ground_links": Rect2i(0, 7, 11, 6),
+		"ground_rare": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5),
+				Vector2i(0, 4), Vector2i(1, 4)],
+		"liquid": ["TilesetWater.png", Rect2i(0, 6, 13, 5)],
+		"liquid_palette": ["TilesetFloor.png", Rect2i(0, 7, 11, 6), Rect2i(11, 14, 11, 6)],
+		# Stones three times over, and a skull and a bone once: a mine, not an ossuary.
+		# The pack's pale flat stones and teal pebbles were tried and dropped: on taupe
+		# the first read as snow and the second as litter.
+		"decor": [
+			["TilesetFloorDetail.png", Vector2i(15, 0)], ["TilesetReliefDetail.png", Vector2i(0, 0)],
+			["TilesetReliefDetail.png", Vector2i(0, 2)],
+			["TilesetFloorDetail.png", Vector2i(15, 0)], ["TilesetReliefDetail.png", Vector2i(0, 0)],
+			["TilesetReliefDetail.png", Vector2i(0, 2)],
+			["TilesetFloorDetail.png", Vector2i(15, 0)], ["TilesetReliefDetail.png", Vector2i(0, 0)],
+			["TilesetReliefDetail.png", Vector2i(0, 2)],
+			["TilesetFloorDetail.png", Vector2i(13, 0)], ["TilesetFloorDetail.png", Vector2i(14, 0)],
+		],
+		"decor_density": 0.04,
+		# A mining camp: two tents and one the Army has been living in too long.
+		"houses": [
+			["tileset_camp.png", Rect2i(4, 0, 3, 3)],
+			["tileset_camp.png", Rect2i(7, 0, 3, 3)],
+			["tileset_camp.png", Rect2i(10, 0, 3, 3)],
+		],
+	},
 }
 
 var _sheets := {}
@@ -250,14 +303,7 @@ func _build(id: String, info: Dictionary) -> void:
 		_add_collision(source.get_tile_data(Vector2i(column, 0), 0), square)
 
 	for index in masks.size():
-		var data := source.get_tile_data(_blob_coords(index), 0)
-		_add_collision(data, square)
-		data.terrain_set = WALL_TERRAIN_SET
-		data.terrain = WALL_TERRAIN
-		for bit in NEIGHBOR_BITS:
-			data.set_terrain_peering_bit(
-					NEIGHBOR_BITS[bit],
-					WALL_TERRAIN if masks[index] & bit else -1)
+		_add_blob_tile(source, _blob_coords(index), masks[index], WALL_TERRAIN_SET, square, false)
 
 	var tileset_path := "%s/%s.tres" % [TILESET_DIR, id]
 	ResourceSaver.save(tile_set, tileset_path)
@@ -296,6 +342,25 @@ func _blob_masks() -> Array[int]:
 
 func _blob_coords(index: int) -> Vector2i:
 	return Vector2i(index % BLOB_COLUMNS, BLOB_ROW + index / BLOB_COLUMNS)
+
+
+## Where blob tile [param index] sits in a composed pack atlas.
+func _pack_blob_coords(index: int) -> Vector2i:
+	return Vector2i(index % BLOB_COLUMNS, ROW_BLOB + index / BLOB_COLUMNS)
+
+
+## Wires one blob tile: solid, and peering at wall wherever [param mask] has a
+## neighbour. [param create] is false when the tile already exists.
+func _add_blob_tile(source: TileSetAtlasSource, coords: Vector2i, mask: int, terrain_set: int,
+		square: PackedVector2Array, create := true) -> void:
+	if create:
+		source.create_tile(coords)
+	var data := source.get_tile_data(coords, 0)
+	_add_collision(data, square)
+	data.terrain_set = terrain_set
+	data.terrain = WALL_TERRAIN
+	for bit in NEIGHBOR_BITS:
+		data.set_terrain_peering_bit(NEIGHBOR_BITS[bit], WALL_TERRAIN if mask & bit else -1)
 
 
 # --- biomes cut from the Ninja Adventure pack ------------------------------
@@ -341,14 +406,29 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 	var ground_set := _add_terrain_set(tile_set, ["grass", "dirt"])
 	var ground: Rect2i = spec["ground"][1]
 	var rare: Array = spec.get("ground_rare", [])
+	# A palette _is_dirt cannot read is read off the same drawing in one it can. "The
+	# same drawing" is checked a cell at a time, because it is not quite: the taupe
+	# block draws mud in a cell where the meadow's has plain grass, and trusting the
+	# meadow there wires a mud tile as ground and paints it across every cavern floor.
+	var link_sheet: Image = null
+	var link_palette := {}
+	if spec.has("ground_links"):
+		link_sheet = _sheet(spec["ground"][0])
+		link_palette = _palette(spec["ground"][0], spec["ground_links"], ground)
 	for y in ground.size.y:
 		for x in ground.size.x:
 			var coords := Vector2i(x, ROW_GROUND + y)
 			if _is_empty(atlas, coords):
 				continue
+			var link_cell := Vector2i(x, y)
+			if link_sheet != null:
+				link_cell += (spec["ground_links"] as Rect2i).position
+				if not _drawn_alike(link_sheet, link_cell, ground.position + Vector2i(x, y), link_palette):
+					continue
 			source.create_tile(coords)
 			var data := source.get_tile_data(coords, 0)
-			var links := _links(atlas, coords, _is_dirt)
+			var links := _links(atlas, coords, _is_dirt) if link_sheet == null \
+					else _links(link_sheet, link_cell, _is_dirt)
 			data.terrain_set = ground_set
 			data.terrain = GROUND_DIRT if links[8] else GROUND_GRASS
 			for index in 8:
@@ -378,7 +458,7 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 						0 if links[index] else -1)
 
 	var trees: Array[Vector2i] = []
-	for index in spec["trees"].size():
+	for index in spec.get("trees", []).size():
 		var coords := Vector2i(index * 2, ROW_TREES)
 		source.create_tile(coords, Vector2i(2, 2))
 		_stand_up(source.get_tile_data(coords, 0), Vector2i(2, 2))
@@ -392,13 +472,20 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 
 	var houses: Array[Vector2i] = []
 	var column := 0
-	for entry: Array in spec["houses"]:
+	for entry: Array in spec.get("houses", []):
 		var size: Vector2i = (entry[1] as Rect2i).size
 		var coords := Vector2i(column, ROW_HOUSES)
 		source.create_tile(coords, size)
 		_stand_up(source.get_tile_data(coords, 0), size)
 		houses.append(coords)
 		column += size.x
+
+	var wall_set := -1
+	if spec.has("cliffs"):
+		wall_set = _add_terrain_set(tile_set, ["wall"])
+		var masks := _blob_masks()
+		for index in masks.size():
+			_add_blob_tile(source, _pack_blob_coords(index), masks[index], wall_set, square)
 
 	var tileset_path := "%s/%s.tres" % [TILESET_DIR, id]
 	ResourceSaver.save(tile_set, tileset_path)
@@ -409,6 +496,8 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 	biome.tile_set = load(tileset_path)  # from disk, so it links instead of embedding
 	biome.ambient_tint = info["tint"]
 	biome.wall_style = BiomeKit.WallStyle.TREES if spec["walls"] == "trees" else BiomeKit.WallStyle.BLOB
+	biome.wall_terrain_set = wall_set
+	biome.wall_terrain = WALL_TERRAIN
 	biome.ground_terrain_set = ground_set
 	biome.ground_grass = GROUND_GRASS
 	biome.ground_dirt = GROUND_DIRT
@@ -423,11 +512,15 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 
 
 func _compose(spec: Dictionary) -> Image:
-	var atlas := Image.create_empty(PACK_COLUMNS * TILE, PACK_ROWS * TILE, false, Image.FORMAT_RGBA8)
+	# Only a biome with a composed blob pays for its rows.
+	var rows := PACK_ROWS if spec.has("cliffs") else ROW_BLOB
+	var atlas := Image.create_empty(PACK_COLUMNS * TILE, rows * TILE, false, Image.FORMAT_RGBA8)
 	var slots: Array = spec["slots"]
 	for index in slots.size():
 		if slots[index] != null:
 			_blit(atlas, slots[index][0], Rect2i(slots[index][1], Vector2i.ONE), Vector2i(index, 0))
+	if spec.has("cliffs"):
+		_compose_cliffs(atlas, spec)
 	_blit(atlas, spec["ground"][0], spec["ground"][1], Vector2i(0, ROW_GROUND))
 	_blit(atlas, spec["liquid"][0], spec["liquid"][1], Vector2i(0, ROW_LIQUID))
 	if spec.has("liquid_palette"):
@@ -435,18 +528,90 @@ func _compose(spec: Dictionary) -> Image:
 		var liquid_cells := Rect2i(Vector2i(0, ROW_LIQUID), (spec["liquid"][1] as Rect2i).size)
 		var changed := _repaint(atlas, liquid_cells, _palette(swap[0], swap[1], swap[2]))
 		print("  shoreline repainted: %d pixels" % changed)
-	for index in spec["trees"].size():
+	for index in spec.get("trees", []).size():
 		var tree: Array = spec["trees"][index]
 		_blit(atlas, tree[0], Rect2i(tree[1], Vector2i(2, 2)), Vector2i(index * 2, ROW_TREES))
 	for index in spec["decor"].size():
 		var piece: Array = spec["decor"][index]
 		_blit(atlas, piece[0], Rect2i(piece[1], Vector2i.ONE), Vector2i(index, ROW_DECOR))
 	var column := 0
-	for entry: Array in spec["houses"]:
+	for entry: Array in spec.get("houses", []):
 		var cells: Rect2i = entry[1]
 		_blit(atlas, entry[0], cells, Vector2i(column, ROW_HOUSES))
 		column += cells.size.x
 	return atlas
+
+
+## A 47-tile wall blob put together from the pack's raised-ground autotile, so rock
+## joins through the same terrain pass as a placeholder biome's walls, and the floor
+## test's blob checks hold it to the same standard.
+##
+## The pack draws a dozen arrangements and the blob needs 47, so every tile is built
+## from quarters, each decided by only what it touches: a top quarter by north, its
+## side and the corner between them, a bottom one by its side and corner. A cell
+## with open ground below it is a cliff face from top to bottom -- the pack draws the
+## face inside the rock's own last row -- so there every quarter comes from the face
+## row. Laid over the floor tile, because the pack's outer corners are rounded off.
+func _compose_cliffs(atlas: Image, spec: Dictionary) -> void:
+	var sheet := _sheet(spec["cliffs"][0])
+	var origin: Vector2i = spec["cliffs"][1]
+	var half := Vector2i(TILE / 2, TILE / 2)
+	var underlay := atlas.get_region(Rect2i(0, 0, TILE, TILE))
+	var masks := _blob_masks()
+	for index in masks.size():
+		var at := _pack_blob_coords(index) * TILE
+		atlas.blit_rect(underlay, Rect2i(Vector2i.ZERO, underlay.get_size()), at)
+		for quarter in 4:
+			var cell := _cliff_quarter(masks[index], quarter, origin)
+			var offset := Vector2i(quarter % 2, quarter / 2) * half
+			atlas.blend_rect(sheet, Rect2i(cell * TILE + offset, half), at + offset)
+	if spec.has("cliff_top"):
+		var top: Array = spec["cliff_top"]
+		var palette := {_dominant(sheet, origin + CLIFF_BLOCK + Vector2i.ONE): _dominant(_sheet(top[0]), top[1])}
+		_repaint(atlas, Rect2i(0, ROW_BLOB, BLOB_COLUMNS, 6), palette)
+	# The plain wall slot is solid rock: what a mass cell draws before it is joined.
+	var solid := atlas.get_region(Rect2i(_pack_blob_coords(masks.size() - 1) * TILE, Vector2i(TILE, TILE)))
+	atlas.blit_rect(solid, Rect2i(Vector2i.ZERO, solid.get_size()), Vector2i(6, 0) * TILE)
+
+
+## The sheet cell quarter [param quarter] (0 top-left, 1 top-right, 2 bottom-left,
+## 3 bottom-right) of blob tile [param mask] is cut from.
+func _cliff_quarter(mask: int, quarter: int, origin: Vector2i) -> Vector2i:
+	var block := origin + CLIFF_BLOCK
+	var inner := origin + CLIFF_INNER
+	var left := quarter % 2 == 0
+	var side_open := (mask & (BIT_W if left else BIT_E)) == 0
+	var column := (0 if left else 2) if side_open else 1
+	var inner_column := 0 if left else 1
+	if (mask & BIT_S) == 0:
+		return block + Vector2i(column, 2)
+	if quarter < 2:
+		if (mask & BIT_N) == 0:
+			return block + Vector2i(column, 0)
+		if side_open:
+			return block + Vector2i(column, 1)
+		if (mask & (BIT_NW if left else BIT_NE)) == 0:
+			return inner + Vector2i(inner_column, 0)
+		return block + Vector2i.ONE
+	if side_open:
+		return block + Vector2i(column, 1)
+	if (mask & (BIT_SW if left else BIT_SE)) == 0:
+		return inner + Vector2i(inner_column, 1)
+	return block + Vector2i.ONE
+
+
+## The colour covering most of [param cell] of [param image], as an RGBA32 int.
+func _dominant(image: Image, cell: Vector2i) -> int:
+	var counts := {}
+	for y in TILE:
+		for x in TILE:
+			var key := image.get_pixelv(cell * TILE + Vector2i(x, y)).to_rgba32()
+			counts[key] = counts.get(key, 0) + 1
+	var best := 0
+	for key: int in counts:
+		if not counts.has(best) or counts[key] > counts[best]:
+			best = key
+	return best
 
 
 func _blit(atlas: Image, sheet: String, cells: Rect2i, at: Vector2i) -> void:
@@ -488,6 +653,22 @@ func _palette(sheet: String, from: Rect2i, to: Rect2i) -> Dictionary:
 				best_count = votes[key][target]
 		palette[key] = best
 	return palette
+
+
+## Whether [param cell] of [param image] is [param reference] repainted by
+## [param palette], to within a stray pixel or two.
+func _drawn_alike(image: Image, reference: Vector2i, cell: Vector2i, palette: Dictionary) -> bool:
+	var off := 0
+	for y in TILE:
+		for x in TILE:
+			var from := image.get_pixelv(reference * TILE + Vector2i(x, y))
+			var to := image.get_pixelv(cell * TILE + Vector2i(x, y))
+			if from.a == 0.0 or to.a == 0.0:
+				if from.a != to.a:
+					off += 1
+			elif palette.get(from.to_rgba32(), -1) != to.to_rgba32():
+				off += 1
+	return off <= 4
 
 
 ## Swaps colours inside [param cells] of the atlas; returns how many pixels moved.
