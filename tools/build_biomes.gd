@@ -78,7 +78,8 @@ const ROW_LIQUID := 8
 const ROW_TREES := 13
 const ROW_DECOR := 15
 const ROW_HOUSES := 16
-const PACK_ROWS := 19
+## Room under ROW_HOUSES for a house five cells tall.
+const PACK_ROWS := 21
 const GROUND_GRASS := 0
 const GROUND_DIRT := 1
 ## Variants that should be the exception on a lawn, not half of it.
@@ -136,6 +137,61 @@ const PACK_BIOMES := {
 		"houses": [
 			["TilesetHouse.png", Rect2i(0, 0, 4, 3)],
 			["TilesetHouse.png", Rect2i(4, 0, 4, 3)],
+		],
+	},
+	"forest": {
+		"walls": "trees",
+		"slots": [
+			["TilesetFloor.png", Vector2i(11, 12)],  # floor: deep grass
+			["TilesetFloor.png", Vector2i(12, 12)],  # floor-alt: deep grass with a tuft
+			["TilesetFloor.png", Vector2i(12, 8)],   # path: dark earth
+			["TilesetFloor.png", Vector2i(12, 11)],  # special: earth with a pebble
+			["TilesetWater.png", Vector2i(1, 7)],    # liquid: open water
+			["TilesetNature.png", Vector2i(1, 10)],  # obstacle: a bush
+			["TilesetFloor.png", Vector2i(11, 12)],  # wall: grass under the canopy, as the meadow
+			null,                                    # wall-alt: invisible, a house's footprint
+		],
+		# The meadow's block eleven columns over: the same tiles in the deep palette,
+		# so the rare cells are the same cells.
+		"ground": ["TilesetFloor.png", Rect2i(11, 7, 11, 6)],
+		"ground_rare": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5),
+				Vector2i(0, 4), Vector2i(1, 4)],
+		"liquid": ["TilesetWater.png", Rect2i(0, 6, 13, 5)],
+		# The pack only draws its shores onto the light grass. Swapping every colour of
+		# the meadow's ground block for the one at the same pixel of this biome's puts
+		# the pond in the grass it actually sits in. See _palette.
+		"liquid_palette": ["TilesetFloor.png", Rect2i(0, 7, 11, 6), Rect2i(11, 7, 11, 6)],
+		# Pines and rooted oaks three times over, and the odd dead one. No round
+		# meadow tree: its bright crown reads as a hole in the canopy.
+		"trees": [
+			["TilesetNature.png", Vector2i(2, 0)],
+			["TilesetNature.png", Vector2i(2, 0)],
+			["TilesetNature.png", Vector2i(2, 0)],
+			["TilesetNature.png", Vector2i(6, 0)],
+			["TilesetNature.png", Vector2i(6, 0)],
+			["TilesetNature.png", Vector2i(6, 0)],
+			["TilesetNature.png", Vector2i(4, 0)],
+		],
+		"decor": [
+			["TilesetFloorDetail.png", Vector2i(0, 2)], ["TilesetFloorDetail.png", Vector2i(1, 2)],
+			["TilesetFloorDetail.png", Vector2i(2, 2)], ["TilesetFloorDetail.png", Vector2i(3, 2)],
+			["TilesetFloorDetail.png", Vector2i(4, 2)], ["TilesetFloorDetail.png", Vector2i(6, 2)],
+			["TilesetFloorDetail.png", Vector2i(7, 2)],
+			# Ferns and clover where the meadow has flowers, twice over. The pack's
+			# twigs and leaf drifts are drawn orange for sand and shout on deep grass.
+			["TilesetNature.png", Vector2i(4, 11)], ["TilesetNature.png", Vector2i(5, 11)],
+			["TilesetNature.png", Vector2i(2, 11)],
+			["TilesetNature.png", Vector2i(4, 11)], ["TilesetNature.png", Vector2i(5, 11)],
+			["TilesetNature.png", Vector2i(2, 11)],
+			["TilesetFloorDetail.png", Vector2i(0, 2)], ["TilesetFloorDetail.png", Vector2i(3, 2)],
+		],
+		"decor_density": 0.05,
+		# A logging village: an A-frame, a log house, a corner house and a shed.
+		"houses": [
+			["TilesetHouse.png", Rect2i(25, 14, 4, 5)],
+			["TilesetHouse.png", Rect2i(29, 0, 4, 4)],
+			["TilesetHouse.png", Rect2i(26, 0, 3, 3)],
+			["TilesetHouse.png", Rect2i(19, 19, 3, 3)],
 		],
 	},
 }
@@ -374,6 +430,11 @@ func _compose(spec: Dictionary) -> Image:
 			_blit(atlas, slots[index][0], Rect2i(slots[index][1], Vector2i.ONE), Vector2i(index, 0))
 	_blit(atlas, spec["ground"][0], spec["ground"][1], Vector2i(0, ROW_GROUND))
 	_blit(atlas, spec["liquid"][0], spec["liquid"][1], Vector2i(0, ROW_LIQUID))
+	if spec.has("liquid_palette"):
+		var swap: Array = spec["liquid_palette"]
+		var liquid_cells := Rect2i(Vector2i(0, ROW_LIQUID), (spec["liquid"][1] as Rect2i).size)
+		var changed := _repaint(atlas, liquid_cells, _palette(swap[0], swap[1], swap[2]))
+		print("  shoreline repainted: %d pixels" % changed)
 	for index in spec["trees"].size():
 		var tree: Array = spec["trees"][index]
 		_blit(atlas, tree[0], Rect2i(tree[1], Vector2i(2, 2)), Vector2i(index * 2, ROW_TREES))
@@ -389,11 +450,57 @@ func _compose(spec: Dictionary) -> Image:
 
 
 func _blit(atlas: Image, sheet: String, cells: Rect2i, at: Vector2i) -> void:
+	atlas.blit_rect(_sheet(sheet), Rect2i(cells.position * TILE, cells.size * TILE), at * TILE)
+
+
+func _sheet(sheet: String) -> Image:
 	if not _sheets.has(sheet):
 		var image := Image.load_from_file(PACK_TILESETS + sheet)
 		image.convert(Image.FORMAT_RGBA8)
 		_sheets[sheet] = image
-	atlas.blit_rect(_sheets[sheet], Rect2i(cells.position * TILE, cells.size * TILE), at * TILE)
+	return _sheets[sheet]
+
+
+## A palette swap read off the pack rather than typed in: [param from] and
+## [param to] are two blocks of [param sheet] drawn alike in two palettes, and each
+## colour of the first maps to whichever colour most often sits at the same pixel
+## of the second. As RGBA32 ints, since those compare exactly.
+func _palette(sheet: String, from: Rect2i, to: Rect2i) -> Dictionary:
+	var image := _sheet(sheet)
+	var votes := {}
+	for y in from.size.y * TILE:
+		for x in from.size.x * TILE:
+			var source := image.get_pixelv(from.position * TILE + Vector2i(x, y))
+			if source.a == 0.0:
+				continue
+			var key := source.to_rgba32()
+			var target := image.get_pixelv(to.position * TILE + Vector2i(x, y)).to_rgba32()
+			if not votes.has(key):
+				votes[key] = {}
+			votes[key][target] = votes[key].get(target, 0) + 1
+	var palette := {}
+	for key: int in votes:
+		var best := 0
+		var best_count := -1
+		for target: int in votes[key]:
+			if votes[key][target] > best_count:
+				best = target
+				best_count = votes[key][target]
+		palette[key] = best
+	return palette
+
+
+## Swaps colours inside [param cells] of the atlas; returns how many pixels moved.
+func _repaint(atlas: Image, cells: Rect2i, palette: Dictionary) -> int:
+	var changed := 0
+	for y in cells.size.y * TILE:
+		for x in cells.size.x * TILE:
+			var pixel := cells.position * TILE + Vector2i(x, y)
+			var key := atlas.get_pixelv(pixel).to_rgba32()
+			if palette.has(key) and palette[key] != key:
+				atlas.set_pixelv(pixel, Color.hex(palette[key]))
+				changed += 1
+	return changed
 
 
 ## How a transition tile connects, read off its pixels: eight flags in

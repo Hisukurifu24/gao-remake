@@ -1,15 +1,21 @@
-[gd_resource type="Resource" script_class="EnemyType" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="EnemyType" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
-[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_wolf.png" id="battler"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Animal/DogBlack/SpriteSheet.png" id="sheet"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/rend.tres" id="rend"]
+
+[sub_resource type="AtlasTexture" id="battler"]
+atlas = ExtResource("sheet")
+region = Rect2(0, 0, 18, 17)
 
 [resource]
 script = ExtResource("enemy")
 id = &"dire_wolf"
 display_name = "Dire Wolf"
-battler = ExtResource("battler")
+battler = SubResource("battler")
+sheet = ExtResource("sheet")
+sheet_frames = Vector2i(2, 1)
 max_hp = 20
 attack = 8
 defense = 2

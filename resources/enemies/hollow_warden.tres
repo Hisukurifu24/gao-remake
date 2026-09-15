@@ -1,16 +1,20 @@
-[gd_resource type="Resource" script_class="EnemyType" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="EnemyType" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
-[ext_resource type="Texture2D" path="res://assets/placeholder/enemy_warden.png" id="battler"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantBamboo/Idle.png" id="battler_art"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/slam.tres" id="slam"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/wither.tres" id="wither"]
+
+[sub_resource type="AtlasTexture" id="battler"]
+atlas = ExtResource("battler_art")
+region = Rect2(0, 0, 62, 62)
 
 [resource]
 script = ExtResource("enemy")
 id = &"hollow_warden"
 display_name = "Nerith the Hollow Warden"
-battler = ExtResource("battler")
+battler = SubResource("battler")
 max_hp = 30
 attack = 7
 defense = 5

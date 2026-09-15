@@ -48,7 +48,7 @@ func _ready() -> void:
 
 	# One floor per biome band worth showing off, and the authored ones past the
 	# first -- 24 and 25 side by side are the same band generated and built.
-	for floor_number in [2, 10, 24, 25, 55, 87, 100]:
+	for floor_number in [2, 10, 15, 24, 25, 55, 87, 100]:
 		await _capture_floor(floor_number)
 
 	print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
@@ -224,6 +224,9 @@ func _capture_world(main: Node) -> void:
 		["res://scenes/world/field.tscn", Vector2(14 * 16 + 8, 26 * 16 + 8), "04k_field_pond"],
 		["res://scenes/world/field.tscn", Vector2(42 * 16, 14 * 16 + 12), "04l_field_under_grove"],
 		["res://scenes/world/field.tscn", Vector2(49 * 16 + 8, 35 * 16 + 8), "04m_field_door"],
+		["res://scenes/world/floor_10.tscn", Vector2(7 * 16 + 8, 4 * 16 + 10), "04n_ashlow_behind_house"],
+		["res://scenes/world/floor_10.tscn", Vector2(15 * 16 + 8, 14 * 16 + 8), "04o_ashlow_square"],
+		["res://scenes/world/floor_10.tscn", Vector2(36 * 16 + 8, 31 * 16 + 8), "04p_ashlow_pool"],
 	]
 	for spot: Array in spots:
 		var current := world.get_child(0) if world.get_child_count() > 0 else null

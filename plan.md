@@ -257,15 +257,23 @@ and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
 - [x] **Meadow + Floor 1 converted**: town houses you walk behind, roads and plaza, a pond
   with a shore, the cave-mouth labyrinth door, forest borders two deep.
 - [x] **Cast so far**: Kirito = SamuraiBlue, Argo = NinjaYellow, Nezha = Hunter, the scout =
-  CamouflageGreen; Frenzy Boar = WildBoar, Little Nepent = Bamboo, Illfang = GiantRacoon.
-  Battlers scale ×4 (bosses ×2). All swappable in one line each.
-- [ ] **The other nine biomes**, forest band first (Floor 10 is on it), then cave for
-  Lanternfall — each is a `PACK_BIOMES` entry, plus a cliff wall style for the first
-  underground one.
-- [ ] **Floors 10 and 25** re-dressed (their tools already call the dresser; they need a pack
-  biome and houses/props), and their NPCs, portraits and bosses cast.
-- [ ] The rest of the roster (wolf, kobold, bat, wraith, lizardman, golem, drake, giant,
-  warden), item icons from `Items/`, the chest's open frame checked in play, UI theme and
+  CamouflageGreen; Rue = ManGreen, Sable = Inspector, Ashlow's logger and courier = Villager
+  and Villager4; Frenzy Boar = WildBoar, Little Nepent = Bamboo, Dire Wolf = DogBlack,
+  Illfang = GiantRacoon, the Hollow Warden = GiantBamboo. Battlers scale ×4 (bosses ×2).
+  All swappable in one line each.
+- [x] **Forest band + Floor 10**: deep grass (the meadow's ground block in the pack's darker
+  palette), pines and rooted oaks with the odd dead one, ferns where the meadow has flowers,
+  and ponds whose shore is the meadow's repainted by a palette read off the pack
+  (`liquid_palette`). Ashlow is six pack houses — A-frames, a log house, a corner house, a
+  shed — on 3-wide streets; `authored_floor.gd`'s `_house()` places pack houses and refuses a
+  rect that doesn't match its tile. The pack's orange twigs and leaf drifts were tried and
+  dropped: drawn for sand, they shout on deep grass.
+- [ ] **The other eight biomes**, cave next for Lanternfall — each is a `PACK_BIOMES` entry,
+  plus a cliff wall style for the first underground one.
+- [ ] **Floor 25** re-dressed (its tool already calls the dresser; it needs the cave biome and
+  props), and Dorran, Maren and Karvos cast.
+- [ ] The rest of the roster (kobold, bat, wraith, lizardman, golem, drake,
+  giant), item icons from `Items/`, the chest's open frame checked in play, UI theme and
   font from `Ui/`. Audio stays with M7 — it is in the pack already.
 
 #### 1. Camera closer
@@ -654,8 +662,8 @@ match.
 And it has started to look like a place. **Floor 1 is on the Ninja Adventure pack**: the
 Town of Beginnings has roads with worn grass edges, houses you walk behind and flowers in
 the lawns; the field has a real pond, a forest two trees deep round it, and Illfang behind a
-cave mouth in the rock. Floors 2–9 grow the same forest on generated layouts. The other
-bands still draw placeholders.
+cave mouth in the rock. Floors 2–9 grow the same forest on generated layouts, and Floors 10–19 a
+darker one of pines and dead oaks round deep grass. The other bands still draw placeholders.
 
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
@@ -679,7 +687,7 @@ bottom only goes up.
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 54-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 31-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 37-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 84-check combat test

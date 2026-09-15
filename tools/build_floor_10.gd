@@ -56,26 +56,36 @@ const SPAWN_CELL := Vector2i(16, 20)
 const STAIRS_CELL := Vector2i(12, 20)
 const GATE_CELL := Vector2i(67, 44)
 
-## Four roofs, see [method _house].
+## Six buildings as [rect, house], see [method _house]. The forest biome's houses
+## are 0 an A-frame (4x5), 1 a log house (4x4), 2 a corner house (3x3), 3 a shed
+## (3x3), and each rect is exactly its house's size.
 const BUILDINGS := [
-	Rect2i(5, 5, 6, 4),
-	Rect2i(20, 5, 7, 4),
-	Rect2i(5, 16, 6, 4),
-	Rect2i(21, 16, 6, 4),
+	[Rect2i(6, 4, 4, 5), 0],
+	[Rect2i(20, 5, 4, 4), 1],
+	[Rect2i(25, 6, 3, 3), 2],
+	[Rect2i(5, 16, 3, 3), 2],
+	[Rect2i(9, 17, 3, 3), 3],
+	[Rect2i(22, 15, 4, 5), 0],
 ]
 
+## Three wide, because the pack draws a road's edge inside the road: two wide
+## reads as one.
+const STREET_EAST_WEST := Rect2i(3, 11, 26, 3)
+const STREET_NORTH_SOUTH := Rect2i(14, 3, 3, 20)
+const SQUARE := Rect2i(12, 9, 7, 7)
+
 const NPCS := [
-	{"at": Vector2i(12, 10), "name": "Rue", "display": "Rue the forester",
+	{"at": Vector2i(12, 10), "name": "Rue", "display": "Rue the forester", "look": "ManGreen",
 		"flag": &"met_rue", "dialogue": "res://resources/dialogue/rue.tres"},
 	{"at": Vector2i(20, 15), "name": "Sable", "display": "Sable the cartographer",
-		"flag": &"met_sable", "dialogue": "res://resources/dialogue/sable.tres"},
-	{"at": Vector2i(8, 14), "name": "Logger", "display": "a logger", "flag": &"",
-		"lines": [
+		"look": "Inspector", "flag": &"met_sable", "dialogue": "res://resources/dialogue/sable.tres"},
+	{"at": Vector2i(8, 14), "name": "Logger", "display": "a logger", "look": "Villager",
+		"flag": &"", "lines": [
 			"Nine floors up and the trees still win.",
 			"Rue says four wolves. Rue has said four wolves since spring.",
 		]},
-	{"at": Vector2i(24, 10), "name": "Runner", "display": "a courier", "flag": &"",
-		"lines": [
+	{"at": Vector2i(24, 10), "name": "Runner", "display": "a courier", "look": "Villager4",
+		"flag": &"", "lines": [
 			"I carry mail down to Floor Nine and back. Twice a week, when the path holds.",
 			"Last month it stopped holding. The wood grew over the road overnight.",
 		]},
@@ -152,17 +162,17 @@ func _build() -> Node2D:
 	return map
 
 
-## Ashlow: two streets crossing at a stone square, four roofs, and floor
+## Ashlow: two streets crossing at a trodden square, six buildings, and lawn
 ## everywhere else. Carved as one rectangle first so the buildings are put *back*
 ## rather than left standing -- a building is a thing inside the village, not a
 ## piece of the wood the village failed to clear.
 func _carve_village() -> void:
 	_carve(VILLAGE, _biome.floor_tile)
-	_fill(_ground, Rect2i(VILLAGE.position.x, 12, VILLAGE.size.x, 2), _biome.path_tile)
-	_fill(_ground, Rect2i(15, VILLAGE.position.y, 2, VILLAGE.size.y), _biome.path_tile)
-	_fill(_ground, Rect2i(14, 11, 5, 5), _biome.special_tile)
-	for building in BUILDINGS:
-		_house(building)
+	_fill(_ground, STREET_EAST_WEST, _biome.path_tile)
+	_fill(_ground, STREET_NORTH_SOUTH, _biome.path_tile)
+	_fill(_ground, SQUARE, _biome.special_tile)
+	for building: Array in BUILDINGS:
+		_house(building[0], building[1])
 
 
 func _decorate() -> void:

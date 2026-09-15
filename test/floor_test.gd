@@ -122,34 +122,37 @@ func _run() -> void:
 	tiled.free()
 
 	# --- dressing: forest, ground and water ---
-	# Floor 5 is meadow, a pack biome: its wall mass is forest and its ground and
-	# water join into edges. None of that may touch collision, and all of it has
-	# to come out the same from the same seed.
-	var meadow_floor := FloorRegistry.get_floor(5)
-	var meadow_biome := meadow_floor.biome
-	_check(meadow_biome.wall_style == BiomeKit.WallStyle.TREES, "the meadow draws its walls as forest")
-	var dressed := FloorGenerator.generate(meadow_floor, FloorRegistry.seed_for(5))
-	var props := dressed.get_node_or_null(MapDresser.PROPS) as TileMapLayer
-	var decor := dressed.get_node_or_null(MapDresser.DECOR) as TileMapLayer
-	_check(dressed.y_sort_enabled and props != null and props.y_sort_enabled,
-			"a dressed map sorts its props with the player")
-	_check(props != null and not props.collision_enabled and decor != null and not decor.collision_enabled,
-			"neither the canopy nor the decor collides")
-	if props != null:
-		var bare := _bare_forest_edges(dressed.get_node("Walls") as TileMapLayer, props, meadow_biome)
-		_check(bare == 0, "every edge of the forest has a tree standing on it (%d bare)" % bare)
-	var ground_layer := dressed.get_node("Ground") as TileMapLayer
-	var off := _ground_mismatches(ground_layer, meadow_biome)
-	var ground_cells := ground_layer.get_used_cells().size()
-	_check(off == 0,
-			"ground edges match their neighbours (%d of %d cells off)" % [off, ground_cells])
-	var again := FloorGenerator.generate(meadow_floor, FloorRegistry.seed_for(5))
-	_check(_layer_signature(dressed, MapDresser.PROPS) == _layer_signature(again, MapDresser.PROPS)
-			and _layer_signature(dressed, "Ground") == _layer_signature(again, "Ground")
-			and _layer_signature(dressed, MapDresser.DECOR) == _layer_signature(again, MapDresser.DECOR),
-			"dressing is deterministic: one seed, one forest")
-	dressed.free()
-	again.free()
+	# Floors 5 and 15 are the meadow and the forest, both pack biomes: their wall
+	# mass is trees and their ground and water join into edges. None of that may
+	# touch collision, and all of it has to come out the same from the same seed.
+	for sample: int in [5, 15]:
+		var sample_floor := FloorRegistry.get_floor(sample)
+		var sample_biome := sample_floor.biome
+		var label := "floor %d (%s)" % [sample, sample_biome.id]
+		_check(sample_biome.wall_style == BiomeKit.WallStyle.TREES,
+				"%s draws its walls as trees" % label)
+		var dressed := FloorGenerator.generate(sample_floor, FloorRegistry.seed_for(sample))
+		var props := dressed.get_node_or_null(MapDresser.PROPS) as TileMapLayer
+		var decor := dressed.get_node_or_null(MapDresser.DECOR) as TileMapLayer
+		_check(dressed.y_sort_enabled and props != null and props.y_sort_enabled,
+				"%s sorts its props with the player" % label)
+		_check(props != null and not props.collision_enabled and decor != null and not decor.collision_enabled,
+				"on %s neither the canopy nor the decor collides" % label)
+		if props != null:
+			var bare := _bare_forest_edges(dressed.get_node("Walls") as TileMapLayer, props, sample_biome)
+			_check(bare == 0, "every edge of %s's forest has a tree standing on it (%d bare)" % [label, bare])
+		var ground_layer := dressed.get_node("Ground") as TileMapLayer
+		var off := _ground_mismatches(ground_layer, sample_biome)
+		var ground_cells := ground_layer.get_used_cells().size()
+		_check(off == 0, "%s's ground edges match their neighbours (%d of %d cells off)" % [
+				label, off, ground_cells])
+		var again := FloorGenerator.generate(sample_floor, FloorRegistry.seed_for(sample))
+		_check(_layer_signature(dressed, MapDresser.PROPS) == _layer_signature(again, MapDresser.PROPS)
+				and _layer_signature(dressed, "Ground") == _layer_signature(again, "Ground")
+				and _layer_signature(dressed, MapDresser.DECOR) == _layer_signature(again, MapDresser.DECOR),
+				"dressing %s is deterministic: one seed, one forest" % label)
+		dressed.free()
+		again.free()
 
 	# --- every generated floor is completable ---
 	var broken: PackedStringArray = PackedStringArray()

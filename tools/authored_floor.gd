@@ -26,6 +26,7 @@ const BOSS_GATE_SCENE := "res://scenes/world/boss_gate.tscn"
 const STAIRS_SCENE := "res://scenes/world/floor_stairs.tscn"
 const MONSTER_SCENE := "res://scenes/world/monster.tscn"
 const EXIT_SCENE := "res://scenes/world/map_exit.tscn"
+const CHARACTER_SHEET := "res://assets/ninja_adventure/Actor/Character/%s/SpriteSheet.png"
 
 const TILE := 16
 const SOURCE_ID := 0
@@ -50,6 +51,8 @@ var _biome: BiomeKit
 var _ground: TileMapLayer
 var _walls: TileMapLayer
 var _open: Dictionary[Vector2i, bool] = {}
+## [rect, house variant] for every pack house, placed once the map is dressed.
+var _houses: Array = []
 
 
 func _initialize() -> void:
@@ -205,10 +208,20 @@ func _pave(rect: Rect2i, tile: int) -> void:
 				_paint(_ground, cell, tile)
 
 
-## A building, as a roof block with a wall course along the bottom -- the same
-## trick the Town of Beginnings uses. The course is plain wall, so it joins the
-## terrain and draws a facade; the roof carries no terrain and stays a flat block.
-func _house(rect: Rect2i) -> void:
+## A building. On a biome with pack houses it is the Town of Beginnings' kind: a
+## footprint in the invisible wall-alt slot -- every row but the roof's top one, so
+## you pass behind it -- and house tile [param variant] stood over it once the map
+## is dressed. [param rect] must be that tile's size; [method _verify] holds it to it.
+##
+## On a biome without them, a roof block with a wall course along the bottom: the
+## course is plain wall, so it joins the terrain and draws a facade, and the roof
+## carries no terrain and stays a flat block.
+func _house(rect: Rect2i, variant := 0) -> void:
+	if not _biome.house_tiles.is_empty():
+		_block(Rect2i(rect.position.x, rect.position.y + 1, rect.size.x, rect.size.y - 1),
+				_biome.wall_alt_tile)
+		_houses.append([rect, variant])
+		return
 	var roof := Rect2i(rect.position, Vector2i(rect.size.x, rect.size.y - 1))
 	_block(roof, _biome.wall_alt_tile)
 	_block(Rect2i(rect.position.x, rect.end.y - 1, rect.size.x, 1), _biome.wall_tile)
@@ -218,9 +231,17 @@ func _house(rect: Rect2i) -> void:
 ## water, plants forest and scatters decor. The same [MapDresser] pass a
 ## generated floor gets, so a built floor and a generated one follow one rule.
 ## Only cells still holding the plain wall tile join the mass -- roofs, boulders
-## and pools live on this layer too and are scenery.
+## and pools live on this layer too and are scenery. Pack houses go up after, on
+## the props layer the forest was planted on.
 func _join_walls() -> void:
-	MapDresser.dress(_ground.get_parent() as Node2D, _biome, _ground, _walls, floor_number)
+	var map := _ground.get_parent() as Node2D
+	MapDresser.dress(map, _biome, _ground, _walls, floor_number)
+	if _houses.is_empty():
+		return
+	var props := MapDresser.props_layer(map, _biome)
+	for house: Array in _houses:
+		if house[1] >= 0 and house[1] < _biome.house_tiles.size():
+			props.set_cell(MapDresser.anchor_for(house[0]), SOURCE_ID, _biome.house_tiles[house[1]])
 
 
 ## The outer ring is never carved, so the map never opens onto the void.
@@ -283,6 +304,9 @@ func _add_npc(map: Node2D, entry: Dictionary) -> void:
 	node.set(&"prompt_verb", "Talk to")
 	node.set(&"lines", PackedStringArray(entry.get("lines", [])))
 	node.set(&"met_flag", entry["flag"])
+	# [code]look[/code] names a character folder in the Ninja Adventure pack.
+	if entry.has("look"):
+		node.set(&"sprite_sheet", load(CHARACTER_SHEET % entry["look"]))
 	if entry.has("dialogue"):
 		node.set(&"dialogue", load(entry["dialogue"]))
 	_add(map, node)
@@ -344,6 +368,9 @@ func _verify(map: Node2D) -> String:
 		return "there are no spawn points"
 	if map.get_node_or_null("BossGate") == null:
 		return "there is no boss gate"
+	var houses := _house_problem()
+	if not houses.is_empty():
+		return houses
 
 	var arrival := spawns.get_node_or_null("default") as Node2D
 	if arrival == null:
@@ -365,6 +392,24 @@ func _verify(map: Node2D) -> String:
 			stranded.append("%s at %d,%d" % [node.name, cell.x, cell.y])
 	if not stranded.is_empty():
 		return "unreachable from the spawn: " + ", ".join(stranded)
+	return ""
+
+
+## A house stands on the bottom row of its rect, so a rect that disagrees with its
+## tile draws the roof off the footprint: an invisible wall beside a roof you walk
+## straight through.
+func _house_problem() -> String:
+	var source := _biome.tile_set.get_source(SOURCE_ID) as TileSetAtlasSource
+	for house: Array in _houses:
+		var rect: Rect2i = house[0]
+		var variant: int = house[1]
+		if variant < 0 or variant >= _biome.house_tiles.size():
+			return "the house at %d,%d asks for house %d of %d" % [
+					rect.position.x, rect.position.y, variant, _biome.house_tiles.size()]
+		var tile := source.get_tile_size_in_atlas(_biome.house_tiles[variant])
+		if tile != rect.size:
+			return "the house at %d,%d is %dx%d but house %d is %dx%d" % [
+					rect.position.x, rect.position.y, rect.size.x, rect.size.y, variant, tile.x, tile.y]
 	return ""
 
 
