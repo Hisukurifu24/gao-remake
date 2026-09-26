@@ -1,30 +1,6 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://ui/quest_journal.gd" id="1_journal"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
-bg_color = Color(0.06, 0.07, 0.12, 0.96)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.62, 0.55, 0.85, 0.9)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_side"]
-bg_color = Color(0.05, 0.06, 0.11, 0.96)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.45, 0.62, 0.85, 0.85)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
 
 [node name="QuestJournal" type="CanvasLayer"]
 layer = 8
@@ -37,130 +13,88 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.03, 0.04, 0.07, 1)
-
-[node name="Title" type="Label" parent="."]
-anchors_preset = 0
-offset_left = 14.0
-offset_top = 8.0
-offset_right = 300.0
-offset_bottom = 24.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.78, 0.72, 0.98, 1)
-theme_override_font_sizes/font_size = 13
-text = "Journal"
-
-[node name="Counts" type="Label" parent="."]
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -200.0
-offset_top = 10.0
-offset_right = -14.0
-offset_bottom = 24.0
-grow_horizontal = 0
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.55, 0.57, 0.66, 1)
-theme_override_font_sizes/font_size = 10
-text = "0 active"
-horizontal_alignment = 2
+color = Color(0.169, 0.157, 0.141, 1)
 
 [node name="List" type="PanelContainer" parent="."]
-anchors_preset = 0
-offset_left = 12.0
-offset_top = 28.0
-offset_right = 250.0
-offset_bottom = 268.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 136.0
+offset_bottom = 166.0
 mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="Margin" type="MarginContainer" parent="List"]
-layout_mode = 2
-theme_override_constants/margin_left = 8
-theme_override_constants/margin_top = 6
-theme_override_constants/margin_right = 8
-theme_override_constants/margin_bottom = 6
-
-[node name="Column" type="VBoxContainer" parent="List/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 3
-
-[node name="Rows" type="VBoxContainer" parent="List/Margin/Column"]
+[node name="Column" type="VBoxContainer" parent="List"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Empty" type="Label" parent="List/Margin/Column"]
+[node name="Title" type="Label" parent="List/Column"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.42, 0.5, 1)
-theme_override_font_sizes/font_size = 10
+theme_type_variation = &"HeaderLabel"
+text = "Journal"
+
+[node name="Counts" type="Label" parent="List/Column"]
+layout_mode = 2
+theme_type_variation = &"HintLabel"
+text = "0 active"
+
+[node name="Rows" type="VBoxContainer" parent="List/Column"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="Empty" type="Label" parent="List/Column"]
+layout_mode = 2
+theme_type_variation = &"HintLabel"
 text = "Nobody has asked you for anything yet."
 autowrap_mode = 3
 
 [node name="Detail" type="PanelContainer" parent="."]
-anchors_preset = 0
-offset_left = 258.0
-offset_top = 28.0
-offset_right = 628.0
-offset_bottom = 268.0
+offset_left = 140.0
+offset_top = 4.0
+offset_right = 316.0
+offset_bottom = 166.0
 mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_side")
+theme_type_variation = &"InsetPanel"
 
-[node name="Margin" type="MarginContainer" parent="Detail"]
-layout_mode = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 6
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 6
-
-[node name="Rows" type="VBoxContainer" parent="Detail/Margin"]
+[node name="Rows" type="VBoxContainer" parent="Detail"]
 layout_mode = 2
 theme_override_constants/separation = 3
 
-[node name="Name" type="Label" parent="Detail/Margin/Rows"]
+[node name="Name" type="Label" parent="Detail/Rows"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+theme_type_variation = &"HeaderLabel"
 text = "--"
 autowrap_mode = 3
 
-[node name="Giver" type="Label" parent="Detail/Margin/Rows"]
+[node name="Giver" type="Label" parent="Detail/Rows"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.57, 0.66, 1)
-theme_override_font_sizes/font_size = 9
+theme_type_variation = &"HintLabel"
 text = " "
 
-[node name="Summary" type="Label" parent="Detail/Margin/Rows"]
-custom_minimum_size = Vector2(0, 52)
+[node name="Summary" type="Label" parent="Detail/Rows"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.72, 0.75, 0.84, 1)
-theme_override_font_sizes/font_size = 10
 text = "Nothing here."
 autowrap_mode = 3
 
-[node name="ObjectiveHeader" type="Label" parent="Detail/Margin/Rows"]
+[node name="ObjectiveHeader" type="Label" parent="Detail/Rows"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.78, 1, 1)
-theme_override_font_sizes/font_size = 10
+theme_type_variation = &"HeaderLabel"
 text = "Objectives"
 
-[node name="Objectives" type="VBoxContainer" parent="Detail/Margin/Rows"]
+[node name="Objectives" type="VBoxContainer" parent="Detail/Rows"]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 2
+theme_override_constants/separation = 1
 
-[node name="Reward" type="Label" parent="Detail/Margin/Rows"]
+[node name="Reward" type="Label" parent="Detail/Rows"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.98, 0.74, 0.36, 1)
-theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(1, 0.796, 0.302, 1)
 text = " "
 autowrap_mode = 3
 
 [node name="Hints" type="Label" parent="."]
-anchors_preset = 0
-offset_left = 14.0
-offset_top = 274.0
-offset_right = 400.0
-offset_bottom = 292.0
+offset_left = 6.0
+offset_top = 169.0
+offset_right = 316.0
+offset_bottom = 178.0
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.55, 0.57, 0.66, 1)
-theme_override_font_sizes/font_size = 10
+theme_type_variation = &"HintLabel"
 text = "[E] track   [J] close      * tracked   ! ready   x done"

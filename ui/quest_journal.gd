@@ -16,11 +16,7 @@ extends CanvasLayer
 ## cursor is where the player is -- the same cue the dialogue menu uses -- and
 ## colour plus a glyph is what the quest *is*. Painting the selected row amber as
 ## well as the ready one made two rows identical and neither of them the answer.
-const COLOR_TEXT := Color(0.82, 0.85, 0.92)
-const COLOR_DIM := Color(0.55, 0.57, 0.66)
-const COLOR_DONE := Color(0.52, 0.84, 0.56)
-const COLOR_READY := Color(1.0, 0.86, 0.45)
-const COLOR_TRACKED := Color(0.78, 0.72, 0.98)
+## The colours themselves are [UiPalette]'s, shared with the tracker.
 
 var _open := false
 var _index := 0
@@ -33,15 +29,15 @@ var _entries: Array[StringName] = []
 ## since hovering is what moves the cursor, that is a loop.
 var _row_nodes: Array[Label] = []
 
-@onready var _rows: VBoxContainer = $List/Margin/Column/Rows
-@onready var _empty: Label = $List/Margin/Column/Empty
-@onready var _counts: Label = $Counts
-@onready var _name: Label = $Detail/Margin/Rows/Name
-@onready var _giver: Label = $Detail/Margin/Rows/Giver
-@onready var _summary: Label = $Detail/Margin/Rows/Summary
-@onready var _objective_header: Label = $Detail/Margin/Rows/ObjectiveHeader
-@onready var _objectives: VBoxContainer = $Detail/Margin/Rows/Objectives
-@onready var _reward: Label = $Detail/Margin/Rows/Reward
+@onready var _rows: VBoxContainer = $List/Column/Rows
+@onready var _empty: Label = $List/Column/Empty
+@onready var _counts: Label = $List/Column/Counts
+@onready var _name: Label = $Detail/Rows/Name
+@onready var _giver: Label = $Detail/Rows/Giver
+@onready var _summary: Label = $Detail/Rows/Summary
+@onready var _objective_header: Label = $Detail/Rows/ObjectiveHeader
+@onready var _objectives: VBoxContainer = $Detail/Rows/Objectives
+@onready var _reward: Label = $Detail/Rows/Reward
 
 
 func _ready() -> void:
@@ -169,7 +165,6 @@ func _build_rows() -> void:
 
 	for i in _entries.size():
 		var row := Label.new()
-		row.add_theme_font_size_override(&"font_size", 11)
 		row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.mouse_filter = Control.MOUSE_FILTER_STOP
 		# Hovering a row *is* selecting it, so the pointer is always safe and the
@@ -189,18 +184,18 @@ func _paint_rows() -> void:
 		var quest := QuestLibrary.get_quest(id)
 		var row := _row_nodes[i]
 
-		var color := COLOR_TEXT
+		var color := UiPalette.TEXT
 		var mark := " "
 		match QuestLog.state_of(id):
 			QuestLog.State.READY:
-				color = COLOR_READY
+				color = UiPalette.READY
 				mark = "!"
 			QuestLog.State.COMPLETED:
-				color = COLOR_DIM
+				color = UiPalette.DIM
 				mark = "x"
 			_:
 				if id == tracked_id:
-					color = COLOR_TRACKED
+					color = UiPalette.TRACKED
 					mark = "*"
 		row.add_theme_color_override(&"font_color", color)
 
@@ -228,7 +223,7 @@ func _draw_detail() -> void:
 
 	_name.text = quest.label()
 	_name.add_theme_color_override(&"font_color",
-			COLOR_DONE if QuestLog.is_completed(id) else COLOR_TEXT)
+			UiPalette.DONE if QuestLog.is_completed(id) else UiPalette.TEXT)
 	_giver.text = _state_line(id, quest)
 	_summary.text = quest.summary
 	_objective_header.show()
@@ -236,14 +231,13 @@ func _draw_detail() -> void:
 	var progress := QuestLog.progress_for(id)
 	for objective in quest.listed_objectives():
 		var row := Label.new()
-		row.add_theme_font_size_override(&"font_size", 10)
 		row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_objectives.add_child(row)
 		# A finished quest keeps no progress object -- everything in it is done by
 		# definition, which is why this reads the log's verdict and not a counter.
 		var current := objective.required if progress == null else progress.of(objective)
 		var done := current >= objective.required
-		row.add_theme_color_override(&"font_color", COLOR_DONE if done else COLOR_TEXT)
+		row.add_theme_color_override(&"font_color", UiPalette.DONE if done else UiPalette.TEXT)
 		row.text = "%s %s" % ["x" if done else "-", objective.progress_text(current)]
 
 	var rewards := quest.reward_summary()

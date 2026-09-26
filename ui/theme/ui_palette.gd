@@ -1,0 +1,71 @@
+class_name UiPalette
+extends RefCounted
+## Every colour the screens paint with, in one place, picked for the pack's panels.
+##
+## [code]ui/theme/gao_theme.tres[/code] is the look -- font, frames, buttons, bars --
+## and the project applies it to every Control (Project Settings > GUI > Theme).
+## This is the other half: the colours a screen chooses at runtime because they
+## *mean* something (ready, locked, rarity, health). They used to be redeclared by
+## each screen, which is how six screens drift into six shades of "selected".
+##
+## Two grounds, two sets. The wood and metal panels have a dark sage centre, so
+## text on them is light. The dialogue box is the pack's paper, so its text is ink.
+
+# --- on the dark panels -----------------------------------------------------
+const TEXT := Color("f2eaf1")
+const DIM := Color("abc2bc")
+const LOCKED := Color("8f9a88")
+const HEADER := Color("ffad5d")
+## Where the cursor is. Pale on purpose: in the journal, amber means *ready*.
+const SELECTED := Color("fce2ca")
+const READY := Color("ffcb4d")
+const DONE := Color("b9d977")
+const TRACKED := Color("e3b4d2")
+const TARGETED := Color("ff9554")
+const GOOD := Color("b9d977")
+const BAD := Color("ef9597")
+
+# --- on paper ---------------------------------------------------------------
+const INK := Color("141b1b")
+const INK_SELECTED := Color("d14b34")
+const INK_LOCKED := Color("9c8a80")
+const NAME_TAG := Color("f2eaf1")
+
+# --- the backdrop behind full-screen menus ---------------------------------
+const BACKDROP := Color("2b2824")
+
+# --- health ------------------------------------------------------------------
+## SAO's cursor colours: green while you're fine, amber when you should think,
+## red when you should have thought earlier.
+const HP_HEALTHY := Color("74a334")
+const HP_HURT := Color("f1a83a")
+const HP_CRITICAL := Color("e0394c")
+const POISE := Color("79b8ce")
+
+# --- numbers that pop --------------------------------------------------------
+const DAMAGE := Color("ffe18d")
+const CRIT := Color("ff9554")
+const HEAL := Color("b9d977")
+const MISS := Color("abc2bc")
+const OUTLINE := Color("141b1b")
+
+# --- dragging in the bag ----------------------------------------------------
+const DROP := Color("b9d977")
+const TRASH := Color("ef9597")
+
+
+static func hp_color(ratio: float) -> Color:
+	if ratio > 0.5:
+		return HP_HEALTHY
+	return HP_HURT if ratio > 0.2 else HP_CRITICAL
+
+
+## Recolours a [ProgressBar]'s fill, keeping the theme's outlined shape. The
+## pack's bar is red only; SAO's health is a traffic light, so the fill is drawn
+## here in the pack's own construction (a 1px ink outline round a flat colour).
+static func paint_bar(bar: ProgressBar, color: Color) -> void:
+	var fill := bar.get_theme_stylebox(&"fill").duplicate() as StyleBoxFlat
+	if fill == null:
+		return
+	fill.bg_color = color
+	bar.add_theme_stylebox_override(&"fill", fill)

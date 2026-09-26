@@ -10,16 +10,11 @@ extends CanvasLayer
 ## comes to hurt the player later (a trap, a status on the map) shows up here
 ## without touching this file.
 
-## The same cursor colours the combat screen uses -- one health language.
-const HP_HEALTHY := Color(0.38, 0.78, 0.42)
-const HP_HURT := Color(0.92, 0.78, 0.32)
-const HP_CRITICAL := Color(0.88, 0.32, 0.32)
-
 @onready var _prompt: Control = $InteractPrompt
-@onready var _prompt_label: Label = $InteractPrompt/Label
+@onready var _prompt_label: Label = $InteractPrompt/Row/Label
 @onready var _vitals: Control = $Vitals
 @onready var _vitals_label: Label = $Vitals/Rows/Label
-@onready var _hp_bar: ProgressBar = $Vitals/Rows/Hp
+@onready var _hp_bar: ProgressBar = $Vitals/Rows/Bar/Hp
 
 var _target: Interactable = null
 
@@ -77,8 +72,14 @@ func _refresh() -> void:
 			or DialogueRunner.is_running() or CombatManager.is_running():
 		_prompt.hide()
 		return
-	_prompt_label.text = "[E]  %s" % _target.get_prompt()
+	# The key is the pack's keycap beside the label, not "[E]" in the text.
+	_prompt_label.text = _target.get_prompt()
 	_prompt.show()
+	# Shrink-wrap round the new label: a PanelContainer grows to fit but never
+	# shrinks back on its own. It grows both ways from the anchor, so it stays
+	# centred.
+	_prompt.offset_left = -0.5
+	_prompt.offset_right = 0.5
 
 
 func _refresh_vitals() -> void:
@@ -88,10 +89,4 @@ func _refresh_vitals() -> void:
 	_vitals_label.text = "%s  Lv %d   %d/%d" % [
 			GameState.player_name, GameState.level, GameState.hp, max_hp]
 	_hp_bar.value = ratio * 100.0
-
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = HP_HEALTHY if ratio > 0.5 else (HP_HURT if ratio > 0.2 else HP_CRITICAL)
-	var back := StyleBoxFlat.new()
-	back.bg_color = Color(0.13, 0.14, 0.2)
-	_hp_bar.add_theme_stylebox_override(&"fill", fill)
-	_hp_bar.add_theme_stylebox_override(&"background", back)
+	UiPalette.paint_bar(_hp_bar, UiPalette.hp_color(ratio))

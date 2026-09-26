@@ -43,7 +43,7 @@ const FIELD_MONSTERS := [
 const TILE := 16
 const SOURCE_ID := 0
 
-# Both maps are deliberately larger than the 640x360 viewport so the camera
+# Both maps are deliberately larger than the 320x180 viewport so the camera
 # actually scrolls instead of sitting on limits.
 const TOWN_W := 50
 const TOWN_H := 36

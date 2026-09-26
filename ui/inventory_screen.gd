@@ -32,24 +32,16 @@ extends CanvasLayer
 ## lives here rather than in a per-slot script.
 
 const COLUMNS := 6
-const SLOT_SIZE := Vector2(36, 36)
+## A 16px icon at its own size inside a 2px lip of the pack's cell -- the UI is
+## laid out at the map's pixel scale, so an icon is exactly as big as a tile.
+const SLOT_SIZE := Vector2(20, 20)
+const ICON_INSET := 2.0
 const GEAR_ICON_SIZE := Vector2(16, 16)
+## Unused slots sit a shade under the lit ones, so the end of the bag reads.
+const EMPTY_TINT := Color(0.72, 0.72, 0.72)
 
-const COLOR_TEXT := Color(0.82, 0.85, 0.92)
-const COLOR_DIM := Color(0.55, 0.57, 0.66)
-const COLOR_HEADER := Color(0.6, 0.78, 1.0)
-const COLOR_EMPTY := Color(0.40, 0.42, 0.50)
-const COLOR_GOOD := Color(0.52, 0.84, 0.56)
-const COLOR_BAD := Color(0.88, 0.45, 0.45)
-
-const SLOT_BG := Color(0.10, 0.11, 0.17, 0.9)
-const SLOT_BORDER := Color(0.30, 0.36, 0.48)
-const SLOT_BORDER_SELECTED := Color(1.0, 0.86, 0.45)
-## Where the thing in hand may land. Loud on purpose: it is only on screen while
-## the button is held.
-const COLOR_DROP := Color(0.45, 0.95, 0.70)
-const SLOT_BG_DROP := Color(0.12, 0.22, 0.19, 0.9)
-const COLOR_TRASH := Color(0.88, 0.45, 0.45)
+## The pack's own highlight frame: the cursor, on a slot or a gear row.
+const FOCUS_FRAME := preload("res://assets/ninja_adventure/Ui/Theme/Theme Wood/nine_path_focus.png")
 
 ## Which panel the cursor is in.
 enum Focus { BAG, GEAR }
@@ -68,15 +60,15 @@ var _gear_rows_list: Array[PanelContainer] = []
 var _drag: Dictionary = {}
 var _was_dragging := false
 
-@onready var _grid: GridContainer = $Bag/Margin/Column/Grid
-@onready var _bag_header: Label = $Bag/Margin/Column/Header
-@onready var _gear_rows: VBoxContainer = $Gear/Margin/Rows
-@onready var _gear_header: Label = $Gear/Margin/Rows/Header
-@onready var _totals: Label = $Gear/Margin/Rows/Totals
-@onready var _detail_name: Label = $Details/Margin/Rows/Name
-@onready var _detail_kind: Label = $Details/Margin/Rows/Kind
-@onready var _detail_stats: Label = $Details/Margin/Rows/Stats
-@onready var _detail_text: Label = $Details/Margin/Rows/Description
+@onready var _grid: GridContainer = $Bag/Column/Grid
+@onready var _bag_header: Label = $Bag/Column/Header
+@onready var _gear_rows: VBoxContainer = $Gear/Rows
+@onready var _gear_header: Label = $Gear/Rows/Header
+@onready var _totals: Label = $Gear/Rows/Totals
+@onready var _detail_name: Label = $Details/Rows/Name
+@onready var _detail_kind: Label = $Details/Rows/Kind
+@onready var _detail_stats: Label = $Details/Rows/Stats
+@onready var _detail_text: Label = $Details/Rows/Description
 @onready var _hints: Label = $Hints
 @onready var _footer: HBoxContainer = $Footer
 var _trash: Button
@@ -325,12 +317,12 @@ func _begin_drag(source: Control, data: Dictionary) -> Variant:
 
 	var holder := Control.new()
 	var chip := Panel.new()
-	chip.size = SLOT_SIZE * 0.9
+	chip.size = SLOT_SIZE
 	chip.position = -chip.size * 0.5
-	chip.add_theme_stylebox_override(&"panel",
-			_panel_style(SLOT_BG, item.rarity_color()))
+	chip.add_theme_stylebox_override(&"panel", _slot_style(item))
 	var icon := TextureRect.new()
 	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_inset(icon)
 	icon.texture = item.icon
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -453,6 +445,7 @@ func _build_slots() -> void:
 		var icon := TextureRect.new()
 		icon.name = "Icon"
 		icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_inset(icon)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -468,12 +461,17 @@ func _build_slots() -> void:
 		count.offset_bottom = -1.0
 		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		count.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-		count.add_theme_font_size_override(&"font_size", 10)
-		count.add_theme_color_override(&"font_color", COLOR_TEXT)
-		count.add_theme_constant_override(&"outline_size", 4)
-		count.add_theme_color_override(&"font_outline_color", Color(0.02, 0.02, 0.04))
+		count.theme_type_variation = &"FieldLabel"
 		count.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot.add_child(count)
+
+		# Over the icon, so the cursor is never hidden by what it is pointing at.
+		var frame := Panel.new()
+		frame.name = "Frame"
+		frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		frame.add_theme_stylebox_override(&"panel", _frame_style(Color.WHITE))
+		slot.add_child(frame)
 
 		slot.mouse_entered.connect(_on_bag_hovered.bind(i))
 		slot.gui_input.connect(_on_bag_clicked.bind(i))
@@ -521,44 +519,58 @@ func _build_gear_rows() -> void:
 ## [kbd]Q[/kbd] does, and dragged onto it throws away whatever was carried there.
 func _build_footer() -> void:
 	_trash = _make_button("Discard", _drop)
-	_trash.add_theme_color_override(&"font_color", COLOR_TRASH)
-	_trash.add_theme_color_override(&"font_hover_color", COLOR_TRASH.lightened(0.2))
 	_trash.set_drag_forwarding(Callable(), _trash_can_drop, _trash_drop)
 	_footer.add_child(_trash)
 
-	_footer.add_child(_make_button("Sort [R]", func() -> void: Inventory.sort()))
-	_footer.add_child(_make_button("Close [I]", close))
+	_footer.add_child(_make_button("Sort", func() -> void: Inventory.sort()))
+	_footer.add_child(_make_button("Close", close))
 
 
 func _make_button(text: String, on_press: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(64, 18)
+	button.custom_minimum_size = Vector2(0, 16)
 	# No focus, or the button eats the arrow keys the grid cursor runs on.
 	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_font_size_override(&"font_size", 9)
-	button.add_theme_color_override(&"font_color", COLOR_TEXT)
-	button.add_theme_color_override(&"font_hover_color", SLOT_BORDER_SELECTED)
-	button.add_theme_color_override(&"font_pressed_color", SLOT_BORDER_SELECTED)
-	button.add_theme_stylebox_override(&"normal", _panel_style(SLOT_BG, SLOT_BORDER))
-	button.add_theme_stylebox_override(&"hover",
-			_panel_style(SLOT_BG.lightened(0.08), SLOT_BORDER_SELECTED))
-	button.add_theme_stylebox_override(&"pressed",
-			_panel_style(SLOT_BG.darkened(0.2), SLOT_BORDER_SELECTED))
-	button.add_theme_stylebox_override(&"focus", _panel_style(SLOT_BG, SLOT_BORDER))
 	button.pressed.connect(on_press)
 	return button
 
 
-func _panel_style(background: Color, border: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.set_border_width_all(1)
-	style.border_color = border
-	style.set_corner_radius_all(2)
-	style.content_margin_top = 1.0
-	style.content_margin_bottom = 1.0
+## Pulls a full-rect child in off the cell's lip.
+func _inset(control: Control) -> void:
+	control.offset_left = ICON_INSET
+	control.offset_top = ICON_INSET
+	control.offset_right = -ICON_INSET
+	control.offset_bottom = -ICON_INSET
+
+
+## A slot is the pack's cell, tinted by what is in it. The tint carries rarity,
+## so the grid reads at a glance without every icon needing its own colour scheme.
+func _slot_style(item: Item, droppable := false) -> StyleBoxTexture:
+	var style := (get_theme_stylebox_for(&"CellPanel")).duplicate() as StyleBoxTexture
+	if droppable:
+		style.modulate_color = UiPalette.DROP
+	elif item != null:
+		style.modulate_color = item.rarity_color().lerp(Color.WHITE, 0.3)
+	else:
+		style.modulate_color = EMPTY_TINT
 	return style
+
+
+## The highlight frame, drawn a pixel outside whatever it is on. With no content
+## margins, so nothing inside shifts when it appears.
+func _frame_style(tint: Color) -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = FOCUS_FRAME
+	style.set_texture_margin_all(3.0)
+	style.set_content_margin_all(0.0)
+	style.set_expand_margin_all(1.0)
+	style.modulate_color = tint
+	return style
+
+
+func get_theme_stylebox_for(variation: StringName) -> StyleBox:
+	return ThemeDB.get_project_theme().get_stylebox(&"panel", variation)
 
 
 # --- drawing ---------------------------------------------------------------
@@ -593,50 +605,34 @@ func _paint_slots() -> void:
 		icon.modulate = Color(1.0, 1.0, 1.0, 0.35 if lifted else 1.0)
 
 		var selected := _focus == Focus.BAG and i == _bag_index and stack != null
+		var droppable := not lifted and _accepts_bag(_drag, i)
 		slot.add_theme_stylebox_override(&"panel",
-				_slot_style(selected, stack, not lifted and _accepts_bag(_drag, i)))
+				_slot_style(stack.item if stack != null else null, droppable))
+		# The frame is the cursor and only the cursor; where a drop may land is
+		# the green cell underneath, so the two never have to share one cue.
+		(slot.get_node("Frame") as Panel).visible = selected
 
 
 func _dragging_from_bag(index: int) -> bool:
 	return not _drag.is_empty() and _drag[&"source"] == &"bag" and _drag[&"index"] == index
 
 
-func _slot_style(selected: bool, stack: ItemStack, droppable: bool) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = SLOT_BG
-	style.set_border_width_all(1)
-	style.border_color = SLOT_BORDER
-	if stack != null:
-		# The border carries rarity, so the grid reads at a glance without every
-		# icon needing its own colour scheme.
-		style.border_color = stack.item.rarity_color().darkened(0.35)
-	if droppable:
-		style.bg_color = SLOT_BG_DROP
-		style.border_color = COLOR_DROP
-	if selected:
-		style.set_border_width_all(2)
-		style.border_color = SLOT_BORDER_SELECTED
-	style.set_corner_radius_all(2)
-	return style
-
-
 ## An equipment row's box: invisible until it means something, and with no
 ## content margins either way, so nothing shifts a pixel when it appears.
-func _gear_style(selected: bool, droppable: bool) -> StyleBoxFlat:
-	var style := _panel_style(Color(0, 0, 0, 0), Color(0, 0, 0, 0))
+func _gear_style(selected: bool, droppable: bool) -> StyleBox:
 	if droppable:
-		style = _panel_style(SLOT_BG_DROP, COLOR_DROP)
-	elif selected:
-		style = _panel_style(SLOT_BG, SLOT_BORDER_SELECTED)
-	style.content_margin_left = 0.0
-	style.content_margin_top = 0.0
-	style.content_margin_right = 0.0
-	style.content_margin_bottom = 0.0
-	return style
+		# The same green cell a bag slot lights up with, stretched under the row.
+		var cell := _slot_style(null, true)
+		cell.set_content_margin_all(0.0)
+		cell.set_expand_margin_all(1.0)
+		return cell
+	if selected:
+		return _frame_style(Color.WHITE)
+	return StyleBoxEmpty.new()
 
 
 func _paint_gear() -> void:
-	_gear_header.add_theme_color_override(&"font_color", COLOR_HEADER)
+	_gear_header.add_theme_color_override(&"font_color", UiPalette.HEADER)
 	# Two labels per row rather than one padded string: the UI font is
 	# proportional, so "%-10s" lines nothing up.
 	for i in Inventory.SLOTS.size():
@@ -649,7 +645,7 @@ func _paint_gear() -> void:
 				and _drag[&"slot"] == slot
 		# Dimmed while something is in hand that cannot go here, so "where does
 		# this fit" is answered by what is still bright.
-		var color := item.rarity_color() if item != null else COLOR_EMPTY
+		var color := item.rarity_color() if item != null else UiPalette.LOCKED
 		if not _drag.is_empty() and not droppable:
 			color = color.darkened(0.5)
 
@@ -667,32 +663,32 @@ func _paint_gear() -> void:
 		var selected := _focus == Focus.GEAR and i == _gear_index
 		panel.add_theme_stylebox_override(&"panel", _gear_style(selected, droppable))
 
-	_totals.text = "ATK %d   DEF %d   SPD %d   HP %d" % [
+	_totals.text = "ATK %d DEF %d SPD %d HP %d" % [
 			GameState.total_attack(), GameState.total_defense(),
 			GameState.total_speed(), GameState.total_max_hp()]
-	_totals.add_theme_color_override(&"font_color", COLOR_DIM)
+	_totals.add_theme_color_override(&"font_color", UiPalette.DIM)
 
 
 func _paint_details() -> void:
 	var item := _detail_item()
 	if item == null:
 		_detail_name.text = "--"
-		_detail_name.add_theme_color_override(&"font_color", COLOR_EMPTY)
+		_detail_name.add_theme_color_override(&"font_color", UiPalette.LOCKED)
 		_detail_kind.text = ""
 		_detail_stats.text = ""
 		_detail_text.text = "Nothing here." if _focus == Focus.BAG else "Nothing equipped."
-		_detail_text.add_theme_color_override(&"font_color", COLOR_DIM)
+		_detail_text.add_theme_color_override(&"font_color", UiPalette.DIM)
 		return
 
 	_detail_name.text = item.label()
 	_detail_name.add_theme_color_override(&"font_color", item.rarity_color())
-	_detail_kind.text = "%s  ·  %s" % [item.rarity_name(), item.kind_name()]
-	_detail_kind.add_theme_color_override(&"font_color", COLOR_DIM)
+	_detail_kind.text = "%s %s" % [item.rarity_name(), item.kind_name()]
+	_detail_kind.add_theme_color_override(&"font_color", UiPalette.DIM)
 	_detail_stats.text = item.summary()
 	_detail_stats.add_theme_color_override(&"font_color",
-			COLOR_BAD if item.summary().contains("-") else COLOR_GOOD)
+			UiPalette.BAD if item.summary().contains("-") else UiPalette.GOOD)
 	_detail_text.text = item.description
-	_detail_text.add_theme_color_override(&"font_color", COLOR_TEXT)
+	_detail_text.add_theme_color_override(&"font_color", UiPalette.TEXT)
 
 
 func _detail_item() -> Item:
@@ -707,23 +703,24 @@ func _detail_item() -> Item:
 
 
 func _paint_footer() -> void:
-	# Lit while something that can be thrown away is in hand -- and pointedly not
-	# lit while a key item is, which is the only warning the player gets that the
-	# drop is going to be refused.
+	# Lit while something that can be thrown away is in hand -- and pointedly
+	# faded while a key item is, which is the only warning the player gets that
+	# the drop is going to be refused.
 	var live := _accepts_trash(_drag)
-	var style := _panel_style(SLOT_BG_DROP, COLOR_TRASH) if live \
-			else _panel_style(SLOT_BG, SLOT_BORDER)
-	_trash.add_theme_stylebox_override(&"normal", style)
-	_trash.add_theme_color_override(&"font_color",
-			COLOR_TRASH if live or _drag.is_empty() else COLOR_TRASH.darkened(0.5))
+	if live:
+		_trash.add_theme_stylebox_override(&"normal", _trash.get_theme_stylebox(&"hover"))
+		_trash.add_theme_color_override(&"font_color", UiPalette.INK)
+	else:
+		_trash.remove_theme_stylebox_override(&"normal")
+		_trash.remove_theme_color_override(&"font_color")
+	_trash.modulate.a = 1.0 if live or _drag.is_empty() else 0.45
 
 	_hints.text = _hint_text()
-	_hints.add_theme_color_override(&"font_color", COLOR_DIM)
 
 
 func _hint_text() -> String:
 	if not _drag.is_empty():
-		return "release on a slot to move  ·  on Discard to throw away"
+		return "release on a slot to move, or on Discard to throw away"
 
 	var parts := PackedStringArray()
 	if _focus == Focus.GEAR:

@@ -9,24 +9,10 @@ extends CanvasLayer
 ## The static frame is in the .tscn; enemy entries, menu rows and damage numbers
 ## are built in code because their count is only known once a fight starts.
 
-const COLOR_ROW := Color(0.76, 0.79, 0.88)
-const COLOR_SELECTED := Color(1.0, 0.94, 0.7)
-const COLOR_LOCKED := Color(0.44, 0.45, 0.52)
-const COLOR_TARGETED := Color(1.0, 0.62, 0.55)
+## Colours are [UiPalette]'s -- one health language with the HUD.
+const ARROW := preload("res://assets/ninja_adventure/Ui/Arrow.png")
 
-## SAO's cursor colours: green while you're fine, amber when you should think,
-## red when you should have thought earlier.
-const HP_HEALTHY := Color(0.38, 0.78, 0.42)
-const HP_HURT := Color(0.92, 0.78, 0.32)
-const HP_CRITICAL := Color(0.88, 0.32, 0.32)
-const POISE_COLOR := Color(0.5, 0.68, 0.95)
-
-const DAMAGE_COLOR := Color(1.0, 0.86, 0.4)
-const CRIT_COLOR := Color(1.0, 0.55, 0.35)
-const HEAL_COLOR := Color(0.5, 0.92, 0.6)
-const MISS_COLOR := Color(0.7, 0.72, 0.8)
-
-const FLOATER_RISE := 26.0
+const FLOATER_RISE := 13.0
 const FLOATER_TIME := 0.7
 ## How long the result stays up after the last blow.
 const OUTRO_TIME := 1.1
@@ -59,16 +45,19 @@ var _outro: Tween = null
 var _entries: Dictionary[Combatant, Control] = {}
 
 @onready var _backdrop: ColorRect = $Backdrop
+@onready var _sky_glow: TextureRect = $SkyGlow
+@onready var _ground: TextureRect = $Ground
+@onready var _horizon: ColorRect = $Horizon
 @onready var _enemy_row: HBoxContainer = $Enemies
 @onready var _log: Label = $Log/Label
 @onready var _party_panel: Control = $Party
-@onready var _party_name: Label = $Party/Margin/Rows/Name
-@onready var _party_hp: ProgressBar = $Party/Margin/Rows/Hp
-@onready var _party_poise: ProgressBar = $Party/Margin/Rows/Poise
-@onready var _party_statuses: Label = $Party/Margin/Rows/Statuses
+@onready var _party_name: Label = $Party/Rows/Name
+@onready var _party_hp: ProgressBar = $Party/Rows/Hp
+@onready var _party_poise: ProgressBar = $Party/Rows/Poise
+@onready var _party_statuses: Label = $Party/Rows/Statuses
 @onready var _menu: Control = $Menu
-@onready var _list: VBoxContainer = $Menu/Margin/Column/List
-@onready var _hint: Label = $Menu/Margin/Column/Hint
+@onready var _list: VBoxContainer = $Menu/Column/List
+@onready var _hint: Label = $Menu/Column/Hint
 @onready var _floaters: Control = $Floaters
 
 
@@ -167,7 +156,7 @@ func _on_combat_began(encounter: Encounter, party: Array[Combatant], enemies: Ar
 		_outro.kill()
 		_outro = null
 	_set_visible(true)
-	_backdrop.color = encounter.backdrop
+	_paint_backdrop(encounter)
 	_log.text = "%s blocks the way." % encounter.label()
 	_build_enemies(enemies)
 	_refresh_party(party[0])
@@ -203,6 +192,39 @@ func _on_combat_finished(result: CombatResult) -> void:
 	_outro = create_tween()
 	_outro.tween_interval(OUTRO_TIME)
 	_outro.tween_callback(_set_visible.bind(false))
+
+
+## The field the fight happens on: the biome's own floor tiled across the lower
+## half, a horizon line, and the encounter's colour glowing up behind it out of
+## the dark. The ground arrives on the [Encounter] because [Bestiary] built it --
+## this only draws what it was handed, and a fight with no ground (a test, a
+## floor whose biome has no tileset) is the flat backdrop it always was.
+func _paint_backdrop(encounter: Encounter) -> void:
+	var sky := encounter.backdrop
+	_backdrop.color = sky
+	_sky_glow.texture = _glow(sky)
+	_horizon.color = sky.lerp(Color.BLACK, 0.4)
+	_ground.texture = encounter.ground_texture
+	_ground.visible = encounter.ground_texture != null
+	# Dimmed towards the sky: the ground is a backdrop, and a battler has to read
+	# against it.
+	_ground.self_modulate = Color.WHITE.lerp(sky, 0.35)
+	_horizon.visible = _ground.visible
+
+
+## A vertical fade from nothing down to [param sky] lifted towards the light,
+## sat behind the horizon so the sky has somewhere to be.
+func _glow(sky: Color) -> GradientTexture2D:
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(sky.r, sky.g, sky.b, 0.0))
+	gradient.set_color(1, sky.lightened(0.28))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.width = 8
+	texture.height = 100
+	texture.fill_from = Vector2.ZERO
+	texture.fill_to = Vector2.DOWN
+	return texture
 
 
 # --- menus -----------------------------------------------------------------
@@ -278,7 +300,6 @@ func _populate(labels: PackedStringArray, locked: PackedInt32Array) -> void:
 	_selected = -1
 	for i in labels.size():
 		var row := Label.new()
-		row.add_theme_font_size_override(&"font_size", 12)
 		row.set_meta(&"locked", i in locked)
 		_list.add_child(row)
 		if _selected < 0 and i not in locked:
@@ -288,6 +309,10 @@ func _populate(labels: PackedStringArray, locked: PackedInt32Array) -> void:
 	_rows_text = labels
 	_paint()
 	_menu.show()
+	# Collapse onto the new rows: the panel is anchored bottom-right and grows up
+	# and left, but a PanelContainer never shrinks back on its own.
+	_menu.offset_left = _menu.offset_right - 1.0
+	_menu.offset_top = _menu.offset_bottom - 1.0
 
 
 func _move_selection(step: int) -> void:
@@ -305,11 +330,11 @@ func _move_selection(step: int) -> void:
 func _paint() -> void:
 	for i in _list.get_child_count():
 		var row := _list.get_child(i) as Label
-		var color := COLOR_ROW
+		var color := UiPalette.TEXT
 		if row.get_meta(&"locked", false):
-			color = COLOR_LOCKED
+			color = UiPalette.LOCKED
 		elif i == _selected:
-			color = COLOR_TARGETED if _phase == Phase.TARGET else COLOR_SELECTED
+			color = UiPalette.TARGETED if _phase == Phase.TARGET else UiPalette.SELECTED
 		row.add_theme_color_override(&"font_color", color)
 		row.text = ("> " if i == _selected else "  ") + _rows_text[i]
 
@@ -324,10 +349,10 @@ func _paint() -> void:
 ## not only in the menu.
 func _highlight_target() -> void:
 	for enemy in _entries:
-		var pointer := _entries[enemy].get_node("Pointer") as Label
+		var pointer := _entries[enemy].get_node("Pointer") as CanvasItem
 		var aimed := _phase == Phase.TARGET and _selected < _target_rows.size() \
 				and _target_rows[_selected] == enemy
-		pointer.visible = aimed
+		pointer.modulate.a = 1.0 if aimed else 0.0
 
 
 func _command_label(command: Command) -> String:
@@ -355,15 +380,16 @@ func _build_enemies(enemies: Array[Combatant]) -> void:
 	for enemy in enemies:
 		var column := VBoxContainer.new()
 		column.alignment = BoxContainer.ALIGNMENT_END
-		column.add_theme_constant_override(&"separation", 2)
-		column.custom_minimum_size = Vector2(96, 0)
+		column.add_theme_constant_override(&"separation", 1)
+		column.custom_minimum_size = Vector2(56, 0)
 
-		var pointer := Label.new()
+		# The pack's arrow, held in place by alpha rather than visibility so the
+		# sprite under it doesn't jump when targeting starts.
+		var pointer := TextureRect.new()
 		pointer.name = "Pointer"
-		pointer.text = "▼"
-		pointer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		pointer.add_theme_color_override(&"font_color", COLOR_TARGETED)
-		pointer.hide()
+		pointer.texture = ARROW
+		pointer.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		pointer.modulate.a = 0.0
 		column.add_child(pointer)
 
 		var sprite := TextureRect.new()
@@ -377,20 +403,20 @@ func _build_enemies(enemies: Array[Combatant]) -> void:
 		var name_label := Label.new()
 		name_label.name = "Name"
 		name_label.text = enemy.display_name
-		name_label.add_theme_font_size_override(&"font_size", 10)
+		name_label.theme_type_variation = &"FieldLabel"
 		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		column.add_child(name_label)
 
 		var bar := ProgressBar.new()
 		bar.name = "Hp"
-		bar.custom_minimum_size = Vector2(0, 6)
+		bar.custom_minimum_size = Vector2(0, 4)
 		bar.show_percentage = false
 		column.add_child(bar)
 
 		var statuses := Label.new()
 		statuses.name = "Statuses"
-		statuses.add_theme_font_size_override(&"font_size", 9)
+		statuses.theme_type_variation = &"FieldLabel"
 		statuses.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		column.add_child(statuses)
 
@@ -405,68 +431,56 @@ func _refresh_enemy(enemy: Combatant) -> void:
 		return
 	var bar := column.get_node("Hp") as ProgressBar
 	bar.value = enemy.hp_ratio() * 100.0
-	_style_bar(bar, _hp_color(enemy.hp_ratio()))
+	UiPalette.paint_bar(bar, UiPalette.hp_color(enemy.hp_ratio()))
 	(column.get_node("Statuses") as Label).text = " ".join(enemy.status_labels())
 	# A downed enemy stays on the field, greyed, rather than popping out and
 	# reflowing the whole row mid-fight.
 	var sprite := column.get_node("Sprite") as TextureRect
 	sprite.modulate = Color(0.35, 0.35, 0.4, 0.55) if not enemy.is_alive() else Color.WHITE
 	if not enemy.is_alive():
-		(column.get_node("Pointer") as Label).hide()
+		(column.get_node("Pointer") as CanvasItem).modulate.a = 0.0
 
 
 func _refresh_party(player: Combatant) -> void:
 	_party_name.text = "%s   Lv %d" % [player.display_name, player.level]
 	_party_hp.value = player.hp_ratio() * 100.0
 	_party_hp.tooltip_text = "%d / %d" % [player.hp, player.max_hp]
-	_style_bar(_party_hp, _hp_color(player.hp_ratio()))
+	UiPalette.paint_bar(_party_hp, UiPalette.hp_color(player.hp_ratio()))
 	_party_poise.value = player.poise_ratio() * 100.0
-	_style_bar(_party_poise, POISE_COLOR)
+	UiPalette.paint_bar(_party_poise, UiPalette.POISE)
 	var tags := player.status_labels()
 	if player.staggered:
 		tags.append("STAGGERED")
 	_party_statuses.text = "%d/%d   %s" % [player.hp, player.max_hp, " ".join(tags)]
 
 
-func _hp_color(ratio: float) -> Color:
-	if ratio > 0.5:
-		return HP_HEALTHY
-	return HP_HURT if ratio > 0.2 else HP_CRITICAL
-
-
-func _style_bar(bar: ProgressBar, color: Color) -> void:
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = color
-	var back := StyleBoxFlat.new()
-	back.bg_color = Color(0.13, 0.14, 0.2)
-	bar.add_theme_stylebox_override(&"fill", fill)
-	bar.add_theme_stylebox_override(&"background", back)
-
-
 # --- damage numbers --------------------------------------------------------
 
 func _float_number(hit: CombatReport.Hit) -> void:
 	var text := ""
-	var color := DAMAGE_COLOR
+	var color := UiPalette.DAMAGE
 	if hit.missed:
 		text = "miss"
-		color = MISS_COLOR
+		color = UiPalette.MISS
 	elif hit.amount > 0:
 		text = "+%d" % hit.amount
-		color = HEAL_COLOR
+		color = UiPalette.HEAL
 	elif hit.amount < 0:
 		text = str(-hit.amount)
-		color = CRIT_COLOR if hit.crit else DAMAGE_COLOR
+		color = UiPalette.CRIT if hit.crit else UiPalette.DAMAGE
 	else:
 		return
 
 	var label := Label.new()
 	label.text = text + ("!" if hit.crit else "")
-	label.add_theme_font_size_override(&"font_size", 14 if hit.crit else 12)
+	# The pixel font only scales by whole multiples of 8, so a crit is told
+	# apart by colour and its "!" rather than by being a size bigger.
+	label.theme_type_variation = &"FieldLabel"
+	label.add_theme_font_size_override(&"font_size", 16)
 	label.add_theme_color_override(&"font_color", color)
 	label.z_index = 4
 	_floaters.add_child(label)
-	label.position = _anchor_for(hit.target) - Vector2(0, 8)
+	label.position = _anchor_for(hit.target) - Vector2(0, 4)
 
 	var tween := create_tween().set_parallel()
 	tween.tween_property(label, "position:y", label.position.y - FLOATER_RISE, FLOATER_TIME)
@@ -480,7 +494,7 @@ func _anchor_for(who: Combatant) -> Vector2:
 	var column := _entries.get(who) as Control
 	if column != null:
 		return column.global_position + Vector2(column.size.x * 0.5, column.size.y * 0.35)
-	return _party_panel.global_position + Vector2(_party_panel.size.x * 0.5, -6.0)
+	return _party_panel.global_position + Vector2(_party_panel.size.x * 0.5, -3.0)
 
 
 func _set_visible(shown: bool) -> void:
@@ -498,14 +512,16 @@ func _set_visible(shown: bool) -> void:
 			child.queue_free()
 
 
-## A battler scaled by a whole number, which is what keeps nearest filtering
-## crisp: a 16px monster four times over, a pack boss twice (so it towers over its
-## escort), and the 64px placeholders as they are. Pack battlers are always frames
-## cut from a sheet, which is how a 70px-wide boss is told from a placeholder.
+## A battler scaled so it lands on whole screen pixels, which is what keeps
+## nearest filtering crisp: a 16px monster twice over, a pack boss at its own
+## size (so it towers over its escort), and the 64px placeholders at half -- the
+## screen is laid out in 320x180 units and drawn at least twice that, so half a
+## unit is still a whole pixel. Pack battlers are always frames cut from a sheet,
+## which is how a 70px-wide boss is told from a placeholder.
 func _battler_size(texture: Texture2D) -> Vector2:
 	if texture == null:
-		return Vector2(64, 64)
+		return Vector2(32, 32)
 	var size := texture.get_size()
 	var longest := maxf(size.x, size.y)
-	var factor := 4.0 if longest <= 24.0 else (2.0 if longest < 64.0 or texture is AtlasTexture else 1.0)
+	var factor := 2.0 if longest <= 24.0 else (1.0 if longest < 64.0 or texture is AtlasTexture else 0.5)
 	return size * factor

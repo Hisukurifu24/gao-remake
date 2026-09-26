@@ -108,6 +108,7 @@ static func single_encounter(type: EnemyType, at_level: int, floor_number := 0) 
 	encounter.level = maxi(1, at_level)
 	encounter.floor_number = floor_number
 	encounter.backdrop = _backdrop(maxi(1, floor_number))
+	encounter.ground_texture = _ground(maxi(1, floor_number))
 	return encounter
 
 
@@ -123,6 +124,7 @@ static func random_encounter(floor_number: int, rng: RandomNumberGenerator) -> E
 	encounter.level = FloorTuning.enemy_level(floor_number)
 	encounter.floor_number = floor_number
 	encounter.backdrop = _backdrop(floor_number)
+	encounter.ground_texture = _ground(floor_number)
 	# One enemy low down, up to three once the player has a party's worth of
 	# skills to spend on them.
 	var count := rng.randi_range(1, clampi(1 + floor_number / 15, 1, 3))
@@ -150,6 +152,7 @@ static func boss_encounter(floor_number: int) -> Encounter:
 	encounter.is_boss = true
 	encounter.can_flee = false
 	encounter.backdrop = _backdrop(floor_number)
+	encounter.ground_texture = _ground(floor_number)
 	encounter.boss_name = definition.boss_name if not definition.boss_name.is_empty() \
 			else FloorTuning.boss_name(floor_number)
 	encounter.display_name = encounter.boss_name
@@ -216,3 +219,41 @@ static func _backdrop(floor_number: int) -> Color:
 	var biome := FloorRegistry.get_biome(floor_number)
 	var base := Color(0.10, 0.11, 0.17)
 	return base * biome.ambient_tint if biome != null else base
+
+
+## One biome's floor tile, cut out for the battle screen to tile across its
+## ground. Cached per biome: the image copy is cheap but it is not free, and a
+## climb fights hundreds of battles on the same ten floors of art.
+static var _grounds: Dictionary[StringName, Texture2D] = {}
+
+
+## The ground a fight on [param floor_number] stands on, or null for a biome
+## with no tileset behind it -- the screen falls back to a flat backdrop.
+static func _ground(floor_number: int) -> Texture2D:
+	var biome := FloorRegistry.get_biome(floor_number)
+	if biome == null or biome.tile_set == null:
+		return null
+	if _grounds.has(biome.id):
+		return _grounds[biome.id]
+	var tile := _cut_tile(biome.tile_set, biome.floor_tile)
+	_grounds[biome.id] = tile
+	return tile
+
+
+## The [param slot]-th semantic tile of [param tile_set] as a texture in its own
+## right. An [AtlasTexture] would be the obvious way to name a region, but
+## [TextureRect] cannot tile one -- so the pixels are copied out into a plain
+## [ImageTexture] instead.
+static func _cut_tile(tile_set: TileSet, slot: int) -> Texture2D:
+	var source := tile_set.get_source(0) as TileSetAtlasSource
+	if source == null or source.texture == null:
+		return null
+	var coords := Vector2i(slot, 0)
+	if not source.has_tile(coords):
+		return null
+	var sheet := source.texture.get_image()
+	if sheet == null:
+		return null
+	if sheet.is_compressed():
+		sheet.decompress()
+	return ImageTexture.create_from_image(sheet.get_region(source.get_tile_texture_region(coords)))

@@ -6,12 +6,11 @@ extends CanvasLayer
 ## through [code]advance()[/code] / [code]choose()[/code]. Swapping this scene for
 ## a fancier one (or none at all, as the headless tests do) changes nothing about
 ## how dialogue runs.
+##
+## The box is the pack's paper, so everything written on it is ink
+## ([code]UiPalette.INK*[/code]), not the light text the wooden panels use.
 
 const CHARS_PER_SECOND := 45.0
-
-const COLOR_CHOICE := Color(0.76, 0.79, 0.88)
-const COLOR_SELECTED := Color(1.0, 0.94, 0.7)
-const COLOR_LOCKED := Color(0.44, 0.45, 0.52)
 
 var _choices: Array[DialogueChoice] = []
 var _selected := 0
@@ -21,16 +20,19 @@ var _choices_pending := false
 var _typing: Tween = null
 
 @onready var _box: Control = $Box
-@onready var _portrait: TextureRect = $Box/Margin/Row/Portrait
-@onready var _speaker: Label = $Box/Margin/Row/Lines/Speaker
-@onready var _text: Label = $Box/Margin/Row/Lines/Text
-@onready var _continue: Label = $Box/Margin/Row/Continue
+@onready var _portrait: Control = $Box/Row/Portrait
+@onready var _face: TextureRect = $Box/Row/Portrait/Face
+@onready var _speaker_tag: Control = $Speaker
+@onready var _speaker: Label = $Speaker/Label
+@onready var _text: Label = $Box/Row/Text
+@onready var _continue: Control = $Box/Row/Continue
 @onready var _menu: Control = $Choices
-@onready var _list: VBoxContainer = $Choices/Margin/List
+@onready var _list: VBoxContainer = $Choices/List
 
 
 func _ready() -> void:
 	_box.hide()
+	_speaker_tag.hide()
 	_menu.hide()
 	DialogueRunner.line_shown.connect(_on_line_shown)
 	DialogueRunner.choices_shown.connect(_on_choices_shown)
@@ -65,10 +67,13 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_line_shown(speaker: String, text: String, portrait: Texture2D) -> void:
 	_hide_menu()
 	_speaker.text = speaker
-	_speaker.visible = not speaker.is_empty()
-	_portrait.texture = portrait
+	_speaker_tag.visible = not speaker.is_empty()
+	_shrink_wrap(_speaker_tag)
+	_face.texture = portrait
 	_portrait.visible = portrait != null
-	_continue.hide()
+	# Hidden by alpha rather than visibility, so the text column doesn't widen
+	# and re-wrap the moment the arrow appears.
+	_continue.modulate.a = 0.0
 	_box.show()
 
 	_text.text = text
@@ -93,6 +98,7 @@ func _on_closed() -> void:
 		_typing = null
 	_hide_menu()
 	_box.hide()
+	_speaker_tag.hide()
 
 
 func _is_typing() -> bool:
@@ -110,12 +116,12 @@ func _on_typing_finished() -> void:
 	if _choices_pending:
 		_show_menu()
 	else:
-		_continue.show()
+		_continue.modulate.a = 1.0
 
 
 func _show_menu() -> void:
 	_choices_pending = false
-	_continue.hide()
+	_continue.modulate.a = 0.0
 	for row in _list.get_children():
 		_list.remove_child(row)
 		row.queue_free()
@@ -123,7 +129,7 @@ func _show_menu() -> void:
 	_selected = -1
 	for i in _choices.size():
 		var row := Label.new()
-		row.add_theme_font_size_override(&"font_size", 12)
+		row.theme_type_variation = &"InkLabel"
 		_list.add_child(row)
 		if _selected < 0 and _choices[i].is_unlocked():
 			_selected = i
@@ -131,6 +137,7 @@ func _show_menu() -> void:
 	_selected = maxi(_selected, 0)
 	_paint_selection()
 	_menu.show()
+	_shrink_wrap(_menu)
 
 
 func _hide_menu() -> void:
@@ -156,11 +163,20 @@ func _paint_selection() -> void:
 	for i in _list.get_child_count():
 		var row := _list.get_child(i) as Label
 		var choice := _choices[i]
-		var color := COLOR_CHOICE
+		var color := UiPalette.INK
 		if not choice.is_unlocked():
-			color = COLOR_LOCKED
+			color = UiPalette.INK_LOCKED
 		elif i == _selected:
-			color = COLOR_SELECTED
+			color = UiPalette.INK_SELECTED
 		row.add_theme_color_override(&"font_color", color)
 		var cursor := "> " if i == _selected else "  "
 		row.text = cursor + choice.label()
+
+
+## Collapses a panel onto its contents. The scene anchors each one at the corner
+## it grows away from, so a one-pixel rect plus the container's minimum size is
+## exactly the box the text needs -- a PanelContainer grows to fit on its own,
+## but never shrinks back when the next speaker has a shorter name.
+func _shrink_wrap(panel: Control) -> void:
+	panel.offset_left = panel.offset_right - 1.0
+	panel.offset_top = panel.offset_bottom - 1.0

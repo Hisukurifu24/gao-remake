@@ -15,7 +15,7 @@ A 2D top-down RPG built in **Godot 4.7**, set in a *Sword Art Online*–inspired
 
 | Milestone | | |
 |---|---|---|
-| **M0** — Foundation | ✅ | Autoloads, folder layout, Mobile renderer, 640×360 |
+| **M0** — Foundation | ✅ | Autoloads, folder layout, Mobile renderer, 320×180 |
 | **M1** — Overworld & movement | ✅ | Player controller, tilemaps, interaction, map transitions |
 | **M2** — Dialogue | ✅ | Resource-driven graph, conditions, branching, effects |
 | **M3** — Inventory & items | ✅ | Stacking bag, equipment, consumables in and out of battle |

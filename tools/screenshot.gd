@@ -29,7 +29,7 @@ func _ready() -> void:
 	await _capture("02_prompt")
 
 	argo.interact(player)
-	await _frames(90)
+	await _typed(main)
 	await _capture("03_dialogue")
 
 	# Press on until Argo asks what you want -- that is the choice menu.
@@ -37,10 +37,13 @@ func _ready() -> void:
 		if DialogueRunner.is_choosing():
 			break
 		DialogueRunner.advance()
-		await _frames(90)
+		await _typed(main)
+	# The box holds the menu back until the question has finished typing, so the
+	# wait above is what puts the choices on screen as well as the line.
+	await _frames(4)
 	await _capture("04_choices")
 
-	await _capture_quests()
+	await _capture_quests(main)
 	await _capture_inventory(main)
 	await _capture_combat()
 
@@ -61,16 +64,16 @@ func _ready() -> void:
 ## QuestLog, because the thing worth looking at is what a player sees after the
 ## conversation they actually had. Everything after that is set up by hand -- a
 ## screenshot pass is not a playthrough.
-func _capture_quests() -> void:
+func _capture_quests(main: Node) -> void:
 	var work := _choice_index("Got any work")
 	if work >= 0:
 		DialogueRunner.choose(work)
-		await _frames(60)
+		await _typed(main)
 		for _i in 10:
 			if DialogueRunner.is_choosing() or not DialogueRunner.is_running():
 				break
 			DialogueRunner.advance()
-			await _frames(60)
+			await _typed(main)
 	DialogueRunner.cancel()
 
 	# The tracker is suppressed while the box is up, so the "new quest" notice
@@ -101,6 +104,16 @@ func _capture_quests() -> void:
 	await _capture("04i_journal_selected")
 	await _press(&"journal")
 	await _frames(4)
+
+
+## Waits for the typewriter to land rather than counting frames: a capture on a
+## frame budget shows however much of the line the machine got through, which is
+## two letters of it on a slow run and the whole thing on a fast one.
+func _typed(main: Node, seconds := 15.0) -> void:
+	var text: Label = main.get_node("DialogueBox/Box/Row/Text")
+	await _until(func() -> bool: return not DialogueRunner.is_running() \
+			or text.visible_ratio >= 1.0, seconds)
+	await _frames(2)
 
 
 func _choice_index(prefix: String) -> int:
@@ -136,8 +149,8 @@ func _capture_inventory(main: Node) -> void:
 	# mouse path, and the state worth looking at is halfway there, with the
 	# targets it may land on lit up.
 	var screen: CanvasLayer = main.get_node("InventoryScreen")
-	var slot: Control = screen.get_node("Bag/Margin/Column/Grid").get_child(0)
-	var weapon_row: Control = screen.get_node("Gear/Margin/Rows/Weapon")
+	var slot: Control = screen.get_node("Bag/Column/Grid").get_child(0)
+	var weapon_row: Control = screen.get_node("Gear/Rows/Weapon")
 	await _drag(slot, weapon_row, "04d_inventory_drag")
 	await _capture("04e_inventory_dropped")
 
@@ -174,29 +187,73 @@ func _capture_combat() -> void:
 	await _press(&"ui_cancel")
 
 	# Let the round play out so there are numbers and a log line on screen.
-	CombatManager.submit(CombatAction.use(SkillLibrary.get_skill(&"slant"),
+	_submit(CombatAction.use(SkillLibrary.get_skill(&"slant"),
 			CombatManager.living_enemies()[0]))
-	await _frames(20)
+	await _wait(0.4)
 	await _capture("07_combat_hit")
 
 	# A boss fight can't be fled, so end it the only way it ends. The next
 	# capture waits on the input lock, which combat holds until it is over.
 	await _until_command()
-	for enemy in CombatManager.living_enemies():
-		enemy.take_damage(enemy.hp)
-	CombatManager.submit(CombatAction.use(SkillLibrary.basic_attack(), null))
-	while CombatManager.is_running():
-		await get_tree().process_frame
-	await _frames(120)
+	await _end_fight()
+
+	# The same screen on another biome. The battle ground is the floor the player
+	# was walking on, so a cave fight is a different picture from a meadow one
+	# and both have to be looked at.
+	GameState.set_hp(GameState.max_hp)
+	CombatManager.start(Bestiary.boss_encounter(25))
+	await _until_command()
+	await _capture("07b_combat_cave")
+	await _end_fight()
 	GameState.set_hp(GameState.max_hp)
 
 
-func _until_command(timeout := 900) -> void:
-	for _i in timeout:
-		if CombatManager.is_awaiting_command():
-			await _frames(4)
-			return
+## Waits for the fight to ask for a command, then a beat for the menu to lay out.
+##
+## Bounded in seconds rather than frames, like every wait here that is really
+## waiting on time. Combat paces itself on wall-clock timers and the typewriter
+## is a tween, but this window is not always vsynced -- run it uncapped and a
+## frame budget expires while the first pause is still running, so the capture
+## of the command menu is a capture of an empty screen and the submit that
+## follows is refused by a runner that never asked for anything.
+func _until_command(seconds := 20.0) -> void:
+	if await _until(func() -> bool: return CombatManager.is_awaiting_command(), seconds):
+		await _frames(4)
+	else:
+		push_warning("screenshot: no command asked for in %.0fs" % seconds)
+
+
+## Kills whatever is standing and spends a turn to end the fight, then waits out
+## the result the screen leaves up.
+func _end_fight() -> void:
+	for enemy in CombatManager.living_enemies():
+		enemy.take_damage(enemy.hp)
+	_submit(CombatAction.use(SkillLibrary.basic_attack(), null))
+	if not await _until(func() -> bool: return not CombatManager.is_running(), 20.0):
+		push_warning("screenshot: the fight never ended")
+	await _wait(1.3)
+
+
+## Submits, and says so when the runner refuses. A silently refused action used
+## to leave the pass spinning on a fight that could no longer end.
+func _submit(action: CombatAction) -> void:
+	if not CombatManager.submit(action):
+		push_warning("screenshot: combat refused a submitted action")
+
+
+## Polls [param predicate] until it holds or [param seconds] run out; false if
+## they ran out.
+func _until(predicate: Callable, seconds: float) -> bool:
+	var deadline := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < deadline:
+		if predicate.call():
+			return true
 		await get_tree().process_frame
+	return false
+
+
+func _wait(seconds: float) -> void:
+	await get_tree().create_timer(seconds).timeout
 
 
 func _capture_floor(floor_number: int) -> void:
@@ -243,7 +300,7 @@ func _capture_world(main: Node) -> void:
 		var player := world.get_child(0).get_node("Player") as Node2D
 		GameState.push_input_lock()
 		player.global_position = spot[1]
-		await _frames(45)
+		await _wait(0.5)
 		await _capture(spot[2])
 		GameState.pop_input_lock()
 		await _frames(2)
@@ -307,7 +364,7 @@ func _drag(source: Control, target: Control, shot_name: String) -> void:
 	await _frames(4)
 
 
-## A control's middle in window pixels, not in the 640x360 units it is laid out
+## A control's middle in window pixels, not in the 320x180 units it is laid out
 ## in. Input arrives ahead of the stretch transform and is mapped down by it, so
 ## a position handed straight over lands at half the intended height.
 func _center(control: Control) -> Vector2:

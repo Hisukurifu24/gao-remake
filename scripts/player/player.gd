@@ -14,6 +14,11 @@ const DIR_COLUMNS := {
 }
 const WALK_FPS := 8.0
 const WALK_FRAMES := 4
+## A conversation ends on the same press that closed it, and a player mashing
+## through text is still pressing interact a few frames later -- straight back
+## into the NPC they just finished with. Interaction goes deaf for a moment
+## after any box closes, chests and signs included.
+const INTERACT_GRACE := 0.25
 
 @export var speed := 90.0
 @export var acceleration := 1200.0
@@ -25,9 +30,14 @@ var facing := Vector2.DOWN
 
 var _walk_time := 0.0
 var _target: Interactable = null
+var _deaf_until := 0.0
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _sensor: Area2D = $InteractSensor
+
+
+func _ready() -> void:
+	EventBus.dialogue_finished.connect(_on_dialogue_finished)
 
 
 func _physics_process(delta: float) -> void:
@@ -58,13 +68,23 @@ func _exit_tree() -> void:
 		EventBus.interact_target_changed.emit(null)
 
 
+func _on_dialogue_finished(_dialogue_id: StringName) -> void:
+	_deaf_until = _seconds() + INTERACT_GRACE
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed(&"interact"):
 		return
 	if GameState.is_input_locked() or _target == null:
 		return
+	if _seconds() < _deaf_until:
+		return
 	get_viewport().set_input_as_handled()
 	_target.interact(self)
+
+
+func _seconds() -> float:
+	return Time.get_ticks_msec() / 1000.0
 
 
 func _snap_to_4(dir: Vector2) -> Vector2:

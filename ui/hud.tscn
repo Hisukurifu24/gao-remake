@@ -1,64 +1,43 @@
 [gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ui/hud.gd" id="1_hud"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_vitals"]
-content_margin_left = 8.0
-content_margin_top = 4.0
-content_margin_right = 8.0
-content_margin_bottom = 4.0
-bg_color = Color(0.05, 0.06, 0.1, 0.8)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.45, 0.62, 0.85, 0.7)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_prompt"]
-content_margin_left = 8.0
-content_margin_top = 4.0
-content_margin_right = 8.0
-content_margin_bottom = 4.0
-bg_color = Color(0.07, 0.08, 0.12, 0.85)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.45, 0.62, 0.85, 0.9)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Receptacle/IconHeart.png" id="2_heart"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Input/Keyboard/KeyE.png" id="3_key"]
 
 [node name="Hud" type="CanvasLayer"]
 script = ExtResource("1_hud")
 
 [node name="Vitals" type="PanelContainer" parent="."]
-anchors_preset = 0
-offset_left = 8.0
-offset_top = 6.0
-offset_right = 128.0
-offset_bottom = 40.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 5.0
+offset_bottom = 5.0
 mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_vitals")
+theme_type_variation = &"HudPanel"
 
 [node name="Rows" type="VBoxContainer" parent="Vitals"]
 layout_mode = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 1
 
 [node name="Label" type="Label" parent="Vitals/Rows"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.78, 1, 1)
-theme_override_font_sizes/font_size = 10
 text = "Kirito  Lv 1"
 
-[node name="Hp" type="ProgressBar" parent="Vitals/Rows"]
-custom_minimum_size = Vector2(104, 7)
+[node name="Bar" type="HBoxContainer" parent="Vitals/Rows"]
 layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Heart" type="TextureRect" parent="Vitals/Rows/Bar"]
+layout_mode = 2
+size_flags_vertical = 4
+texture = ExtResource("2_heart")
+stretch_mode = 2
+
+[node name="Hp" type="ProgressBar" parent="Vitals/Rows/Bar"]
+custom_minimum_size = Vector2(48, 4)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
 value = 100.0
 show_percentage = false
 
@@ -68,17 +47,25 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -70.0
-offset_top = -34.0
-offset_right = 70.0
-offset_bottom = -14.0
+offset_left = -0.5
+offset_top = -5.0
+offset_right = 0.5
+offset_bottom = -4.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_prompt")
+theme_type_variation = &"HudPanel"
 
-[node name="Label" type="Label" parent="InteractPrompt"]
+[node name="Row" type="HBoxContainer" parent="InteractPrompt"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 11
-text = "[E]  Examine"
-horizontal_alignment = 1
+theme_override_constants/separation = 3
+
+[node name="Key" type="TextureRect" parent="InteractPrompt/Row"]
+layout_mode = 2
+size_flags_vertical = 4
+texture = ExtResource("3_key")
+stretch_mode = 2
+
+[node name="Label" type="Label" parent="InteractPrompt/Row"]
+layout_mode = 2
+text = "Examine"

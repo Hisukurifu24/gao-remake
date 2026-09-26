@@ -15,11 +15,6 @@ extends CanvasLayer
 ## [code]ui/hud.gd[/code] uses. The journal and the bag do not need a signal --
 ## both draw an opaque backdrop on a higher [member CanvasLayer.layer].
 
-const COLOR_DONE := Color(0.52, 0.84, 0.56)
-const COLOR_OPEN := Color(0.78, 0.80, 0.86)
-const COLOR_READY := Color(1.0, 0.86, 0.45)
-const COLOR_TITLE := Color(0.78, 0.72, 0.98)
-
 ## How long an "accepted" / "ready" / "completed" line stays up. Timed from when
 ## it is *shown*, which for a quest taken mid-conversation is when the box closes
 ## -- a notice nobody could see should not be spending its own clock.
@@ -38,6 +33,7 @@ func _ready() -> void:
 	_notice_timer.one_shot = true
 	_notice_timer.wait_time = NOTICE_SECONDS
 	_notice_timer.timeout.connect(_clear_notice)
+	_notice.add_theme_color_override(&"font_color", UiPalette.READY)
 	add_child(_notice_timer)
 
 	EventBus.quest_log_changed.connect(_refresh)
@@ -119,15 +115,14 @@ func _refresh() -> void:
 	_title.visible = true
 	_title.text = progress.quest.label()
 	_title.add_theme_color_override(&"font_color",
-			COLOR_READY if progress.is_complete() else COLOR_TITLE)
+			UiPalette.READY if progress.is_complete() else UiPalette.HEADER)
 
 	_clear_objectives()
 	for objective in progress.quest.listed_objectives():
 		var row := Label.new()
-		row.add_theme_font_size_override(&"font_size", 9)
 		row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var done := progress.is_objective_complete(objective)
-		row.add_theme_color_override(&"font_color", COLOR_DONE if done else COLOR_OPEN)
+		row.add_theme_color_override(&"font_color", UiPalette.DONE if done else UiPalette.DIM)
 		row.text = "%s %s" % [
 			"x" if done else "-", objective.progress_text(progress.of(objective))]
 		_objectives.add_child(row)
