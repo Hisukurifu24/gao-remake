@@ -111,10 +111,10 @@ func _run() -> void:
 			"every biome dresses its wall mass, as a blob or as forest%s" % (
 				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
 
-	# Floor 45's blob is drawn by the placeholder generator; floors 24 and 37 are the
+	# Floor 55's blob is drawn by the placeholder generator; floors 24 and 37 are the
 	# cave's and the ruins', put together from the pack's cliffs, on a Walls layer they
 	# share with pools that carry a terrain of their own.
-	for sample: int in [45, 24, 37]:
+	for sample: int in [55, 24, 37]:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var wall_set := sample_floor.biome.wall_terrain_set
 		var label := "floor %d (%s)" % [sample, sample_floor.biome.id]
@@ -130,12 +130,13 @@ func _run() -> void:
 		tiled.free()
 
 	# --- dressing: forest, ground and water ---
-	# Floors 5, 15, 24 and 37 are the meadow, the forest, the cave and the ruins, all
-	# pack biomes: the first two wall with trees, the last two with cliffs, and all four
-	# join their ground and water into edges. None of that may touch collision, and all
-	# of it has to come out the same from the same seed.
+	# Floors 5, 15, 24, 37 and 45 are the meadow, the forest, the cave, the ruins and
+	# the swamp, all pack biomes: the cave and the ruins wall with cliffs, the rest with
+	# trees, and all five join their ground and water into edges. None of that may
+	# touch collision, and all of it has to come out the same from the same seed.
 	var styles := {5: BiomeKit.WallStyle.TREES, 15: BiomeKit.WallStyle.TREES,
-			24: BiomeKit.WallStyle.BLOB, 37: BiomeKit.WallStyle.BLOB}
+			24: BiomeKit.WallStyle.BLOB, 37: BiomeKit.WallStyle.BLOB,
+			45: BiomeKit.WallStyle.TREES}
 	for sample: int in styles:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var sample_biome := sample_floor.biome
@@ -159,6 +160,14 @@ func _run() -> void:
 		var ground_cells := ground_layer.get_used_cells().size()
 		_check(off == 0, "%s's ground edges match their neighbours (%d of %d cells off)" % [
 				label, off, ground_cells])
+		# The pack draws no one-cell pond; the nearest tile it has is a strip's cut-off
+		# end, so build_biomes.gd composes one. Nearest match would never say it's gone.
+		var lone := MapDresser.TerrainMatcher.new(sample_biome.tile_set, sample_biome.liquid_terrain_set,
+				sample_biome.liquid_terrain).pick(Vector2i.ZERO, {Vector2i.ZERO: true}, sample_biome.liquid_terrain)
+		var lone_source := sample_biome.tile_set.get_source(MapDresser.SOURCE_ID) as TileSetAtlasSource
+		_check(lone.x >= 0 and MapDresser.tile_flags(lone_source.get_tile_data(lone, 0),
+				sample_biome.liquid_terrain) == 0,
+				"a lone pool on %s draws a whole pond, not a strip's end" % label)
 		var again := FloorGenerator.generate(sample_floor, FloorRegistry.seed_for(sample))
 		_check(_layer_signature(dressed, MapDresser.PROPS) == _layer_signature(again, MapDresser.PROPS)
 				and _layer_signature(dressed, "Ground") == _layer_signature(again, "Ground")

@@ -75,6 +75,18 @@ const PACK_COLUMNS := 16
 ## Where each part of a pack atlas lands. Row 0 is the semantic slots.
 const ROW_GROUND := 1
 const ROW_LIQUID := 8
+## The pack draws no pond one cell across, and a lone pool cell drawn with the
+## nearest tile it does have shows as the cut-off end of a strip. So one is put
+## together from the pond block's one-wide vertical strip -- the rounded end of its
+## top cap over the rounded end of its bottom one -- and parked right of every
+## liquid block. Block-relative: the strip's top cap; the bottom cap is two cells
+## down. The caps draw their ends mid-cell, so the rows are measured, not halves:
+## the top cap's water starts on row 8 under the bank's lip, the bottom cap's
+## stops on row 11, and 10 + 6 rows keep both ends and a margin of land round them.
+const LIQUID_STRIP := Vector2i(3, 0)
+const PUDDLE := Vector2i(15, ROW_LIQUID)
+const PUDDLE_TOP_ROWS := Vector2i(2, 10)     # from row 2 of the top cap, 10 rows
+const PUDDLE_BOTTOM_ROWS := Vector2i(8, 6)   # from row 8 of the bottom cap, 6 rows
 const ROW_TREES := 13
 const ROW_DECOR := 15
 const ROW_HOUSES := 16
@@ -283,6 +295,50 @@ const PACK_BIOMES := {
 		],
 		"decor_density": 0.05,
 	},
+	"swamp": {
+		"walls": "trees",
+		"slots": [
+			["TilesetFloor.png", Vector2i(11, 12)],  # floor: deep grass
+			["TilesetFloor.png", Vector2i(12, 12)],  # floor-alt: deep grass with a tuft
+			["TilesetFloor.png", Vector2i(12, 8)],   # path: dark earth
+			["TilesetFloor.png", Vector2i(12, 11)],  # special: earth with a pebble
+			["TilesetWater.png", Vector2i(14, 7)],   # liquid: open bog
+			["TilesetNature.png", Vector2i(7, 11)],  # obstacle: a stand of reeds
+			["TilesetFloor.png", Vector2i(11, 12)],  # wall: grass under the canopy, as the forest
+			null,                                    # wall-alt: invisible, a house's footprint
+		],
+		# The forest's deep grass: what tells the two bands apart is what stands on it
+		# and what pools in it, not the ground.
+		"ground": ["TilesetFloor.png", Rect2i(11, 7, 11, 6)],
+		"ground_rare": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5),
+				Vector2i(0, 4), Vector2i(1, 4)],
+		# The pack's purple bog, laid out as its pond. It is drawn into the cave's taupe
+		# earth, so the same swap the forest makes carries its bank onto deep grass --
+		# from the taupe block this time -- and leaves the bog's own dark mud rim alone.
+		"liquid": ["TilesetWater.png", Rect2i(13, 6, 11, 5)],
+		"liquid_palette": ["TilesetFloor.png", Rect2i(11, 14, 11, 6), Rect2i(11, 7, 11, 6)],
+		# Dead trees three times over, and oaks standing on their roots between. The
+		# pack's mossy tree was tried and dropped: its crown is the meadow's bright one,
+		# and among dead wood it reads as a hole in the canopy.
+		"trees": [
+			["TilesetNature.png", Vector2i(4, 0)],
+			["TilesetNature.png", Vector2i(4, 0)],
+			["TilesetNature.png", Vector2i(4, 0)],
+			["TilesetNature.png", Vector2i(6, 0)],
+			["TilesetNature.png", Vector2i(6, 0)],
+		],
+		# Reeds and tufts, the pack's mossy teal stones, and the odd bone.
+		"decor": [
+			["TilesetNature.png", Vector2i(7, 11)], ["TilesetNature.png", Vector2i(7, 11)],
+			["TilesetFloorDetail.png", Vector2i(2, 2)], ["TilesetFloorDetail.png", Vector2i(2, 2)],
+			["TilesetFloorDetail.png", Vector2i(0, 2)], ["TilesetFloorDetail.png", Vector2i(3, 2)],
+			["TilesetNature.png", Vector2i(4, 11)],
+			["TilesetNature.png", Vector2i(7, 12)], ["TilesetNature.png", Vector2i(8, 12)],
+			["TilesetFloorDetail.png", Vector2i(0, 1)],
+			["TilesetFloorDetail.png", Vector2i(14, 0)],
+		],
+		"decor_density": 0.05,
+	},
 }
 
 var _sheets := {}
@@ -475,23 +531,25 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 
 	var liquid_set := _add_terrain_set(tile_set, ["water"])
 	var liquid: Rect2i = spec["liquid"][1]
+	var liquid_cells: Array[Vector2i] = [PUDDLE]
 	for y in liquid.size.y:
 		for x in liquid.size.x:
-			var coords := Vector2i(x, ROW_LIQUID + y)
-			if _is_empty(atlas, coords):
-				continue
-			var links := _links(atlas, coords, _is_water)
-			# A tile with no water in it is plain land, and the land's business.
-			if not links[8]:
-				continue
-			source.create_tile(coords)
-			var data := source.get_tile_data(coords, 0)
-			_add_collision(data, square)
-			data.terrain_set = liquid_set
-			data.terrain = 0
-			for index in 8:
-				data.set_terrain_peering_bit(MapDresser.PEERING_BITS[index],
-						0 if links[index] else -1)
+			liquid_cells.append(Vector2i(x, ROW_LIQUID + y))
+	for coords in liquid_cells:
+		if _is_empty(atlas, coords):
+			continue
+		var links := _links(atlas, coords, _is_water)
+		# A tile with no water in it is plain land, and the land's business.
+		if not links[8]:
+			continue
+		source.create_tile(coords)
+		var data := source.get_tile_data(coords, 0)
+		_add_collision(data, square)
+		data.terrain_set = liquid_set
+		data.terrain = 0
+		for index in 8:
+			data.set_terrain_peering_bit(MapDresser.PEERING_BITS[index],
+					0 if links[index] else -1)
 
 	var trees: Array[Vector2i] = []
 	for index in spec.get("trees", []).size():
@@ -564,6 +622,12 @@ func _compose(spec: Dictionary) -> Image:
 		var liquid_cells := Rect2i(Vector2i(0, ROW_LIQUID), (spec["liquid"][1] as Rect2i).size)
 		var changed := _repaint(atlas, liquid_cells, _palette(swap[0], swap[1], swap[2]))
 		print("  shoreline repainted: %d pixels" % changed)
+	# From the atlas rather than the sheet, so it comes already repainted.
+	var strip := (Vector2i(0, ROW_LIQUID) + LIQUID_STRIP) * TILE
+	atlas.blit_rect(atlas, Rect2i(strip + Vector2i(0, PUDDLE_TOP_ROWS.x), Vector2i(TILE, PUDDLE_TOP_ROWS.y)),
+			PUDDLE * TILE)
+	atlas.blit_rect(atlas, Rect2i(strip + Vector2i(0, 2 * TILE + PUDDLE_BOTTOM_ROWS.x),
+			Vector2i(TILE, PUDDLE_BOTTOM_ROWS.y)), PUDDLE * TILE + Vector2i(0, PUDDLE_TOP_ROWS.y))
 	for index in spec.get("trees", []).size():
 		var tree: Array = spec["trees"][index]
 		_blit(atlas, tree[0], Rect2i(tree[1], Vector2i(2, 2)), Vector2i(index * 2, ROW_TREES))
@@ -768,9 +832,10 @@ func _is_dirt(colour: Color) -> bool:
 	return colour.r > colour.g + 0.03
 
 
-## Water, or the white foam at its edge.
+## Water, the swamp's purple bog, or the white foam at the edge of either.
 func _is_water(colour: Color) -> bool:
 	return (colour.b > colour.r + 0.08 and colour.b > colour.g - 0.04) \
+			or (colour.g < colour.r - 0.1 and colour.g < colour.b - 0.05) \
 			or (colour.r > 0.78 and colour.g > 0.78 and colour.b > 0.78)
 
 

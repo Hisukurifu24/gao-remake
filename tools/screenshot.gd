@@ -51,7 +51,7 @@ func _ready() -> void:
 
 	# One floor per biome band worth showing off, and the authored ones past the
 	# first -- 24 and 25 side by side are the same band generated and built.
-	for floor_number in [2, 10, 15, 24, 25, 37, 55, 87, 100]:
+	for floor_number in [2, 10, 15, 24, 25, 37, 45, 55, 87, 100]:
 		await _capture_floor(floor_number)
 
 	print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
@@ -218,6 +218,13 @@ func _capture_combat() -> void:
 			FloorTuning.enemy_level(35), 35))
 	await _until_command()
 	await _capture("07c_combat_ruins")
+	await _end_fight()
+
+	# The swamp's lizardman: a pack battler on the deep grass the forest shares.
+	CombatManager.start(Bestiary.single_encounter(Bestiary.get_enemy(&"lizardman_soldier"),
+			FloorTuning.enemy_level(45), 45))
+	await _until_command()
+	await _capture("07d_combat_swamp")
 	await _end_fight()
 	GameState.defense = defense
 	GameState.set_hp(GameState.total_max_hp())
