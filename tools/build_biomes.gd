@@ -339,6 +339,51 @@ const PACK_BIOMES := {
 		],
 		"decor_density": 0.05,
 	},
+	"desert": {
+		# Mesas: the ruins' sandstone cliffs, standing in the dunes they were drawn for.
+		# Their pale tops are exactly the dunes' light sand, which is the path, so a
+		# corridor read as a gap in one flat plain. Repainted the brown of their own
+		# faces, the rock stands apart from both the deep orange rooms and the pale
+		# corridors between them.
+		"walls": "cliffs",
+		"cliffs": ["TilesetRelief.png", Vector2i(0, 5)],
+		"cliff_top": ["TilesetRelief.png", Vector2i(5, 6)],
+		"slots": [
+			["TilesetFloor.png", Vector2i(0, 5)],    # floor: deep orange sand
+			["TilesetFloor.png", Vector2i(1, 5)],    # floor-alt: sand with a ripple
+			["TilesetFloor.png", Vector2i(1, 1)],    # path: light sand
+			["TilesetFloor.png", Vector2i(1, 4)],    # special: light sand with a pebble
+			["TilesetWater.png", Vector2i(1, 1)],    # liquid: open water
+			["TilesetReliefDetail.png", Vector2i(4, 3)],  # obstacle: a sandstone boulder
+			null,                                    # wall: the cliff blob's solid tile
+			null,                                    # wall-alt: invisible, a house's footprint
+		],
+		# The meadow's block drawn in sand. Both sands are warmer than green, so _is_dirt
+		# would call all of it dirt; and the dune lines are not the grass's tufts, so the
+		# meadow's links cannot be borrowed the way the cave borrows them. Its dirt is
+		# the pale sand instead (_is_pale).
+		"ground": ["TilesetFloor.png", Rect2i(0, 0, 11, 6)],
+		"pale_dirt": true,
+		"ground_rare": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5),
+				Vector2i(0, 4), Vector2i(1, 4)],
+		# The pack's oasis: its pond laid out as the meadow's, already banked in sand.
+		# Its land is the light sand, though, so that one colour becomes the floor's.
+		"liquid": ["TilesetWater.png", Rect2i(0, 0, 11, 5)],
+		"liquid_land": ["TilesetWater.png", Vector2i(0, 5)],
+		# Ripples and pebbles in the sand, and bones: the pack's own, and the desert
+		# sheet's skull and ribs. The twigs the forest turned down were drawn for here.
+		"decor": [
+			["TilesetFloorDetail.png", Vector2i(2, 0)], ["TilesetFloorDetail.png", Vector2i(3, 0)],
+			["TilesetFloorDetail.png", Vector2i(4, 0)], ["TilesetFloorDetail.png", Vector2i(5, 0)],
+			["TilesetFloorDetail.png", Vector2i(6, 0)], ["TilesetFloorDetail.png", Vector2i(7, 0)],
+			["TilesetFloorDetail.png", Vector2i(2, 0)], ["TilesetFloorDetail.png", Vector2i(3, 0)],
+			["TilesetFloorDetail.png", Vector2i(4, 0)],
+			["TilesetReliefDetail.png", Vector2i(0, 3)], ["TilesetReliefDetail.png", Vector2i(0, 5)],
+			["TilesetDesert.png", Vector2i(16, 11)], ["TilesetDesert.png", Vector2i(17, 11)],
+			["TilesetDesert.png", Vector2i(19, 11)],
+		],
+		"decor_density": 0.04,
+	},
 }
 
 var _sheets := {}
@@ -502,6 +547,7 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 	# same drawing" is checked a cell at a time, because it is not quite: the taupe
 	# block draws mud in a cell where the meadow's has plain grass, and trusting the
 	# meadow there wires a mud tile as ground and paints it across every cavern floor.
+	var dirt_test := _is_pale if spec.get("pale_dirt", false) else _is_dirt
 	var link_sheet: Image = null
 	var link_palette := {}
 	if spec.has("ground_links"):
@@ -519,8 +565,8 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 					continue
 			source.create_tile(coords)
 			var data := source.get_tile_data(coords, 0)
-			var links := _links(atlas, coords, _is_dirt) if link_sheet == null \
-					else _links(link_sheet, link_cell, _is_dirt)
+			var links := _links(atlas, coords, dirt_test) if link_sheet == null \
+					else _links(link_sheet, link_cell, dirt_test)
 			data.terrain_set = ground_set
 			data.terrain = GROUND_DIRT if links[8] else GROUND_GRASS
 			for index in 8:
@@ -621,6 +667,13 @@ func _compose(spec: Dictionary) -> Image:
 		var swap: Array = spec["liquid_palette"]
 		var liquid_cells := Rect2i(Vector2i(0, ROW_LIQUID), (spec["liquid"][1] as Rect2i).size)
 		var changed := _repaint(atlas, liquid_cells, _palette(swap[0], swap[1], swap[2]))
+		print("  shoreline repainted: %d pixels" % changed)
+	if spec.has("liquid_land"):
+		# A pond drawn on a ground this biome keeps for its paths: its plain land cell's
+		# colour becomes the floor's, and the rest of the bank stays as drawn.
+		var land: Array = spec["liquid_land"]
+		var liquid_cells := Rect2i(Vector2i(0, ROW_LIQUID), (spec["liquid"][1] as Rect2i).size)
+		var changed := _repaint(atlas, liquid_cells, {_dominant(_sheet(land[0]), land[1]): _dominant(atlas, Vector2i.ZERO)})
 		print("  shoreline repainted: %d pixels" % changed)
 	# From the atlas rather than the sheet, so it comes already repainted.
 	var strip := (Vector2i(0, ROW_LIQUID) + LIQUID_STRIP) * TILE
@@ -830,6 +883,13 @@ func _passes(atlas: Image, pixel: Vector2i, test: Callable) -> bool:
 ## The pack's dirt is warm and its grass is green; nothing in between.
 func _is_dirt(colour: Color) -> bool:
 	return colour.r > colour.g + 0.03
+
+
+## The desert's dirt: its paths are the pale sand, its ground the deep orange. The
+## pale side and its shading sit above 0.75 luminance, the deep side and its dune
+## lines below it.
+func _is_pale(colour: Color) -> bool:
+	return colour.get_luminance() > 0.75
 
 
 ## Water, the swamp's purple bog, or the white foam at the edge of either.

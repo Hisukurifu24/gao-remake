@@ -226,6 +226,13 @@ func _capture_combat() -> void:
 	await _until_command()
 	await _capture("07d_combat_swamp")
 	await _end_fight()
+
+	# And the same lizardman on the desert's sand, which it shares with the boars.
+	CombatManager.start(Bestiary.single_encounter(Bestiary.get_enemy(&"lizardman_soldier"),
+			FloorTuning.enemy_level(55), 55))
+	await _until_command()
+	await _capture("07e_combat_desert")
+	await _end_fight()
 	GameState.defense = defense
 	GameState.set_hp(GameState.total_max_hp())
 

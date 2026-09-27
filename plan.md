@@ -297,7 +297,20 @@ and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
     swamp floor shows 0–6 puddles and reads as a dead wood more than a bog. Real pools
     (a blob of bog per room, checked against reachability) are generator work, and belong
     with §4's landmarks and room-shape variety rather than with the art.
-- [ ] **The other five biomes** — desert next, then ice, volcanic, sky and the castle.
+- [x] **Desert band**: mesas in the dunes. The ruins' sandstone cliff blob again, standing
+  in the sand block it was drawn for — deep orange sand for rooms, pale sand for paths — with
+  its tops **repainted the brown of its own faces**: bare, they are exactly the pale sand the
+  corridors are, and a corridor read as a gap in one flat plain rather than a canyon (tried
+  first, rendered whole-floor, rejected). Water is the pack's own sand-banked oasis pond,
+  whose land is the pale sand, so that one colour is repainted to the floor's
+  (`liquid_land`). The sand is read by paleness (`_is_pale`) rather than borrowing the
+  meadow's links: both sands are warm, and the dune lines are not grass tufts, so the
+  borrowed links dropped all but five cells. Scatter is ripples, pebbles, sandstone rubble,
+  and the desert sheet's skull and ribs. Boars and lizardmen were already on the pack.
+  - **Open:** the desert sheet's palms, domed sandstone houses and wells are unused —
+    nothing authored stands in the band yet, and a `BLOB` biome plants no trees. Palms by
+    an oasis would want the same generator work as the swamp's real pools.
+- [ ] **The other four biomes** — ice next, then volcanic, sky and the castle.
 - [ ] Lanternfall's props: the camp sheet has lantern posts, crates, a campfire, and the relief
   detail sheet has ladders and a mine mouth for the lift. Needs a way to place standing props
   on authored maps that isn't `_house()`.
@@ -721,7 +734,8 @@ cave mouth in the rock. Floors 2–9 grow the same forest on generated layouts, 
 darker one of pines and dead oaks round deep grass, and Floors 20–29 are caverns cut out of
 black rock, with cliff faces where the rock stands over you. Floors 30–39 are overgrown
 ruins: sandstone terraces over grass, and wraiths drifting between them; Floors 40–49 a
-dead wood of bare trees round purple bog, where the lizardmen live. The other bands still
+dead wood of bare trees round purple bog, where the lizardmen live; Floors 50–59 a canyon of sandstone mesas over
+orange dunes, pale sand trails between the rooms and the odd oasis. The other bands still
 draw placeholders.
 
 And the screens finally match the maps. Every menu is on the pack now: wooden windows,
@@ -751,7 +765,7 @@ bottom only goes up.
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 54-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 65-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 74-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 84-check combat test
@@ -782,8 +796,8 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 
 ## Immediate next steps
 1. **Finish the art rollout, before any new floor** (M5.5 §0). Meadow, forest, cave and
-   ruins are done, and with them every authored floor so far; the swamp is done too, ready
-   for Floor 40. Five bands remain, desert next. The UI is done. Same reason as the rest of M5.5: a floor laid out on placeholder
+   ruins are done, and with them every authored floor so far; the swamp and the desert are
+   done too, the swamp ready for Floor 40. Four bands remain, ice next. The UI is done. Same reason as the rest of M5.5: a floor laid out on placeholder
    art is laid out twice.
 2. **M5.5 — Exploration feel, before any new floor.** Camera zoom and moving monsters are
    in. **Next: §3, a boss room you have to find** — which starts with picking among its

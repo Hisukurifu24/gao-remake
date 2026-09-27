@@ -111,10 +111,10 @@ func _run() -> void:
 			"every biome dresses its wall mass, as a blob or as forest%s" % (
 				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
 
-	# Floor 55's blob is drawn by the placeholder generator; floors 24 and 37 are the
-	# cave's and the ruins', put together from the pack's cliffs, on a Walls layer they
-	# share with pools that carry a terrain of their own.
-	for sample: int in [55, 24, 37]:
+	# Floor 65's blob is drawn by the placeholder generator; floors 24, 37 and 55 are
+	# the cave's, the ruins' and the desert's, put together from the pack's cliffs, on a
+	# Walls layer they share with pools that carry a terrain of their own.
+	for sample: int in [65, 24, 37, 55]:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var wall_set := sample_floor.biome.wall_terrain_set
 		var label := "floor %d (%s)" % [sample, sample_floor.biome.id]
@@ -130,13 +130,14 @@ func _run() -> void:
 		tiled.free()
 
 	# --- dressing: forest, ground and water ---
-	# Floors 5, 15, 24, 37 and 45 are the meadow, the forest, the cave, the ruins and
-	# the swamp, all pack biomes: the cave and the ruins wall with cliffs, the rest with
-	# trees, and all five join their ground and water into edges. None of that may
-	# touch collision, and all of it has to come out the same from the same seed.
+	# Floors 5, 15, 24, 37, 45 and 55 are the meadow, the forest, the cave, the ruins,
+	# the swamp and the desert, all pack biomes: the cave, the ruins and the desert wall
+	# with cliffs, the rest with trees, and all six join their ground and water into
+	# edges. None of that may touch collision, and all of it has to come out the same
+	# from the same seed.
 	var styles := {5: BiomeKit.WallStyle.TREES, 15: BiomeKit.WallStyle.TREES,
 			24: BiomeKit.WallStyle.BLOB, 37: BiomeKit.WallStyle.BLOB,
-			45: BiomeKit.WallStyle.TREES}
+			45: BiomeKit.WallStyle.TREES, 55: BiomeKit.WallStyle.BLOB}
 	for sample: int in styles:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var sample_biome := sample_floor.biome
