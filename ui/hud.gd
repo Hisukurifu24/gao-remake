@@ -75,11 +75,9 @@ func _refresh() -> void:
 	# The key is the pack's keycap beside the label, not "[E]" in the text.
 	_prompt_label.text = _target.get_prompt()
 	_prompt.show()
-	# Shrink-wrap round the new label: a PanelContainer grows to fit but never
-	# shrinks back on its own. It grows both ways from the anchor, so it stays
-	# centred.
-	_prompt.offset_left = -0.5
-	_prompt.offset_right = 0.5
+	# Shrink-wrap round the new label. It grows both ways from the anchor, so it
+	# stays centred.
+	UiLayout.shrink_wrap(_prompt)
 
 
 func _refresh_vitals() -> void:

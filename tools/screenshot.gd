@@ -51,7 +51,7 @@ func _ready() -> void:
 
 	# One floor per biome band worth showing off, and the authored ones past the
 	# first -- 24 and 25 side by side are the same band generated and built.
-	for floor_number in [2, 10, 15, 24, 25, 55, 87, 100]:
+	for floor_number in [2, 10, 15, 24, 25, 37, 55, 87, 100]:
 		await _capture_floor(floor_number)
 
 	print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
@@ -199,13 +199,28 @@ func _capture_combat() -> void:
 
 	# The same screen on another biome. The battle ground is the floor the player
 	# was walking on, so a cave fight is a different picture from a meadow one
-	# and both have to be looked at.
-	GameState.set_hp(GameState.max_hp)
+	# and both have to be looked at. Floor 25's boss is far past the player set
+	# up above and may act first, so the player is armoured out of reach for the
+	# length of one shot -- a player who dies before the menu is asked for leaves
+	# nothing to capture and a fight _end_fight cannot end. Defence rather than
+	# HP, so the bar in the shot still reads like a real one.
+	var defense := GameState.defense
+	GameState.defense = 100000
+	GameState.set_hp(GameState.total_max_hp())
 	CombatManager.start(Bestiary.boss_encounter(25))
 	await _until_command()
 	await _capture("07b_combat_cave")
 	await _end_fight()
-	GameState.set_hp(GameState.max_hp)
+
+	# And the ruins, against the wraith rather than a boss: a small pack battler on
+	# the grass, where the two above are a boss on each ground.
+	CombatManager.start(Bestiary.single_encounter(Bestiary.get_enemy(&"ruin_wraith"),
+			FloorTuning.enemy_level(35), 35))
+	await _until_command()
+	await _capture("07c_combat_ruins")
+	await _end_fight()
+	GameState.defense = defense
+	GameState.set_hp(GameState.total_max_hp())
 
 
 ## Waits for the fight to ask for a command, then a beat for the menu to lay out.
@@ -366,7 +381,8 @@ func _drag(source: Control, target: Control, shot_name: String) -> void:
 
 ## A control's middle in window pixels, not in the 320x180 units it is laid out
 ## in. Input arrives ahead of the stretch transform and is mapped down by it, so
-## a position handed straight over lands at half the intended height.
+## a position handed straight over lands at a fraction of the intended one -- a
+## quarter, in the 4x window.
 func _center(control: Control) -> Vector2:
 	return get_viewport().get_final_transform() * control.get_global_rect().get_center()
 

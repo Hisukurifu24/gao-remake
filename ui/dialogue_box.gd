@@ -11,6 +11,11 @@ extends CanvasLayer
 ## ([code]UiPalette.INK*[/code]), not the light text the wooden panels use.
 
 const CHARS_PER_SECOND := 45.0
+## The most face the frame holds, in 320x180 units. A portrait is drawn at its own
+## size, or halved until it fits: at the 4x window half a texel is still two whole
+## screen pixels, where any other fraction draws some texels wider than others.
+## The pack's 38 px facesets land at 19.
+const FACE_ROOM := 24.0
 
 var _choices: Array[DialogueChoice] = []
 var _selected := 0
@@ -68,9 +73,11 @@ func _on_line_shown(speaker: String, text: String, portrait: Texture2D) -> void:
 	_hide_menu()
 	_speaker.text = speaker
 	_speaker_tag.visible = not speaker.is_empty()
-	_shrink_wrap(_speaker_tag)
+	UiLayout.shrink_wrap(_speaker_tag)
 	_face.texture = portrait
 	_portrait.visible = portrait != null
+	if portrait != null:
+		_face.custom_minimum_size = _face_size(portrait)
 	# Hidden by alpha rather than visibility, so the text column doesn't widen
 	# and re-wrap the moment the arrow appears.
 	_continue.modulate.a = 0.0
@@ -137,7 +144,7 @@ func _show_menu() -> void:
 	_selected = maxi(_selected, 0)
 	_paint_selection()
 	_menu.show()
-	_shrink_wrap(_menu)
+	UiLayout.shrink_wrap(_menu)
 
 
 func _hide_menu() -> void:
@@ -173,10 +180,8 @@ func _paint_selection() -> void:
 		row.text = cursor + choice.label()
 
 
-## Collapses a panel onto its contents. The scene anchors each one at the corner
-## it grows away from, so a one-pixel rect plus the container's minimum size is
-## exactly the box the text needs -- a PanelContainer grows to fit on its own,
-## but never shrinks back when the next speaker has a shorter name.
-func _shrink_wrap(panel: Control) -> void:
-	panel.offset_left = panel.offset_right - 1.0
-	panel.offset_top = panel.offset_bottom - 1.0
+static func _face_size(texture: Texture2D) -> Vector2:
+	var size := texture.get_size()
+	while maxf(size.x, size.y) > FACE_ROOM:
+		size *= 0.5
+	return size

@@ -113,9 +113,12 @@ func _refresh() -> void:
 
 	_panel.show()
 	_title.visible = true
-	_title.text = progress.quest.label()
+	# Colour plus glyph, as in the journal: ready has to read once the notice
+	# that announced it has timed out.
+	var ready := progress.is_complete()
+	_title.text = ("! " if ready else "") + progress.quest.label()
 	_title.add_theme_color_override(&"font_color",
-			UiPalette.READY if progress.is_complete() else UiPalette.HEADER)
+			UiPalette.READY if ready else UiPalette.TEXT)
 
 	_clear_objectives()
 	for objective in progress.quest.listed_objectives():

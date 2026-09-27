@@ -259,7 +259,7 @@ and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
 - [x] **Cast so far**: Kirito = SamuraiBlue, Argo = NinjaYellow, Nezha = Hunter, the scout =
   CamouflageGreen; Rue = ManGreen, Sable = Inspector, Ashlow's logger and courier = Villager
   and Villager4; Frenzy Boar = WildBoar, Little Nepent = Bamboo, Dire Wolf = DogBlack,
-  Illfang = GiantRacoon, the Hollow Warden = GiantBamboo. Battlers scale ×4 (bosses ×2).
+  Illfang = GiantRacoon, the Hollow Warden = GiantBamboo. Battlers scale ×2 (bosses ×1).
   All swappable in one line each.
 - [x] **Forest band + Floor 10**: deep grass (the meadow's ground block in the pack's darker
   palette), pines and rooted oaks with the odd dead one, ferns where the meadow has flowers,
@@ -276,12 +276,18 @@ and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
   blob checks take it from there. Lanternfall's camp is three tents; Dorran = Knight, Maren =
   Villager2, the miner = Caveman2, the lift-keeper = OldMan; cave bat = BlueBat, kobold =
   Racoon (Illfang's kin), Karvos = GiantBlueSamurai.
-- [ ] **The other seven biomes** — ruins next, which can reuse the cliff blob from the relief
-  sheet's orange block.
+- [x] **Ruins band**: the cave's composed cliff blob again, cut from the relief sheet's
+  orange block — sandstone terraces standing over the meadow's grass, which is the palette
+  the pack draws its abandoned village in. The tops stay bare peach: filled with grass
+  (tried), the rock is the colour of the rooms cut into it and the floor stops reading as
+  rooms. Scatter is sandstone rubble, tufts and the odd bone; the abandoned village's own
+  rubble and paving would suit better but is drawn off the 16 px grid, so none of it fits in
+  a cell. Ruin wraith = Spirit. No houses yet — nothing authored stands in the band.
+- [ ] **The other six biomes** — swamp next, since Floor 40 opens it.
 - [ ] Lanternfall's props: the camp sheet has lantern posts, crates, a campfire, and the relief
   detail sheet has ladders and a mine mouth for the lift. Needs a way to place standing props
   on authored maps that isn't `_house()`.
-- [ ] The rest of the roster (wraith, lizardman, golem, drake), item icons from `Items/`, and
+- [ ] The rest of the roster (lizardman, golem, drake), item icons from `Items/`, and
   the chest's open frame checked in play. Audio stays with M7 — it is in the pack already.
 - [x] **Redo all the UI on the pack.** All six screens — `hud`, `dialogue_box`,
   `combat_screen`, `inventory_screen`, `quest_journal`, `quest_tracker` — wear one shared
@@ -699,8 +705,9 @@ Town of Beginnings has roads with worn grass edges, houses you walk behind and f
 the lawns; the field has a real pond, a forest two trees deep round it, and Illfang behind a
 cave mouth in the rock. Floors 2–9 grow the same forest on generated layouts, Floors 10–19 a
 darker one of pines and dead oaks round deep grass, and Floors 20–29 are caverns cut out of
-black rock, with cliff faces where the rock stands over you. The other bands still draw
-placeholders.
+black rock, with cliff faces where the rock stands over you. Floors 30–39 are overgrown
+ruins: sandstone terraces over grass, and wraiths drifting between them. The other bands
+still draw placeholders.
 
 And the screens finally match the maps. Every menu is on the pack now: wooden windows,
 the pack's paper dialogue box with a framed portrait and a name tag, orange buttons, its
@@ -729,7 +736,7 @@ bottom only goes up.
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 54-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 46-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 54-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 84-check combat test
@@ -759,9 +766,9 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 `build_biomes.gd` is always safe — it only touches derived resources.
 
 ## Immediate next steps
-1. **Finish the art rollout, before any new floor** (M5.5 §0). Meadow, forest and cave are
-   done, and with them every authored floor so far; seven bands remain, ruins next on the
-   same composed cliff blob. The UI is done. Same reason as the rest of M5.5: a floor laid out on placeholder
+1. **Finish the art rollout, before any new floor** (M5.5 §0). Meadow, forest, cave and
+   ruins are done, and with them every authored floor so far; six bands remain, swamp next
+   because Floor 40 opens it. The UI is done. Same reason as the rest of M5.5: a floor laid out on placeholder
    art is laid out twice.
 2. **M5.5 — Exploration feel, before any new floor.** Camera zoom and moving monsters are
    in. **Next: §3, a boss room you have to find** — which starts with picking among its

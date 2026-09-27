@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=26 format=3]
+[gd_resource type="Theme" load_steps=35 format=3]
 
 [ext_resource type="FontFile" path="res://ui/theme/pixel_font.tres" id="1_font"]
 [ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Theme/Wip/ThemeWood2/nine_path_panel.png" id="2_wood"]
@@ -13,6 +13,7 @@
 [ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Theme/Theme Wood/button_disabled.png" id="11_button_disabled"]
 [ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Receptacle/LifeBarMiniUnder.png" id="12_bar"]
 [ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Theme/Theme Wood/inventory_cell.png" id="13_cell"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Theme/Theme Wood/nine_path_focus.png" id="14_focus"]
 
 [sub_resource type="StyleBoxTexture" id="window"]
 content_margin_left = 5.0
@@ -166,6 +167,72 @@ texture_margin_top = 3.0
 texture_margin_right = 1.0
 texture_margin_bottom = 1.0
 
+[sub_resource type="StyleBoxTexture" id="focus"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+texture = ExtResource("14_focus")
+texture_margin_left = 3.0
+texture_margin_top = 3.0
+texture_margin_right = 3.0
+texture_margin_bottom = 3.0
+expand_margin_left = 1.0
+expand_margin_top = 1.0
+expand_margin_right = 1.0
+expand_margin_bottom = 1.0
+
+[sub_resource type="StyleBoxTexture" id="cell_row"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+texture = ExtResource("13_cell")
+texture_margin_left = 3.0
+texture_margin_top = 3.0
+texture_margin_right = 1.0
+texture_margin_bottom = 1.0
+expand_margin_left = 1.0
+expand_margin_top = 1.0
+expand_margin_right = 1.0
+expand_margin_bottom = 1.0
+
+[sub_resource type="StyleBoxTexture" id="danger"]
+content_margin_left = 5.0
+content_margin_top = 1.0
+content_margin_right = 5.0
+content_margin_bottom = 2.0
+texture = ExtResource("8_button")
+texture_margin_left = 2.0
+texture_margin_top = 2.0
+texture_margin_right = 2.0
+texture_margin_bottom = 2.0
+modulate_color = Color(1, 0.62, 0.62, 1)
+
+[sub_resource type="StyleBoxTexture" id="danger_hover"]
+content_margin_left = 5.0
+content_margin_top = 1.0
+content_margin_right = 5.0
+content_margin_bottom = 2.0
+texture = ExtResource("9_button_hover")
+texture_margin_left = 2.0
+texture_margin_top = 2.0
+texture_margin_right = 2.0
+texture_margin_bottom = 2.0
+modulate_color = Color(1, 0.62, 0.62, 1)
+
+[sub_resource type="StyleBoxTexture" id="danger_pressed"]
+content_margin_left = 5.0
+content_margin_top = 2.0
+content_margin_right = 5.0
+content_margin_bottom = 1.0
+texture = ExtResource("10_button_pressed")
+texture_margin_left = 2.0
+texture_margin_top = 3.0
+texture_margin_right = 2.0
+texture_margin_bottom = 1.0
+modulate_color = Color(1, 0.62, 0.62, 1)
+
 [resource]
 default_font = ExtResource("1_font")
 default_font_size = 8
@@ -184,12 +251,24 @@ CellPanel/base_type = &"Panel"
 CellPanel/styles/panel = SubResource("cell")
 ChoicePanel/base_type = &"PanelContainer"
 ChoicePanel/styles/panel = SubResource("choice")
+DangerButton/base_type = &"Button"
+DangerButton/styles/hover = SubResource("danger_hover")
+DangerButton/styles/normal = SubResource("danger")
+DangerButton/styles/pressed = SubResource("danger_pressed")
 DialogPanel/base_type = &"PanelContainer"
 DialogPanel/styles/panel = SubResource("paper")
 FacesetFrame/base_type = &"PanelContainer"
 FacesetFrame/styles/panel = SubResource("faceset")
 FieldLabel/base_type = &"Label"
 FieldLabel/colors/font_shadow_color = Color(0.078, 0.106, 0.106, 1)
+FocusFrame/base_type = &"Panel"
+FocusFrame/styles/panel = SubResource("focus")
+GearRow/base_type = &"PanelContainer"
+GearRow/styles/panel = SubResource("empty")
+GearRowDrop/base_type = &"PanelContainer"
+GearRowDrop/styles/panel = SubResource("cell_row")
+GearRowFocus/base_type = &"PanelContainer"
+GearRowFocus/styles/panel = SubResource("focus")
 HeaderLabel/base_type = &"Label"
 HeaderLabel/colors/font_color = Color(1, 0.678, 0.365, 1)
 HintLabel/base_type = &"Label"

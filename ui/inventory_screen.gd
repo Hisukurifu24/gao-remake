@@ -37,11 +37,6 @@ const COLUMNS := 6
 const SLOT_SIZE := Vector2(20, 20)
 const ICON_INSET := 2.0
 const GEAR_ICON_SIZE := Vector2(16, 16)
-## Unused slots sit a shade under the lit ones, so the end of the bag reads.
-const EMPTY_TINT := Color(0.72, 0.72, 0.72)
-
-## The pack's own highlight frame: the cursor, on a slot or a gear row.
-const FOCUS_FRAME := preload("res://assets/ninja_adventure/Ui/Theme/Theme Wood/nine_path_focus.png")
 
 ## Which panel the cursor is in.
 enum Focus { BAG, GEAR }
@@ -319,7 +314,8 @@ func _begin_drag(source: Control, data: Dictionary) -> Variant:
 	var chip := Panel.new()
 	chip.size = SLOT_SIZE
 	chip.position = -chip.size * 0.5
-	chip.add_theme_stylebox_override(&"panel", _slot_style(item))
+	chip.theme_type_variation = &"CellPanel"
+	chip.self_modulate = _cell_tint(item)
 	var icon := TextureRect.new()
 	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_inset(icon)
@@ -439,6 +435,7 @@ func _payload(data: Variant) -> Dictionary:
 func _build_slots() -> void:
 	for i in Inventory.CAPACITY:
 		var slot := Panel.new()
+		slot.theme_type_variation = &"CellPanel"
 		slot.custom_minimum_size = SLOT_SIZE
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
 
@@ -470,7 +467,7 @@ func _build_slots() -> void:
 		frame.name = "Frame"
 		frame.set_anchors_preset(Control.PRESET_FULL_RECT)
 		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		frame.add_theme_stylebox_override(&"panel", _frame_style(Color.WHITE))
+		frame.theme_type_variation = &"FocusFrame"
 		slot.add_child(frame)
 
 		slot.mouse_entered.connect(_on_bag_hovered.bind(i))
@@ -504,6 +501,7 @@ func _build_gear_rows() -> void:
 		row.add_child(icon)
 		row.move_child(icon, 0)
 
+		panel.theme_type_variation = &"GearRow"
 		panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		panel.mouse_entered.connect(_on_gear_hovered.bind(i))
 		panel.gui_input.connect(_on_gear_clicked.bind(i))
@@ -519,11 +517,14 @@ func _build_gear_rows() -> void:
 ## [kbd]Q[/kbd] does, and dragged onto it throws away whatever was carried there.
 func _build_footer() -> void:
 	_trash = _make_button("Discard", _drop)
+	# The pack's plate tinted red: the one button here that destroys things.
+	_trash.theme_type_variation = &"DangerButton"
 	_trash.set_drag_forwarding(Callable(), _trash_can_drop, _trash_drop)
 	_footer.add_child(_trash)
 
-	_footer.add_child(_make_button("Sort", func() -> void: Inventory.sort()))
-	_footer.add_child(_make_button("Close", close))
+	# The key on the button, since the hint line has no room for it.
+	_footer.add_child(_make_button("Sort [R]", func() -> void: Inventory.sort()))
+	_footer.add_child(_make_button("Close [I]", close))
 
 
 func _make_button(text: String, on_press: Callable) -> Button:
@@ -544,33 +545,16 @@ func _inset(control: Control) -> void:
 	control.offset_bottom = -ICON_INSET
 
 
-## A slot is the pack's cell, tinted by what is in it. The tint carries rarity,
-## so the grid reads at a glance without every icon needing its own colour scheme.
-func _slot_style(item: Item, droppable := false) -> StyleBoxTexture:
-	var style := (get_theme_stylebox_for(&"CellPanel")).duplicate() as StyleBoxTexture
+## A slot is the pack's cell ([code]CellPanel[/code]), tinted by what is in it.
+## The tint carries rarity, so the grid reads at a glance without every icon
+## needing its own colour scheme. It is the slot's [member CanvasItem.self_modulate],
+## which reaches the cell and not the icon drawn on it -- and costs no stylebox.
+func _cell_tint(item: Item, droppable := false) -> Color:
 	if droppable:
-		style.modulate_color = UiPalette.DROP
-	elif item != null:
-		style.modulate_color = item.rarity_color().lerp(Color.WHITE, 0.3)
-	else:
-		style.modulate_color = EMPTY_TINT
-	return style
-
-
-## The highlight frame, drawn a pixel outside whatever it is on. With no content
-## margins, so nothing inside shifts when it appears.
-func _frame_style(tint: Color) -> StyleBoxTexture:
-	var style := StyleBoxTexture.new()
-	style.texture = FOCUS_FRAME
-	style.set_texture_margin_all(3.0)
-	style.set_content_margin_all(0.0)
-	style.set_expand_margin_all(1.0)
-	style.modulate_color = tint
-	return style
-
-
-func get_theme_stylebox_for(variation: StringName) -> StyleBox:
-	return ThemeDB.get_project_theme().get_stylebox(&"panel", variation)
+		return UiPalette.DROP
+	if item != null:
+		return item.rarity_color().lerp(Color.WHITE, 0.3)
+	return UiPalette.EMPTY_SLOT
 
 
 # --- drawing ---------------------------------------------------------------
@@ -606,8 +590,7 @@ func _paint_slots() -> void:
 
 		var selected := _focus == Focus.BAG and i == _bag_index and stack != null
 		var droppable := not lifted and _accepts_bag(_drag, i)
-		slot.add_theme_stylebox_override(&"panel",
-				_slot_style(stack.item if stack != null else null, droppable))
+		slot.self_modulate = _cell_tint(stack.item if stack != null else null, droppable)
 		# The frame is the cursor and only the cursor; where a drop may land is
 		# the green cell underneath, so the two never have to share one cue.
 		(slot.get_node("Frame") as Panel).visible = selected
@@ -618,17 +601,17 @@ func _dragging_from_bag(index: int) -> bool:
 
 
 ## An equipment row's box: invisible until it means something, and with no
-## content margins either way, so nothing shifts a pixel when it appears.
-func _gear_style(selected: bool, droppable: bool) -> StyleBox:
+## content margins either way, so nothing shifts a pixel when it appears. A drop
+## target is the same green cell a bag slot lights up with, stretched under the row.
+func _paint_gear_row(panel: PanelContainer, selected: bool, droppable: bool) -> void:
+	var variation := &"GearRow"
 	if droppable:
-		# The same green cell a bag slot lights up with, stretched under the row.
-		var cell := _slot_style(null, true)
-		cell.set_content_margin_all(0.0)
-		cell.set_expand_margin_all(1.0)
-		return cell
-	if selected:
-		return _frame_style(Color.WHITE)
-	return StyleBoxEmpty.new()
+		variation = &"GearRowDrop"
+	elif selected:
+		variation = &"GearRowFocus"
+	if panel.theme_type_variation != variation:
+		panel.theme_type_variation = variation
+	panel.self_modulate = UiPalette.DROP if droppable else Color.WHITE
 
 
 func _paint_gear() -> void:
@@ -661,7 +644,7 @@ func _paint_gear() -> void:
 		value_label.add_theme_color_override(&"font_color", color)
 
 		var selected := _focus == Focus.GEAR and i == _gear_index
-		panel.add_theme_stylebox_override(&"panel", _gear_style(selected, droppable))
+		_paint_gear_row(panel, selected, droppable)
 
 	_totals.text = "ATK %d DEF %d SPD %d HP %d" % [
 			GameState.total_attack(), GameState.total_defense(),

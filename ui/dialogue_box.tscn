@@ -51,7 +51,7 @@ mouse_filter = 2
 theme_type_variation = &"FacesetFrame"
 
 [node name="Face" type="TextureRect" parent="Box/Row/Portrait"]
-custom_minimum_size = Vector2(24, 24)
+custom_minimum_size = Vector2(19, 19)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5

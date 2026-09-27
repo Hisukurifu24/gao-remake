@@ -247,6 +247,42 @@ const PACK_BIOMES := {
 			["tileset_camp.png", Rect2i(10, 0, 3, 3)],
 		],
 	},
+	"ruins": {
+		# Sandstone: the relief sheet's orange block, laid out as the grey one the cave
+		# uses. Its pale tops stay: grassed over, the rock is the same colour as the
+		# rooms cut into it and a floor stops reading as rooms at all.
+		"walls": "cliffs",
+		"cliffs": ["TilesetRelief.png", Vector2i(0, 5)],
+		"slots": [
+			["TilesetFloor.png", Vector2i(0, 12)],   # floor: plain grass
+			["TilesetFloor.png", Vector2i(1, 12)],   # floor-alt: grass with a tuft
+			["TilesetFloor.png", Vector2i(1, 8)],    # path: dirt
+			["TilesetFloor.png", Vector2i(1, 11)],   # special: dirt with a pebble
+			["TilesetWater.png", Vector2i(1, 7)],    # liquid: open water
+			["TilesetReliefDetail.png", Vector2i(4, 3)],  # obstacle: a sandstone boulder
+			null,                                    # wall: the cliff blob's solid tile
+			null,                                    # wall-alt: invisible, a house's footprint
+		],
+		# The meadow's grass, which is the palette the pack draws its abandoned village
+		# in: what grew back over the ruins is the same grass that grows on floor 1.
+		"ground": ["TilesetFloor.png", Rect2i(0, 7, 11, 6)],
+		"ground_rare": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5),
+				Vector2i(0, 4), Vector2i(1, 4)],
+		"liquid": ["TilesetWater.png", Rect2i(0, 6, 13, 5)],
+		# Sandstone rubble twice over, tufts, and the odd bone. The abandoned village's
+		# own rubble and paving would suit better, but that sheet is drawn off the
+		# 16 px grid and no piece of it fits in one cell.
+		"decor": [
+			["TilesetReliefDetail.png", Vector2i(0, 3)], ["TilesetReliefDetail.png", Vector2i(0, 5)],
+			["TilesetReliefDetail.png", Vector2i(4, 4)], ["TilesetReliefDetail.png", Vector2i(4, 5)],
+			["TilesetReliefDetail.png", Vector2i(0, 3)], ["TilesetReliefDetail.png", Vector2i(0, 5)],
+			["TilesetReliefDetail.png", Vector2i(4, 4)], ["TilesetReliefDetail.png", Vector2i(4, 5)],
+			["TilesetFloorDetail.png", Vector2i(0, 2)], ["TilesetFloorDetail.png", Vector2i(3, 2)],
+			["TilesetFloorDetail.png", Vector2i(1, 2)], ["TilesetReliefDetail.png", Vector2i(0, 4)],
+			["TilesetFloorDetail.png", Vector2i(14, 0)],
+		],
+		"decor_density": 0.05,
+	},
 }
 
 var _sheets := {}

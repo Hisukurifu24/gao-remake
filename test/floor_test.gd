@@ -111,10 +111,10 @@ func _run() -> void:
 			"every biome dresses its wall mass, as a blob or as forest%s" % (
 				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
 
-	# Floor 37's blob is drawn by the placeholder generator; floor 24's is the cave's,
-	# put together from the pack's cliffs, on a Walls layer it shares with pools that
-	# carry a terrain of their own.
-	for sample: int in [37, 24]:
+	# Floor 45's blob is drawn by the placeholder generator; floors 24 and 37 are the
+	# cave's and the ruins', put together from the pack's cliffs, on a Walls layer they
+	# share with pools that carry a terrain of their own.
+	for sample: int in [45, 24, 37]:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var wall_set := sample_floor.biome.wall_terrain_set
 		var label := "floor %d (%s)" % [sample, sample_floor.biome.id]
@@ -130,11 +130,12 @@ func _run() -> void:
 		tiled.free()
 
 	# --- dressing: forest, ground and water ---
-	# Floors 5, 15 and 24 are the meadow, the forest and the cave, all pack biomes:
-	# the first two wall with trees, the cave with cliffs, and all three join their
-	# ground and water into edges. None of that may touch collision, and all of it has
-	# to come out the same from the same seed.
-	var styles := {5: BiomeKit.WallStyle.TREES, 15: BiomeKit.WallStyle.TREES, 24: BiomeKit.WallStyle.BLOB}
+	# Floors 5, 15, 24 and 37 are the meadow, the forest, the cave and the ruins, all
+	# pack biomes: the first two wall with trees, the last two with cliffs, and all four
+	# join their ground and water into edges. None of that may touch collision, and all
+	# of it has to come out the same from the same seed.
+	var styles := {5: BiomeKit.WallStyle.TREES, 15: BiomeKit.WallStyle.TREES,
+			24: BiomeKit.WallStyle.BLOB, 37: BiomeKit.WallStyle.BLOB}
 	for sample: int in styles:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var sample_biome := sample_floor.biome

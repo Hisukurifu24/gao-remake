@@ -16,8 +16,9 @@ const TEXT := Color("f2eaf1")
 const DIM := Color("abc2bc")
 const LOCKED := Color("8f9a88")
 const HEADER := Color("ffad5d")
-## Where the cursor is. Pale on purpose: in the journal, amber means *ready*.
-const SELECTED := Color("fce2ca")
+## Where the cursor is in the combat menu. Blue on purpose: it has to stand off
+## TEXT at a glance, and amber already means *ready* and orange *targeted*.
+const SELECTED := Color("9fd8ef")
 const READY := Color("ffcb4d")
 const DONE := Color("b9d977")
 const TRACKED := Color("e3b4d2")
@@ -29,10 +30,6 @@ const BAD := Color("ef9597")
 const INK := Color("141b1b")
 const INK_SELECTED := Color("d14b34")
 const INK_LOCKED := Color("9c8a80")
-const NAME_TAG := Color("f2eaf1")
-
-# --- the backdrop behind full-screen menus ---------------------------------
-const BACKDROP := Color("2b2824")
 
 # --- health ------------------------------------------------------------------
 ## SAO's cursor colours: green while you're fine, amber when you should think,
@@ -47,11 +44,12 @@ const DAMAGE := Color("ffe18d")
 const CRIT := Color("ff9554")
 const HEAL := Color("b9d977")
 const MISS := Color("abc2bc")
-const OUTLINE := Color("141b1b")
 
-# --- dragging in the bag ----------------------------------------------------
+# --- the bag -----------------------------------------------------------------
+## Where a dragged stack may land.
 const DROP := Color("b9d977")
-const TRASH := Color("ef9597")
+## Unused slots sit a shade under the lit ones, so the end of the bag reads.
+const EMPTY_SLOT := Color(0.72, 0.72, 0.72)
 
 
 static func hp_color(ratio: float) -> Color:

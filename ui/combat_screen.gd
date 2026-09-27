@@ -310,9 +310,8 @@ func _populate(labels: PackedStringArray, locked: PackedInt32Array) -> void:
 	_paint()
 	_menu.show()
 	# Collapse onto the new rows: the panel is anchored bottom-right and grows up
-	# and left, but a PanelContainer never shrinks back on its own.
-	_menu.offset_left = _menu.offset_right - 1.0
-	_menu.offset_top = _menu.offset_bottom - 1.0
+	# and left.
+	UiLayout.shrink_wrap(_menu)
 
 
 func _move_selection(step: int) -> void:
