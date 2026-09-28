@@ -51,7 +51,7 @@ func _ready() -> void:
 
 	# One floor per biome band worth showing off, and the authored ones past the
 	# first -- 24 and 25 side by side are the same band generated and built.
-	for floor_number in [2, 10, 15, 24, 25, 37, 45, 55, 87, 100]:
+	for floor_number in [2, 10, 15, 24, 25, 37, 45, 55, 65, 87, 100]:
 		await _capture_floor(floor_number)
 
 	print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
@@ -232,6 +232,13 @@ func _capture_combat() -> void:
 			FloorTuning.enemy_level(55), 55))
 	await _until_command()
 	await _capture("07e_combat_desert")
+	await _end_fight()
+
+	# The ice's golem, on snow: the palest ground a battler has to stand out on.
+	CombatManager.start(Bestiary.single_encounter(Bestiary.get_enemy(&"stone_golem"),
+			FloorTuning.enemy_level(65), 65))
+	await _until_command()
+	await _capture("07f_combat_ice")
 	await _end_fight()
 	GameState.defense = defense
 	GameState.set_hp(GameState.total_max_hp())

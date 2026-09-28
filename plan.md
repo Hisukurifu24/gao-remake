@@ -310,11 +310,34 @@ and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
   - **Open:** the desert sheet's palms, domed sandstone houses and wells are unused —
     nothing authored stands in the band yet, and a `BLOB` biome plants no trees. Palms by
     an oasis would want the same generator work as the swamp's real pools.
-- [ ] **The other four biomes** — ice next, then volcanic, sky and the castle.
+- [x] **Ice band**: a snowbound pine wood. The outdoor bands wall with trees, and the pack
+  draws its pines again under snow — the white ones three times over, pines with green
+  showing through twice, a round tree once, and a snowed-over bush where no tree fits. The
+  ground is the meadow's block drawn in snow, lavender old snow for the grass and white for
+  the paths; `pale_dirt` became a luminance threshold (0.75 on sand, 0.97 on snow, where
+  the grass's fringe is grey). Water is the pack's frozen pond, and it took two fixes:
+  - **Its foam is the white of its land**, so `_is_water` read the whole bank as water, and
+    reading blue alone missed every edge the water reaches through a foam line. Those cells
+    then claimed no links, tied with the composed puddle, and lone pools drew stray pieces
+    of the big pond. The pond is the desert's oasis redrawn, identical water pixel for
+    water pixel in all 55 cells, so its links are read off the oasis (`liquid_links`,
+    checked per cell by `_same_water`). **The floor test missed this** (the matcher's pick
+    had no links, as asked), so it now also refuses any unlinked pool tile with water on its
+    edge pixels; that check fails the broken build.
+  - **Its land is white, the floor lavender**, and the foam is that white too, so the
+    desert's one-colour swap would have erased it. `liquid_land_regions` repaints only the
+    white regions touching nothing but the ground's own colours.
+  Scatter is the pack's frosted tufts and leaves, snow drifts and teal stones. Stone Golem
+  = Beast2 (it also walks the volcanic and castle bands). Floor 65 stopped being the floor
+  test's placeholder-blob sample; that is floor 75 now.
+  - **Open:** the relief sheet's grey block has snow tops and a frozen fall, unused: a
+    `BLOB` ice band (glacier walls) is the alternative if the wood reads too much like the
+    forest bands.
+- [ ] **The other three biomes** — volcanic next, then sky and the castle.
 - [ ] Lanternfall's props: the camp sheet has lantern posts, crates, a campfire, and the relief
   detail sheet has ladders and a mine mouth for the lift. Needs a way to place standing props
   on authored maps that isn't `_house()`.
-- [ ] The rest of the roster (golem, drake), item icons from `Items/`, and
+- [ ] The rest of the roster (drake), item icons from `Items/`, and
   the chest's open frame checked in play. Audio stays with M7 — it is in the pack already.
 - [x] **Redo all the UI on the pack.** All six screens — `hud`, `dialogue_box`,
   `combat_screen`, `inventory_screen`, `quest_journal`, `quest_tracker` — wear one shared
@@ -735,8 +758,9 @@ darker one of pines and dead oaks round deep grass, and Floors 20–29 are caver
 black rock, with cliff faces where the rock stands over you. Floors 30–39 are overgrown
 ruins: sandstone terraces over grass, and wraiths drifting between them; Floors 40–49 a
 dead wood of bare trees round purple bog, where the lizardmen live; Floors 50–59 a canyon of sandstone mesas over
-orange dunes, pale sand trails between the rooms and the odd oasis. The other bands still
-draw placeholders.
+orange dunes, pale sand trails between the rooms and the odd oasis; Floors 60–69 a pine
+wood under snow, white trails through old snow and frozen pools, where golems walk. The
+other bands still draw placeholders.
 
 And the screens finally match the maps. Every menu is on the pack now: wooden windows,
 the pack's paper dialogue box with a framed portrait and a name tag, orange buttons, its
@@ -765,7 +789,7 @@ bottom only goes up.
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 54-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 74-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 88-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 84-check combat test
@@ -797,7 +821,7 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 ## Immediate next steps
 1. **Finish the art rollout, before any new floor** (M5.5 §0). Meadow, forest, cave and
    ruins are done, and with them every authored floor so far; the swamp and the desert are
-   done too, the swamp ready for Floor 40. Four bands remain, ice next. The UI is done. Same reason as the rest of M5.5: a floor laid out on placeholder
+   done too, the swamp ready for Floor 40, and the ice. Three bands remain, volcanic next. The UI is done. Same reason as the rest of M5.5: a floor laid out on placeholder
    art is laid out twice.
 2. **M5.5 — Exploration feel, before any new floor.** Camera zoom and moving monsters are
    in. **Next: §3, a boss room you have to find** — which starts with picking among its

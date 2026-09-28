@@ -361,9 +361,10 @@ const PACK_BIOMES := {
 		# The meadow's block drawn in sand. Both sands are warmer than green, so _is_dirt
 		# would call all of it dirt; and the dune lines are not the grass's tufts, so the
 		# meadow's links cannot be borrowed the way the cave borrows them. Its dirt is
-		# the pale sand instead (_is_pale).
+		# the pale sand instead, read by luminance: the pale side and its shading sit
+		# above 0.75, the deep side and its dune lines below it.
 		"ground": ["TilesetFloor.png", Rect2i(0, 0, 11, 6)],
-		"pale_dirt": true,
+		"pale_dirt": 0.75,
 		"ground_rare": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5),
 				Vector2i(0, 4), Vector2i(1, 4)],
 		# The pack's oasis: its pond laid out as the meadow's, already banked in sand.
@@ -383,6 +384,60 @@ const PACK_BIOMES := {
 			["TilesetDesert.png", Vector2i(19, 11)],
 		],
 		"decor_density": 0.04,
+	},
+	"ice": {
+		# A snowbound pine wood: the outdoor bands wall with trees, and the pack draws
+		# its pines and oaks again under snow.
+		"walls": "trees",
+		"slots": [
+			["TilesetFloor.png", Vector2i(0, 19)],   # floor: old snow
+			["TilesetFloor.png", Vector2i(1, 19)],   # floor-alt: old snow with a frosted tuft
+			["TilesetFloor.png", Vector2i(1, 15)],   # path: fresh snow
+			["TilesetFloor.png", Vector2i(1, 18)],   # special: fresh snow with a pebble
+			["TilesetWater.png", Vector2i(14, 1)],   # liquid: a frozen pool
+			["TilesetNature.png", Vector2i(5, 12)],  # obstacle: a snowed-over bush
+			["TilesetFloor.png", Vector2i(0, 19)],   # wall: snow under the canopy, as the meadow
+			null,                                    # wall-alt: invisible, a house's footprint
+		],
+		# The meadow's block drawn in snow: lavender old snow for the grass, white for
+		# the dirt, and a grey fringe that is the grass's. Only the white is dirt.
+		"ground": ["TilesetFloor.png", Rect2i(0, 14, 11, 6)],
+		"pale_dirt": 0.97,
+		"ground_rare": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5),
+				Vector2i(0, 4), Vector2i(1, 4)],
+		# The pack's frozen pond, banked in the lavender the floor is. Its foam is the
+		# white of its land, so whether water reaches an edge cannot be read off it: its
+		# links are read off the desert's oasis beside it, which is the same drawing
+		# water pixel for water pixel.
+		"liquid": ["TilesetWater.png", Rect2i(13, 0, 11, 5)],
+		"liquid_links": Rect2i(0, 0, 11, 5),
+		# Its land is the white of the path, and the floor is the lavender: the white
+		# becomes the floor's, but only where it is land -- regions touching nothing but
+		# the ground's colours -- since the foam is drawn in that white too.
+		"liquid_land": ["TilesetWater.png", Vector2i(13, 5)],
+		"liquid_land_regions": true,
+		# Snowed-in pines three times over, green ones showing through twice, and a
+		# round tree under snow once.
+		"trees": [
+			["TilesetNature.png", Vector2i(10, 0)],
+			["TilesetNature.png", Vector2i(10, 0)],
+			["TilesetNature.png", Vector2i(10, 0)],
+			["TilesetNature.png", Vector2i(8, 0)],
+			["TilesetNature.png", Vector2i(8, 0)],
+			["TilesetNature.png", Vector2i(12, 0)],
+		],
+		# The pack's tufts and leaves drawn frosted, drifts, and teal stones.
+		"decor": [
+			["TilesetFloorDetail.png", Vector2i(0, 3)], ["TilesetFloorDetail.png", Vector2i(1, 3)],
+			["TilesetFloorDetail.png", Vector2i(2, 3)], ["TilesetFloorDetail.png", Vector2i(3, 3)],
+			["TilesetFloorDetail.png", Vector2i(0, 3)], ["TilesetFloorDetail.png", Vector2i(3, 3)],
+			["TilesetFloorDetail.png", Vector2i(4, 3)], ["TilesetFloorDetail.png", Vector2i(6, 3)],
+			["TilesetFloorDetail.png", Vector2i(7, 3)],
+			["TilesetFloorDetail.png", Vector2i(10, 0)], ["TilesetFloorDetail.png", Vector2i(10, 0)],
+			["TilesetNature.png", Vector2i(8, 13)],
+			["TilesetNature.png", Vector2i(6, 12)], ["TilesetNature.png", Vector2i(7, 12)],
+		],
+		"decor_density": 0.05,
 	},
 }
 
@@ -547,7 +602,10 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 	# same drawing" is checked a cell at a time, because it is not quite: the taupe
 	# block draws mud in a cell where the meadow's has plain grass, and trusting the
 	# meadow there wires a mud tile as ground and paints it across every cavern floor.
-	var dirt_test := _is_pale if spec.get("pale_dirt", false) else _is_dirt
+	var dirt_test := _is_dirt
+	if spec.has("pale_dirt"):
+		var threshold: float = spec["pale_dirt"]
+		dirt_test = func(colour: Color) -> bool: return colour.get_luminance() > threshold
 	var link_sheet: Image = null
 	var link_palette := {}
 	if spec.has("ground_links"):
@@ -581,10 +639,25 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 	for y in liquid.size.y:
 		for x in liquid.size.x:
 			liquid_cells.append(Vector2i(x, ROW_LIQUID + y))
+	# A pond whose foam is the white of its land is read off the same pond drawn on
+	# other land -- but only where the two hold their water in the same pixels.
+	var liquid_sheet := _sheet(spec["liquid"][0])
+	var borrowed: bool = spec.has("liquid_links")
 	for coords in liquid_cells:
 		if _is_empty(atlas, coords):
 			continue
-		var links := _links(atlas, coords, _is_water)
+		var links: Array[bool]
+		if not borrowed:
+			links = _links(atlas, coords, _is_water)
+		elif coords == PUDDLE:
+			# Nothing drawn to borrow from; a lone pool touches no edge with anything.
+			links = _links(atlas, coords, _is_blue)
+		else:
+			var cell := coords - Vector2i(0, ROW_LIQUID)
+			var link_cell: Vector2i = (spec["liquid_links"] as Rect2i).position + cell
+			if not _same_water(liquid_sheet, link_cell, liquid.position + cell):
+				continue
+			links = _links(liquid_sheet, link_cell, _is_water)
 		# A tile with no water in it is plain land, and the land's business.
 		if not links[8]:
 			continue
@@ -673,7 +746,14 @@ func _compose(spec: Dictionary) -> Image:
 		# colour becomes the floor's, and the rest of the bank stays as drawn.
 		var land: Array = spec["liquid_land"]
 		var liquid_cells := Rect2i(Vector2i(0, ROW_LIQUID), (spec["liquid"][1] as Rect2i).size)
-		var changed := _repaint(atlas, liquid_cells, {_dominant(_sheet(land[0]), land[1]): _dominant(atlas, Vector2i.ZERO)})
+		var from := _dominant(_sheet(land[0]), land[1])
+		var to := _dominant(atlas, Vector2i.ZERO)
+		var changed := 0
+		if spec.get("liquid_land_regions", false):
+			var ground_cells := Rect2i(Vector2i(0, ROW_GROUND), (spec["ground"][1] as Rect2i).size)
+			changed = _repaint_land(atlas, liquid_cells, from, to, _colours(atlas, ground_cells))
+		else:
+			changed = _repaint(atlas, liquid_cells, {from: to})
 		print("  shoreline repainted: %d pixels" % changed)
 	# From the atlas rather than the sheet, so it comes already repainted.
 	var strip := (Vector2i(0, ROW_LIQUID) + LIQUID_STRIP) * TILE
@@ -837,6 +917,58 @@ func _repaint(atlas: Image, cells: Rect2i, palette: Dictionary) -> int:
 	return changed
 
 
+## Repaints the regions of colour [param from] inside [param cells] that touch nothing
+## but [param ground] -- the land round a pond, where its foam, drawn in the same
+## colour, always touches the bank or the water. Returns how many pixels moved.
+func _repaint_land(atlas: Image, cells: Rect2i, from: int, to: int, ground: Dictionary) -> int:
+	var area := Rect2i(cells.position * TILE, cells.size * TILE)
+	var seen := {}
+	var changed := 0
+	for y in range(area.position.y, area.end.y):
+		for x in range(area.position.x, area.end.x):
+			var start := Vector2i(x, y)
+			if seen.has(start) or atlas.get_pixelv(start).to_rgba32() != from:
+				continue
+			seen[start] = true
+			var region: Array[Vector2i] = [start]
+			var open := true
+			var next := 0
+			while next < region.size():
+				var pixel := region[next]
+				next += 1
+				for dy in range(-1, 2):
+					for dx in range(-1, 2):
+						var near := pixel + Vector2i(dx, dy)
+						if not area.has_point(near):
+							continue
+						var colour := atlas.get_pixelv(near)
+						var key := colour.to_rgba32()
+						if key == from:
+							# Grown through sides only, so a region never leaks
+							# across a diagonal gap in a ring.
+							if dx * dy == 0 and not seen.has(near):
+								seen[near] = true
+								region.append(near)
+						elif colour.a > 0.0 and not ground.has(key):
+							open = false
+			if open:
+				for pixel in region:
+					atlas.set_pixelv(pixel, Color.hex(to))
+				changed += region.size()
+	return changed
+
+
+## Every colour drawn inside [param cells] of the atlas, as RGBA32 keys.
+func _colours(atlas: Image, cells: Rect2i) -> Dictionary:
+	var colours := {}
+	for y in cells.size.y * TILE:
+		for x in cells.size.x * TILE:
+			var colour := atlas.get_pixelv(cells.position * TILE + Vector2i(x, y))
+			if colour.a > 0.0:
+				colours[colour.to_rgba32()] = true
+	return colours
+
+
 ## How a transition tile connects, read off its pixels: eight flags in
 ## MapDresser.PEERING_BITS order, then whether the terrain is in the tile at all.
 ##
@@ -885,18 +1017,29 @@ func _is_dirt(colour: Color) -> bool:
 	return colour.r > colour.g + 0.03
 
 
-## The desert's dirt: its paths are the pale sand, its ground the deep orange. The
-## pale side and its shading sit above 0.75 luminance, the deep side and its dune
-## lines below it.
-func _is_pale(colour: Color) -> bool:
-	return colour.get_luminance() > 0.75
-
-
 ## Water, the swamp's purple bog, or the white foam at the edge of either.
 func _is_water(colour: Color) -> bool:
 	return (colour.b > colour.r + 0.08 and colour.b > colour.g - 0.04) \
 			or (colour.g < colour.r - 0.1 and colour.g < colour.b - 0.05) \
 			or (colour.r > 0.78 and colour.g > 0.78 and colour.b > 0.78)
+
+
+## Water alone, without its foam: for a pond banked in snow, whose foam is the white
+## of the land round it.
+func _is_blue(colour: Color) -> bool:
+	return colour.b > colour.r + 0.08 and colour.b > colour.g - 0.04
+
+
+## Whether two cells of [param image] hold their water in the same pixels, to within
+## a stray pixel or two.
+func _same_water(image: Image, a: Vector2i, b: Vector2i) -> bool:
+	var off := 0
+	for y in TILE:
+		for x in TILE:
+			if _passes(image, a * TILE + Vector2i(x, y), _is_blue) \
+					!= _passes(image, b * TILE + Vector2i(x, y), _is_blue):
+				off += 1
+	return off <= 4
 
 
 func _is_empty(atlas: Image, coords: Vector2i) -> bool:

@@ -111,10 +111,10 @@ func _run() -> void:
 			"every biome dresses its wall mass, as a blob or as forest%s" % (
 				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
 
-	# Floor 65's blob is drawn by the placeholder generator; floors 24, 37 and 55 are
+	# Floor 75's blob is drawn by the placeholder generator; floors 24, 37 and 55 are
 	# the cave's, the ruins' and the desert's, put together from the pack's cliffs, on a
 	# Walls layer they share with pools that carry a terrain of their own.
-	for sample: int in [65, 24, 37, 55]:
+	for sample: int in [75, 24, 37, 55]:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var wall_set := sample_floor.biome.wall_terrain_set
 		var label := "floor %d (%s)" % [sample, sample_floor.biome.id]
@@ -130,14 +130,15 @@ func _run() -> void:
 		tiled.free()
 
 	# --- dressing: forest, ground and water ---
-	# Floors 5, 15, 24, 37, 45 and 55 are the meadow, the forest, the cave, the ruins,
-	# the swamp and the desert, all pack biomes: the cave, the ruins and the desert wall
-	# with cliffs, the rest with trees, and all six join their ground and water into
-	# edges. None of that may touch collision, and all of it has to come out the same
+	# Floors 5, 15, 24, 37, 45, 55 and 65 are the meadow, the forest, the cave, the
+	# ruins, the swamp, the desert and the ice, all pack biomes: the cave, the ruins and
+	# the desert wall with cliffs, the rest with trees, and all seven join their ground
+	# and water into edges. None of that may touch collision, and all of it has to come out the same
 	# from the same seed.
 	var styles := {5: BiomeKit.WallStyle.TREES, 15: BiomeKit.WallStyle.TREES,
 			24: BiomeKit.WallStyle.BLOB, 37: BiomeKit.WallStyle.BLOB,
-			45: BiomeKit.WallStyle.TREES, 55: BiomeKit.WallStyle.BLOB}
+			45: BiomeKit.WallStyle.TREES, 55: BiomeKit.WallStyle.BLOB,
+			65: BiomeKit.WallStyle.TREES}
 	for sample: int in styles:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var sample_biome := sample_floor.biome
@@ -169,6 +170,12 @@ func _run() -> void:
 		_check(lone.x >= 0 and MapDresser.tile_flags(lone_source.get_tile_data(lone, 0),
 				sample_biome.liquid_terrain) == 0,
 				"a lone pool on %s draws a whole pond, not a strip's end" % label)
+		# The matcher cannot tell a real lone pond from a pond cell misread as linking
+		# to nothing: both claim no links, and a lone pool picks between them by hash.
+		# Only the art can: a tile that links nowhere draws no water on its edges.
+		var stray := _unlinked_water_on_edges(lone_source, sample_biome)
+		_check(stray.is_empty(), "every pool tile on %s that links nowhere keeps its water off its edges%s" % [
+				label, "" if stray.is_empty() else " -- not " + ", ".join(stray)])
 		var again := FloorGenerator.generate(sample_floor, FloorRegistry.seed_for(sample))
 		_check(_layer_signature(dressed, MapDresser.PROPS) == _layer_signature(again, MapDresser.PROPS)
 				and _layer_signature(dressed, "Ground") == _layer_signature(again, "Ground")
@@ -218,6 +225,34 @@ func _is_wall(walls: TileMapLayer, cell: Vector2i, wall_set: int) -> bool:
 ## This is the check that catches the art and the terrain data drifting apart --
 ## a mis-paired blob leaves the floor perfectly completable and merely wrong to
 ## look at, so nothing else in the suite would say a word about it.
+## Liquid tiles that claim no links but draw water on their outer ring of pixels.
+func _unlinked_water_on_edges(source: TileSetAtlasSource, biome: BiomeKit) -> PackedStringArray:
+	var image := source.texture.get_image()
+	image.decompress()
+	image.convert(Image.FORMAT_RGBA8)
+	var size := source.texture_region_size
+	var stray := PackedStringArray()
+	for index in source.get_tiles_count():
+		var coords := source.get_tile_id(index)
+		var data := source.get_tile_data(coords, 0)
+		if data.terrain_set != biome.liquid_terrain_set \
+				or MapDresser.tile_flags(data, biome.liquid_terrain) != 0:
+			continue
+		var origin := coords * size
+		var wet := 0
+		for step in size.x:
+			for pixel: Vector2i in [Vector2i(step, 0), Vector2i(step, size.y - 1),
+					Vector2i(0, step), Vector2i(size.x - 1, step)]:
+				var colour := image.get_pixelv(origin + pixel)
+				# Water and the swamp's bog; never foam, which can be the white of land.
+				if colour.a > 0.0 and ((colour.b > colour.r + 0.08 and colour.b > colour.g - 0.04)
+						or (colour.g < colour.r - 0.1 and colour.g < colour.b - 0.05)):
+					wet += 1
+		if wet > 0:
+			stray.append("%s (%d px)" % [coords, wet])
+	return stray
+
+
 func _mismatched_wall_tiles(walls: TileMapLayer, wall_set: int) -> int:
 	var bad := 0
 	for cell in walls.get_used_cells():
