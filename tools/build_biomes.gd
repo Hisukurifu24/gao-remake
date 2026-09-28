@@ -439,7 +439,58 @@ const PACK_BIOMES := {
 		],
 		"decor_density": 0.05,
 	},
+	"volcanic": {
+		# The sandstone cliffs with their tops burnt the black of the pack's pits:
+		# red rock under a charred crust, standing over ash and lava.
+		"walls": "cliffs",
+		"cliffs": ["TilesetRelief.png", Vector2i(0, 5)],
+		"cliff_top": ["TilesetHole.png", Vector2i(1, 1)],
+		"slots": [
+			["TilesetFloor.png", Vector2i(11, 19)],  # floor: ash
+			["TilesetFloor.png", Vector2i(12, 19)],  # floor-alt: ash with a scuff
+			["TilesetFloor.png", Vector2i(12, 15)],  # path: cinder
+			["TilesetFloor.png", Vector2i(12, 18)],  # special: cinder with a pebble
+			["TilesetWater.png", Vector2i(1, 7)],    # liquid: open lava, once repainted
+			["TilesetNature.png", Vector2i(4, 14)],  # obstacle: a rock seamed with ember ore
+			null,                                    # wall: the cliff blob's solid tile
+			null,                                    # wall-alt: invisible, a house's footprint
+		],
+		# The cave's taupe block, links read off the meadow's as the cave reads them,
+		# burnt down to ash: earth to the grey of the pits' rims, mud to cinder. The pack
+		# draws no ash, so this palette is typed -- but only into colours it does draw,
+		# which _recolour checks against Palette.png.
+		"ground": ["TilesetFloor.png", Rect2i(11, 14, 11, 6)],
+		"ground_links": Rect2i(0, 7, 11, 6),
+		"ground_recolour": {
+			"b3957f": "695953",  # earth -> ash
+			"8e7c73": "4e484a",  # its scuffs
+			"90775e": "4e484a",  # mud -> cinder
+			"816855": "3b3643",  # the mud's streaks
+			"c8966b": "816855",  # a pebble in it
+		},
+		"ground_rare": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5),
+				Vector2i(0, 4), Vector2i(1, 4)],
+		# The pack draws no lava. Its pond is banked onto the ground as the cave's is,
+		# and then its water is repainted in the pack's fire: see _lava.
+		"liquid": ["TilesetWater.png", Rect2i(0, 6, 13, 5)],
+		"liquid_palette": ["TilesetFloor.png", Rect2i(0, 7, 11, 6), Rect2i(11, 14, 11, 6)],
+		"liquid_ramp": "FX/Particle/Fire.png",
+		# Orange cracks and ember specks, which the dark ground makes glow, among
+		# stones, cinders and the odd skull.
+		"decor": [
+			["TilesetFloorDetail.png", Vector2i(5, 0)], ["TilesetFloorDetail.png", Vector2i(6, 0)],
+			["TilesetFloorDetail.png", Vector2i(7, 0)], ["TilesetFloorDetail.png", Vector2i(3, 0)],
+			["TilesetFloorDetail.png", Vector2i(5, 0)], ["TilesetFloorDetail.png", Vector2i(3, 0)],
+			["TilesetFloorDetail.png", Vector2i(4, 0)], ["TilesetFloorDetail.png", Vector2i(1, 0)],
+			["TilesetFloorDetail.png", Vector2i(15, 0)], ["TilesetReliefDetail.png", Vector2i(0, 0)],
+			["TilesetFloorDetail.png", Vector2i(15, 0)], ["TilesetReliefDetail.png", Vector2i(0, 3)],
+			["TilesetFloorDetail.png", Vector2i(13, 0)],
+		],
+		"decor_density": 0.05,
+	},
 }
+
+const PACK_ROOT := "res://assets/ninja_adventure/"
 
 var _sheets := {}
 
@@ -575,11 +626,17 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 	tile_set.add_physics_layer()
 	tile_set.set_physics_layer_collision_layer(0, 1)  # "world"
 
+	# Every link below is read off [code]atlas[/code]; what is drawn can be a liquid
+	# the pack never drew, repainted over the water whose pixels say where it runs.
+	var drawn := atlas
+	if spec.has("liquid_ramp"):
+		drawn = atlas.duplicate() as Image
+		_lava(drawn, spec)
 	var texture := PortableCompressedTexture2D.new()
 	# Outside the editor the source buffer is dropped once uploaded, and the TileSet
 	# would save with an empty texture that no tile fits inside.
 	texture.keep_compressed_buffer = true
-	texture.create_from_image(atlas, PortableCompressedTexture2D.COMPRESSION_MODE_LOSSLESS)
+	texture.create_from_image(drawn, PortableCompressedTexture2D.COMPRESSION_MODE_LOSSLESS)
 	var source := TileSetAtlasSource.new()
 	source.texture = texture
 	source.texture_region_size = Vector2i(TILE, TILE)
@@ -732,6 +789,8 @@ func _compose(spec: Dictionary) -> Image:
 	for index in slots.size():
 		if slots[index] != null:
 			_blit(atlas, slots[index][0], Rect2i(slots[index][1], Vector2i.ONE), Vector2i(index, 0))
+	# The ground slots before the cliffs, which are laid over the floor tile.
+	_recolour(atlas, spec, Rect2i(0, 0, 4, 1))
 	if spec.has("cliffs"):
 		_compose_cliffs(atlas, spec)
 	_blit(atlas, spec["ground"][0], spec["ground"][1], Vector2i(0, ROW_GROUND))
@@ -741,6 +800,7 @@ func _compose(spec: Dictionary) -> Image:
 		var liquid_cells := Rect2i(Vector2i(0, ROW_LIQUID), (spec["liquid"][1] as Rect2i).size)
 		var changed := _repaint(atlas, liquid_cells, _palette(swap[0], swap[1], swap[2]))
 		print("  shoreline repainted: %d pixels" % changed)
+	_recolour(atlas, spec, Rect2i(0, ROW_GROUND, PACK_COLUMNS, ROW_TREES - ROW_GROUND))
 	if spec.has("liquid_land"):
 		# A pond drawn on a ground this biome keeps for its paths: its plain land cell's
 		# colour becomes the floor's, and the rest of the bank stays as drawn.
@@ -902,6 +962,64 @@ func _drawn_alike(image: Image, reference: Vector2i, cell: Vector2i, palette: Di
 			elif palette.get(from.to_rgba32(), -1) != to.to_rgba32():
 				off += 1
 	return off <= 4
+
+
+## Repaints [param cells] by the spec's [code]ground_recolour[/code], if it has one:
+## a ground the pack never draws, put together from colours it does. A target
+## outside the pack's palette is refused rather than painted.
+func _recolour(atlas: Image, spec: Dictionary, cells: Rect2i) -> void:
+	if not spec.has("ground_recolour"):
+		return
+	var pack := Image.load_from_file(PACK_ROOT + "Palette.png")
+	pack.convert(Image.FORMAT_RGBA8)
+	var allowed := _ranked(pack, Rect2i(Vector2i.ZERO, pack.get_size()),
+			func(_colour: Color) -> bool: return true)
+	var palette := {}
+	var recolour: Dictionary = spec["ground_recolour"]
+	for from: String in recolour:
+		var to := Color.html(recolour[from]).to_rgba32()
+		if not to in allowed:
+			push_error("ground_recolour: %s is not a colour of the pack's palette" % recolour[from])
+			continue
+		palette[Color.html(from).to_rgba32()] = to
+	_repaint(atlas, cells, palette)
+
+
+## Lava, which the pack never draws: its pond, with the water's colours swapped for
+## the fire's, rank for rank by luminance -- the foam for the fire's pale core, the
+## shallows for its orange, the deep for its red. Both ramps are read off the pack
+## (the pond block, and [code]liquid_ramp[/code], a sheet of flame), so the lava is
+## drawn in colours the pack already uses. Only the liquid cells and the liquid slot
+## are repainted: the ramp's white is also a skull's.
+func _lava(atlas: Image, spec: Dictionary) -> void:
+	var pond: Rect2i = spec["liquid"][1]
+	var water := _ranked(_sheet(spec["liquid"][0]), Rect2i(pond.position * TILE, pond.size * TILE), _is_water)
+	var flame := Image.load_from_file(PACK_ROOT + spec["liquid_ramp"])
+	flame.convert(Image.FORMAT_RGBA8)
+	var fire := _ranked(flame, Rect2i(Vector2i.ZERO, flame.get_size()),
+			func(colour: Color) -> bool: return colour.get_luminance() > 0.1)
+	var palette := {}
+	for index in water.size():
+		var rank := roundi(float(index) * (fire.size() - 1) / maxi(1, water.size() - 1))
+		palette[water[index]] = fire[rank]
+	var changed := _repaint(atlas, Rect2i(0, ROW_LIQUID, PACK_COLUMNS, ROW_TREES - ROW_LIQUID), palette)
+	changed += _repaint(atlas, Rect2i(4, 0, 1, 1), palette)
+	print("  lava: %d water colours onto %d of fire, %d pixels" % [water.size(), fire.size(), changed])
+
+
+## The colours inside [param pixels] of [param image] that pass [param test], darkest
+## first, as RGBA32 keys.
+func _ranked(image: Image, pixels: Rect2i, test: Callable) -> Array:
+	var colours := {}
+	for y in range(pixels.position.y, pixels.end.y):
+		for x in range(pixels.position.x, pixels.end.x):
+			var pixel := Vector2i(x, y)
+			if _passes(image, pixel, test):
+				colours[image.get_pixelv(pixel).to_rgba32()] = true
+	var ranked := colours.keys()
+	ranked.sort_custom(func(a: int, b: int) -> bool:
+		return Color.hex(a).get_luminance() < Color.hex(b).get_luminance())
+	return ranked
 
 
 ## Swaps colours inside [param cells] of the atlas; returns how many pixels moved.

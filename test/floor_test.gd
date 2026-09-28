@@ -111,10 +111,11 @@ func _run() -> void:
 			"every biome dresses its wall mass, as a blob or as forest%s" % (
 				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
 
-	# Floor 75's blob is drawn by the placeholder generator; floors 24, 37 and 55 are
-	# the cave's, the ruins' and the desert's, put together from the pack's cliffs, on a
-	# Walls layer they share with pools that carry a terrain of their own.
-	for sample: int in [75, 24, 37, 55]:
+	# Floor 85's blob is drawn by the placeholder generator; floors 24, 37, 55 and 75
+	# are the cave's, the ruins', the desert's and the volcanic band's, put together
+	# from the pack's cliffs, on a Walls layer they share with pools that carry a
+	# terrain of their own.
+	for sample: int in [85, 24, 37, 55, 75]:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var wall_set := sample_floor.biome.wall_terrain_set
 		var label := "floor %d (%s)" % [sample, sample_floor.biome.id]
@@ -130,15 +131,15 @@ func _run() -> void:
 		tiled.free()
 
 	# --- dressing: forest, ground and water ---
-	# Floors 5, 15, 24, 37, 45, 55 and 65 are the meadow, the forest, the cave, the
-	# ruins, the swamp, the desert and the ice, all pack biomes: the cave, the ruins and
-	# the desert wall with cliffs, the rest with trees, and all seven join their ground
-	# and water into edges. None of that may touch collision, and all of it has to come out the same
+	# Floors 5, 15, 24, 37, 45, 55, 65 and 75 are the meadow, the forest, the cave, the
+	# ruins, the swamp, the desert, the ice and the volcanic band, all pack biomes: the
+	# cave, the ruins, the desert and the volcanic band wall with cliffs, the rest with
+	# trees, and all eight join their ground and water into edges. None of that may touch collision, and all of it has to come out the same
 	# from the same seed.
 	var styles := {5: BiomeKit.WallStyle.TREES, 15: BiomeKit.WallStyle.TREES,
 			24: BiomeKit.WallStyle.BLOB, 37: BiomeKit.WallStyle.BLOB,
 			45: BiomeKit.WallStyle.TREES, 55: BiomeKit.WallStyle.BLOB,
-			65: BiomeKit.WallStyle.TREES}
+			65: BiomeKit.WallStyle.TREES, 75: BiomeKit.WallStyle.BLOB}
 	for sample: int in styles:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var sample_biome := sample_floor.biome
@@ -244,9 +245,12 @@ func _unlinked_water_on_edges(source: TileSetAtlasSource, biome: BiomeKit) -> Pa
 			for pixel: Vector2i in [Vector2i(step, 0), Vector2i(step, size.y - 1),
 					Vector2i(0, step), Vector2i(size.x - 1, step)]:
 				var colour := image.get_pixelv(origin + pixel)
-				# Water and the swamp's bog; never foam, which can be the white of land.
+				# Water, the swamp's bog and the volcanic band's lava; never foam, which can
+				# be the white of land. Lava is told from the desert's sand, which is nearly
+				# as orange, by how much redder than green it is.
 				if colour.a > 0.0 and ((colour.b > colour.r + 0.08 and colour.b > colour.g - 0.04)
-						or (colour.g < colour.r - 0.1 and colour.g < colour.b - 0.05)):
+						or (colour.g < colour.r - 0.1 and colour.g < colour.b - 0.05)
+						or (colour.r > 0.85 and colour.b < 0.35 and colour.r - colour.g > 0.4)):
 					wet += 1
 		if wet > 0:
 			stray.append("%s (%d px)" % [coords, wet])
