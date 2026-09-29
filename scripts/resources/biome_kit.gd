@@ -56,6 +56,15 @@ enum WallStyle {
 ## [method MapDresser.anchor_for].
 @export var house_tiles: Array[Vector2i] = []
 
+@export_group("Backdrop")
+## Drawn repeating behind the map, where a see-through wall mass shows it -- the
+## sky under the sky band's lawns. Null for a biome whose walls are opaque.
+@export var backdrop: Texture2D
+## How far the backdrop moves as the camera does: under 1 reads as far below.
+@export var backdrop_scroll := Vector2(0.5, 0.5)
+## Pixels a second the backdrop drifts on its own.
+@export var backdrop_drift := Vector2(-4, 0)
+
 @export_group("Flavour")
 ## Tinted onto the map root -- cheap mood without per-biome lighting.
 @export var ambient_tint := Color.WHITE

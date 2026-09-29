@@ -23,6 +23,8 @@ const SOURCE_ID := 0
 const PROPS := "Props"
 ## Flat scatter -- flowers, tufts, twigs. Under everything that stands.
 const DECOR := "Decor"
+## What a see-through wall mass shows: the biome's backdrop, under everything.
+const BACKDROP := "Backdrop"
 
 ## A cell's eight neighbours in the order its zones are read: the four sides, then
 ## the four corners, each corner after the two sides it sits between.
@@ -62,6 +64,30 @@ static func dress(map: Node2D, biome: BiomeKit, ground: TileMapLayer, walls: Til
 		join_blob(biome, walls)
 	if not biome.decor_tiles.is_empty():
 		scatter_decor(_layer(map, biome, DECOR, false), biome, ground, walls, rng)
+	if biome.backdrop != null:
+		add_backdrop(map, biome)
+
+
+## The biome's backdrop, repeating behind the whole map and scrolling slower than it.
+static func add_backdrop(map: Node2D, biome: BiomeKit) -> Parallax2D:
+	var parallax := map.get_node_or_null(BACKDROP) as Parallax2D
+	if parallax != null:
+		return parallax
+	parallax = Parallax2D.new()
+	parallax.name = BACKDROP
+	parallax.z_index = -3
+	parallax.scroll_scale = biome.backdrop_scroll
+	parallax.autoscroll = biome.backdrop_drift
+	parallax.repeat_size = biome.backdrop.get_size()
+	var sprite := Sprite2D.new()
+	sprite.texture = biome.backdrop
+	sprite.centered = false
+	parallax.add_child(sprite)
+	map.add_child(parallax)
+	map.move_child(parallax, 0)
+	parallax.owner = map
+	sprite.owner = map
+	return parallax
 
 
 ## The layer standing props go on, created on first use. Authored tools place

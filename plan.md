@@ -352,7 +352,40 @@ and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
   being the floor test's placeholder-blob sample; that is floor 85 (sky).
   - **Open:** the ground is still warm — ash-brown rather than grey. `4e484a` for the
     earth is the greyer option if it reads too much like the cave.
-- [ ] **The other two biomes** — sky next, then the castle.
+- [x] **Sky band**: gardens floating in the sky. The lawns are the meadow's grass and
+  ponds; past their edges the ground falls away onto open sky, drawn behind the map. The
+  wall mass is a `BLOB` like the cliffs, put together another way (`_compose_hole`):
+  - **Under every lawn hangs a cell of earth**, which the pack does not draw, so
+    `build_biomes.gd` draws it (`_underside`) in the pack's colours (`underside`): grass
+    over the lip, topsoil, earth, stones, a lumpy bottom edge outlined against the sky and
+    a few roots. The shape is the `UNDERSIDE_*` tables at the top of the tool. Where the
+    earth meets more lawn beside it, it stops against the rim; where it runs out beside
+    more void, it rounds off in the neighbour, which alone can see the lawn across its
+    corner -- the earth cell's own mask dropped it.
+  - **The lawn is rimmed by the pack's hole** (`TilesetHole.png`), a 3x3 whose strips
+    are its outer halves side by side, so every arrangement is a choice of quarters; its
+    rim nubs cover the inner corners (`hole_inner`). The hole's void is cut out, so the
+    mass is see-through. The rim is drawn under the earth too, so a one-cell gap between
+    two lawns still rims the far one.
+  - **The sky is a backdrop**, not tiles: `BiomeKit.backdrop`, drawn by `build_biomes.gd`
+    (`_backdrop`) as the pack's daytime blue with its clouds strewn over it by a fixed
+    seed, tiling seamlessly. `MapDresser.add_backdrop()` hangs it behind the map in a
+    `Parallax2D` at half scroll, drifting slowly, so walking reads as depth. Swapping in
+    a painted sky is replacing that one texture.
+  - **Tried and rejected**: cloud as the whole mass read as a snowfield; a cloud bank a
+    cell deep round the lawns over a slate sky had no edge to the land (the lawn just
+    stopped), the pack's hole alone draws a face only 6 px tall, which read as a fence, and
+    the relief's orange cliff face under the lawns was turned down on sight (2026-09-29).
+  - The floor test refuses any wall tile with a see-through pixel on an edge it shares
+    with the floor (mutation-checked: starting the earth a row low fails it 197 times), and checks
+    the mass is see-through over a backdrop. Floor 85 stopped being the placeholder-blob
+    sample; that is floor 95 (castle) now.
+  Scatter is flowers at twice the meadow's rate, blossom and petals, and wisps of cloud
+  blown loose over the lawns. Bats and wraiths were already on the pack.
+  - **Open:** the earth's shape repeats every cell, so a long edge reads as a regular
+    frieze of lumps. The rims round the lawns' other three sides are the hole's thin
+    dashed line.
+- [ ] **The last biome** — the castle.
 - [ ] Lanternfall's props: the camp sheet has lantern posts, crates, a campfire, and the relief
   detail sheet has ladders and a mine mouth for the lift. Needs a way to place standing props
   on authored maps that isn't `_house()`.
@@ -780,7 +813,8 @@ dead wood of bare trees round purple bog, where the lizardmen live; Floors 50–
 orange dunes, pale sand trails between the rooms and the odd oasis; Floors 60–69 a pine
 wood under snow, white trails through old snow and frozen pools, where golems walk; Floors
 70–79 red rock under a charred crust, cinder trails across the ash and lava pooled in the
-rooms, where the drakes nest. The sky and the castle still draw placeholders.
+rooms, where the drakes nest; Floors 80–89 lawns floating over open
+sky, earth hanging under each. Only the castle still draws placeholders.
 
 And the screens finally match the maps. Every menu is on the pack now: wooden windows,
 the pack's paper dialogue box with a framed portrait and a name tag, orange buttons, its
@@ -809,7 +843,7 @@ bottom only goes up.
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 54-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 98-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 110-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 84-check combat test
@@ -841,7 +875,7 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 ## Immediate next steps
 1. **Finish the art rollout, before any new floor** (M5.5 §0). Meadow, forest, cave and
    ruins are done, and with them every authored floor so far; the swamp and the desert are
-   done too, the swamp ready for Floor 40, the ice and the volcanic band. Two bands remain, sky next. The UI is done. Same reason as the rest of M5.5: a floor laid out on placeholder
+   done too, the swamp ready for Floor 40, the ice, the volcanic band and the sky. One band remains, the castle. The UI is done. Same reason as the rest of M5.5: a floor laid out on placeholder
    art is laid out twice.
 2. **M5.5 — Exploration feel, before any new floor.** Camera zoom and moving monsters are
    in. **Next: §3, a boss room you have to find** — which starts with picking among its

@@ -1,12 +1,21 @@
-[gd_resource type="Resource" script_class="BiomeKit" format=3]
+[gd_resource type="Resource" script_class="BiomeKit" format=4]
 
 [ext_resource type="Script" path="res://scripts/resources/biome_kit.gd" id="1_dvaae"]
 [ext_resource type="TileSet" path="res://resources/tilesets/sky.tres" id="2_hrccx"]
+
+[sub_resource type="PortableCompressedTexture2D" id="PortableCompressedTexture2D_xf42y"]
+_data = PackedByteArray("AAADAAUAAAABAAAAgAEAAAABAACkAwAAUklGRpwDAABXRUJQVlA4TI8DAAAvf8E/ABcgFkz8HUfQGY1CthEgf6zdB3QEZNI2/qX2bDcB8x/d7wBQkkC3biOBVWbW2tDnYW7ABR+rgn3/cJqeGaNvwAVxzYSSTGH+v4j+T4Dt5G7HX2hazEMZJ8RZHh6cKWFG/Y8Ji+7d3YuzPHySMCvmM9P84V5xL4+rCIYa/GrK+ARGdwtIVDNe9TQJs2KXlFQibZSpnmZx9v0aHDJ9WIYnvKfR9AlpVhZq49hG1c6WOKsLoe/gsFEOhKxn/PggzMpYRqLukFRTiRnoZ+BIvoYBrA2CcYJgXMXQ93CXzmqn8mt/F2dloTb2PPMEW5dtTcEwM0uzutCysPeNbrQR3Uj9+fEBR8RKOZXuz8cCbZ9CAYZX1gYPKMNcb93+9////GZ1rjdIF/ULiPlNG4ZXghooFZTuFceN6EYbqVeNptWr9Ctwo43oRupVI8RKOZXuFUdtn0IBhleCwQPKMLebmbVu/wm0eyfqHcO7VsZvPIY5L+qddff+Rs7qG3qDdNET2AkBYn7ThnGsDR841kCpoPRj6D402ohutJEekqg+JJpWr+KsjCOG7oI8ow0fwiwfY/POSYneWZoVr+KsmtMvs/JbLc7y8EnCjPpqGK4xBL1ZG241gB74Bn2exYsgJyoBEQvcryGRAmWiUMbz4iyPlTjQx7k/TcKsmE9M88dSEjNRoExlLFSWMhTkSDXAFspjqYZvuBOgbomaMga6W+8FtqKEWTGn4+z7b7U0K8/BuIzEWX0CQ9CbtXGNMCvjvAbQA9+gF8tPQE5UAiK8kkiBMlEo4xJxVs7jQB/nfjE7j+Z6BUuzel67WKMbbUQ30vPuOx6X4IhYKafSvRJo+xQKMM5rF7M2eEAZdj6HmV7jfev2TKZp7td5sszotxrveDh131F+T8hwhM/h7oiEU5o6wjR/7EnVkfuO7lSc5bGnqUfU93B36bFHhneu+nff0Z3iHeO3Wph1pxpNs1f3Gal7j99obYe6153iMMleScxEgTKV4ZShIEeqAeZ1wzfcCVC3RE0ZA92t9wL7w5D1CoJ10Buki67VlDHUsIQAMb9pw1gKSPQJjL4CxxooFZS+kqQSqWa86gqNNqIbbaQrcchEG2WqKySa1pUaTctYIM7K8EmuwWGjTLRRtaMyTgizvJKkmkogZD3E3QkDWGMG+qGmJ8RrcJfeIBiHUj1maVaWes9qJ54SZ9U8bHrCy6xcCAA=")
+size_override = Vector2(384, 256)
+keep_compressed_buffer = true
 
 [resource]
 script = ExtResource("1_dvaae")
 id = &"sky"
 display_name = "Cloud Gardens"
 tile_set = ExtResource("2_hrccx")
-wall_terrain_set = 0
+wall_terrain_set = 2
+ground_terrain_set = 0
+liquid_terrain_set = 1
+decor_tiles = Array[Vector2i]([Vector2i(0, 15), Vector2i(1, 15), Vector2i(2, 15), Vector2i(3, 15), Vector2i(4, 15), Vector2i(5, 15), Vector2i(6, 15), Vector2i(7, 15), Vector2i(8, 15), Vector2i(9, 15), Vector2i(10, 15), Vector2i(11, 15), Vector2i(12, 15), Vector2i(13, 15), Vector2i(14, 15)])
+backdrop = SubResource("PortableCompressedTexture2D_xf42y")
 ambient_tint = Color(0.97, 0.99, 1, 1)

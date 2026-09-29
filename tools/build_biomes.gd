@@ -109,6 +109,20 @@ const BODY_PIXELS := 24
 ## open diagonal north-west, north-east / south-west, south-east.
 const CLIFF_BLOCK := Vector2i(1, 0)
 const CLIFF_INNER := Vector2i(0, 3)
+## The earth hanging under a floating lawn, which the pack does not draw (see
+## _underside). Per column of a cell: the last row it reaches, which is its outline.
+## The run tiles, so the last column steps into the first.
+const UNDERSIDE_LAST := [12, 13, 14, 14, 15, 15, 14, 14, 13, 12, 12, 13, 13, 12, 11, 11]
+## Grass hanging over the lip, a row per string, "#" for grass: a ragged fringe,
+## then a few longer blades.
+const UNDERSIDE_FRINGE := ["##.####.###.###.", "#...#.....#..#.."]
+## Stones, 3x2 by their top-left pixel; roots, a pixel each, hanging below the outline.
+const UNDERSIDE_STONES := [Vector2i(2, 6), Vector2i(10, 7)]
+const UNDERSIDE_ROOTS := [Vector2i(9, 13), Vector2i(9, 14), Vector2i(14, 12)]
+## Where an underside runs out beside open sky it rounds off in its neighbour, over
+## the four pixels nearest it: each column's first and last row, nearest first.
+const UNDERSIDE_END_TOP := [0, 0, 1, 3]
+const UNDERSIDE_END_LAST := [10, 9, 8, 6]
 
 ## Biomes cut from the pack. Every entry names a sheet under PACK_TILESETS and a
 ## 16px cell (or cell rect) in it.
@@ -488,6 +502,61 @@ const PACK_BIOMES := {
 		],
 		"decor_density": 0.05,
 	},
+	"sky": {
+		# Gardens in the clouds: the rooms are lawns, and past their edges the ground
+		# falls away onto open sky -- a rim round the lawn, and a cell of earth
+		# hanging under it. The rim is the pack's hole, the earth drawn in its
+		# palette; see _compose_hole.
+		"walls": "hole",
+		"hole": ["TilesetHole.png", Vector2i(0, 0)],
+		# The rim's nubs where two rims meet round a corner of lawn (SW, SE).
+		"hole_inner": [Vector2i(6, 1), Vector2i(5, 1)],
+		# The underside's colours, top to bottom: grass over the lip, its shadowed
+		# fringe, topsoil, earth, deeper earth, the earth in shadow (and the rim's own
+		# colour), the outline (the hole's void); and its stones, lit and not.
+		"underside": {"lip": "74a334", "fringe": "56864c", "soil": "965340",
+				"earth": "816855", "deep": "695953", "shade": "4e484a",
+				"outline": "141b1b", "stone": "8e7c73", "stone_lit": "b3957f"},
+		# The sky the void is cut out onto, in cells: the pack's clouds -- whole ones,
+		# long ones and puffs -- on its daytime blue.
+		"backdrop": {
+			"sky": "79b8ce",
+			"clouds": "TilesetFloorB.png",
+			"size": Vector2i(24, 16),
+			"pieces": [Rect2i(0, 0, 3, 3), Rect2i(0, 0, 3, 3), Rect2i(0, 0, 3, 3),
+					Rect2i(0, 3, 3, 1), Rect2i(0, 3, 3, 1), Rect2i(0, 3, 3, 1), Rect2i(0, 3, 3, 1),
+					Rect2i(3, 3, 1, 1), Rect2i(3, 3, 1, 1), Rect2i(3, 3, 1, 1), Rect2i(3, 3, 1, 1),
+					Rect2i(3, 3, 1, 1), Rect2i(3, 3, 1, 1)],
+		},
+		"slots": [
+			["TilesetFloor.png", Vector2i(0, 12)],   # floor: plain grass
+			["TilesetFloor.png", Vector2i(1, 12)],   # floor-alt: grass with a tuft
+			["TilesetFloor.png", Vector2i(1, 8)],    # path: dirt
+			["TilesetFloor.png", Vector2i(1, 11)],   # special: dirt with a pebble
+			["TilesetWater.png", Vector2i(1, 7)],    # liquid: open water
+			["TilesetNature.png", Vector2i(0, 10)],  # obstacle: a bush
+			null,                                    # wall: the hole blob's solid tile, empty
+			null,                                    # wall-alt: invisible, a house's footprint
+		],
+		# The meadow's lawn, and its pond: a garden is the grass of floor 1, kept.
+		"ground": ["TilesetFloor.png", Rect2i(0, 7, 11, 6)],
+		"ground_rare": [Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5),
+				Vector2i(0, 4), Vector2i(1, 4)],
+		"liquid": ["TilesetWater.png", Rect2i(0, 6, 13, 5)],
+		# A garden's scatter -- flowers twice as often as the meadow's, blossom and petals
+		# -- and wisps of cloud blown loose over the lawns.
+		"decor": [
+			["TilesetFloorDetail.png", Vector2i(5, 2)], ["TilesetFloorDetail.png", Vector2i(5, 2)],
+			["TilesetNature.png", Vector2i(0, 11)], ["TilesetNature.png", Vector2i(1, 11)],
+			["TilesetNature.png", Vector2i(3, 11)], ["TilesetNature.png", Vector2i(6, 11)],
+			["TilesetNature.png", Vector2i(3, 11)], ["TilesetNature.png", Vector2i(6, 11)],
+			["TilesetFloorDetail.png", Vector2i(2, 0)], ["TilesetFloorDetail.png", Vector2i(3, 0)],
+			["TilesetFloorDetail.png", Vector2i(10, 0)], ["TilesetFloorDetail.png", Vector2i(10, 0)],
+			["TilesetFloorDetail.png", Vector2i(0, 2)], ["TilesetFloorDetail.png", Vector2i(3, 2)],
+			["TilesetNature.png", Vector2i(2, 11)],
+		],
+		"decor_density": 0.06,
+	},
 }
 
 const PACK_ROOT := "res://assets/ninja_adventure/"
@@ -751,7 +820,7 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 		column += size.x
 
 	var wall_set := -1
-	if spec.has("cliffs"):
+	if _has_blob(spec):
 		wall_set = _add_terrain_set(tile_set, ["wall"])
 		var masks := _blob_masks()
 		for index in masks.size():
@@ -777,13 +846,18 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 	biome.decor_tiles = decor
 	biome.decor_density = spec.get("decor_density", 0.06)
 	biome.house_tiles = houses
+	if spec.has("backdrop"):
+		var backdrop := PortableCompressedTexture2D.new()
+		backdrop.keep_compressed_buffer = true
+		backdrop.create_from_image(_backdrop(spec), PortableCompressedTexture2D.COMPRESSION_MODE_LOSSLESS)
+		biome.backdrop = backdrop
 	ResourceSaver.save(biome, "%s/%s.tres" % [BIOME_DIR, id])
 	print("wrote pack biome %s (%d tiles)" % [id, source.get_tiles_count()])
 
 
 func _compose(spec: Dictionary) -> Image:
 	# Only a biome with a composed blob pays for its rows.
-	var rows := PACK_ROWS if spec.has("cliffs") else ROW_BLOB
+	var rows := PACK_ROWS if _has_blob(spec) else ROW_BLOB
 	var atlas := Image.create_empty(PACK_COLUMNS * TILE, rows * TILE, false, Image.FORMAT_RGBA8)
 	var slots: Array = spec["slots"]
 	for index in slots.size():
@@ -793,6 +867,8 @@ func _compose(spec: Dictionary) -> Image:
 	_recolour(atlas, spec, Rect2i(0, 0, 4, 1))
 	if spec.has("cliffs"):
 		_compose_cliffs(atlas, spec)
+	elif spec.has("hole"):
+		_compose_hole(atlas, spec)
 	_blit(atlas, spec["ground"][0], spec["ground"][1], Vector2i(0, ROW_GROUND))
 	_blit(atlas, spec["liquid"][0], spec["liquid"][1], Vector2i(0, ROW_LIQUID))
 	if spec.has("liquid_palette"):
@@ -862,8 +938,18 @@ func _compose_cliffs(atlas: Image, spec: Dictionary) -> void:
 		var top: Array = spec["cliff_top"]
 		var palette := {_dominant(sheet, origin + CLIFF_BLOCK + Vector2i.ONE): _dominant(_sheet(top[0]), top[1])}
 		_repaint(atlas, Rect2i(0, ROW_BLOB, BLOB_COLUMNS, 6), palette)
-	# The plain wall slot is solid rock: what a mass cell draws before it is joined.
-	var solid := atlas.get_region(Rect2i(_pack_blob_coords(masks.size() - 1) * TILE, Vector2i(TILE, TILE)))
+	_fill_wall_slot(atlas)
+
+
+## Whether the spec composes a wall blob, and so pays for its rows.
+func _has_blob(spec: Dictionary) -> bool:
+	return spec.has("cliffs") or spec.has("hole")
+
+
+## The plain wall slot is the blob's solid tile: what a mass cell draws before it is
+## joined.
+func _fill_wall_slot(atlas: Image) -> void:
+	var solid := atlas.get_region(Rect2i(_pack_blob_coords(_blob_masks().size() - 1) * TILE, Vector2i(TILE, TILE)))
 	atlas.blit_rect(solid, Rect2i(Vector2i.ZERO, solid.get_size()), Vector2i(6, 0) * TILE)
 
 
@@ -891,6 +977,207 @@ func _cliff_quarter(mask: int, quarter: int, origin: Vector2i) -> Vector2i:
 	if (mask & (BIT_SW if left else BIT_SE)) == 0:
 		return inner + Vector2i(inner_column, 1)
 	return block + Vector2i.ONE
+
+
+## A 47-tile wall blob of ground falling away into the void, so the mass is a window
+## onto the biome's backdrop. The floor is rimmed by the pack's hole: a 3x3 whose
+## strips are exactly its outer halves side by side, so every arrangement of sides is
+## a choice of quarters, each decided by the side and the end it touches. Under the
+## floor, over that rim, hangs a cell of earth (_underside), since the hole's own face
+## is a 6 px band that reads as a fence.
+##
+## Where the earth runs out beside more void, its rounded end is drawn in the
+## neighbour it runs out beside, because only that neighbour can tell: the earth
+## cell's own mask has lost the corner (its north is open), while the cell beside it
+## sees the floor across its corner. Every piece is laid over the floor tile, which
+## shows through the hole's ragged edge; then the hole's void is cut out.
+func _compose_hole(atlas: Image, spec: Dictionary) -> void:
+	var sheet := _sheet(spec["hole"][0])
+	var origin: Vector2i = spec["hole"][1]
+	var inner: Array = spec["hole_inner"]
+	var underside := _underside(spec["underside"])
+	var half := Vector2i(TILE / 2, TILE / 2)
+	var void_colour := _dominant(sheet, origin + Vector2i.ONE)
+	var underlay := atlas.get_region(Rect2i(0, 0, TILE, TILE))
+	var masks := _blob_masks()
+	for index in masks.size():
+		var at := _pack_blob_coords(index) * TILE
+		var walls := _neighbourhood(masks[index])
+		var hangs := not walls[1]
+		for quarter in 4:
+			var left := quarter % 2 == 0
+			var top := quarter < 2
+			var offset := Vector2i(quarter % 2, quarter / 2) * half
+			var side_open := not walls[3 if left else 5]
+			# The earth covers the rim along the floor above, so none is drawn there.
+			var end_open := not walls[1 if top else 7] and not (top and hangs)
+			var corner_open := not walls[(0 if left else 2) + (0 if top else 6)]
+			var cell := origin + Vector2i((0 if left else 2) if side_open else 1,
+					(0 if top else 2) if end_open else 1)
+			if not top and not side_open and not end_open and corner_open:
+				cell = inner[quarter - 2]
+			var piece := underlay.get_region(Rect2i(offset, half))
+			piece.blend_rect(sheet, Rect2i(cell * TILE + offset, half), Vector2i.ZERO)
+			_cut(piece, void_colour)
+			var drawn := -1
+			if hangs:
+				drawn = (0 if left else 2) if side_open else 1
+			elif not side_open and not walls[0 if left else 2]:
+				# The floor across this side's top corner has earth under it, in the
+				# cell beside this one, and here it ends.
+				drawn = 4 if left else 3
+			if drawn >= 0:
+				piece.blend_rect(underside, Rect2i(Vector2i(drawn * TILE, 0) + offset, half),
+						Vector2i.ZERO)
+			atlas.blit_rect(piece, Rect2i(Vector2i.ZERO, half), at + offset)
+	_fill_wall_slot(atlas)
+
+
+## The earth under a floating floor, which the pack does not draw, in the pack's
+## colours ([param colours], by role): five cells in a row. The middle is the run,
+## which tiles; either side of it the run ends against more floor, beside it (a rim
+## down its outer two pixels, where the hole's own rim carries on below). Past those
+## are its rounded ends, each placed as the neighbour it runs out beside draws it --
+## the west end in the right of its cell, the east end in the left.
+func _underside(colours: Dictionary) -> Image:
+	var run := []
+	for x in TILE:
+		run.append({"top": 0, "last": UNDERSIDE_LAST[x], "kind": "run", "x": x})
+	var west_end := []
+	var east_end := []
+	for i in UNDERSIDE_END_TOP.size():
+		var column := {"top": UNDERSIDE_END_TOP[i], "last": UNDERSIDE_END_LAST[i], "kind": "end"}
+		west_end.push_front(column)
+		east_end.append(column)
+	var rim := {"top": 0, "last": TILE - 1, "kind": "rim"}
+	var west_rim := run.duplicate()
+	var east_rim := run.duplicate()
+	for x in 2:
+		west_rim[x] = rim
+		east_rim[TILE - 1 - x] = rim
+	var alongside := _paint_underside(colours, west_rim + run + east_rim)
+	var ends := _paint_underside(colours, west_end + run + east_end)
+	var strip := Image.create_empty(TILE * 5, TILE, false, Image.FORMAT_RGBA8)
+	var reach := west_end.size()
+	strip.blit_rect(alongside, Rect2i(0, 0, TILE * 3, TILE), Vector2i.ZERO)
+	strip.blit_rect(ends, Rect2i(0, 0, reach, TILE), Vector2i(TILE * 4 - reach, 0))
+	strip.blit_rect(ends, Rect2i(reach + TILE, 0, reach, TILE), Vector2i(TILE * 4, 0))
+	return strip
+
+
+## [param columns] of underside painted side by side, each a first and last row and a
+## kind: the run, a rim, or an end. Its outline is wherever it borders empty sky --
+## beneath, beside, and above an end that starts low.
+func _paint_underside(colours: Dictionary, columns: Array) -> Image:
+	var image := Image.create_empty(columns.size(), TILE, false, Image.FORMAT_RGBA8)
+	var paint := {}
+	for role: String in colours:
+		paint[role] = Color.hex(_pack_colour(colours[role]))
+	var shows := func(x: int, y: int) -> bool:
+		return x >= 0 and x < columns.size() and y >= columns[x]["top"] and y <= columns[x]["last"]
+	for x in columns.size():
+		var column: Dictionary = columns[x]
+		for y in TILE:
+			if not shows.call(x, y):
+				continue
+			var role := "earth"
+			if column["kind"] == "rim":
+				role = "shade"
+			elif y == column["last"] or not shows.call(x - 1, y) or not shows.call(x + 1, y) \
+					or (y > 0 and not shows.call(x, y - 1)):
+				role = "outline"
+			elif column["kind"] == "end" or y == column["last"] - 1:
+				role = "shade"
+			elif y >= column["last"] - 3:
+				role = "deep"
+			elif y == 0:
+				role = "lip"
+			elif y <= UNDERSIDE_FRINGE.size() and UNDERSIDE_FRINGE[y - 1][column["x"]] == "#":
+				role = "fringe"
+			elif y < 4 or (y == 4 and column["x"] % 3 != 1):
+				role = "soil"
+			image.set_pixel(x, y, paint[role])
+	# Then what lies over the earth, which reaches into the columns after its own.
+	for x in columns.size():
+		var column: Dictionary = columns[x]
+		if column["kind"] != "run":
+			continue
+		for stone: Vector2i in UNDERSIDE_STONES:
+			if stone.x == column["x"]:
+				for dx in 3:
+					image.set_pixel(x + dx, stone.y, paint["stone_lit" if dx < 2 else "stone"])
+					image.set_pixel(x + dx, stone.y + 1, paint["stone" if dx < 2 else "deep"])
+		for root: Vector2i in UNDERSIDE_ROOTS:
+			if root.x == column["x"]:
+				image.set_pixel(x, root.y, paint["outline"])
+	return image
+
+
+## Makes every pixel of [param image] in [param colour] transparent.
+func _cut(image: Image, colour: int) -> void:
+	for y in image.get_height():
+		for x in image.get_width():
+			if image.get_pixel(x, y).to_rgba32() == colour:
+				image.set_pixel(x, y, Color(0, 0, 0, 0))
+
+
+## The bits of a blob mask as its 3x3, in reading order: true where there is wall.
+## The cell itself is the middle, and always wall.
+func _neighbourhood(mask: int) -> Array[bool]:
+	var bits := [BIT_NW, BIT_N, BIT_NE, BIT_W, 0, BIT_E, BIT_SW, BIT_S, BIT_SE]
+	var walls: Array[bool] = []
+	for bit: int in bits:
+		walls.append(bit == 0 or (mask & bit) != 0)
+	return walls
+
+
+## [param hex] as an RGBA32 int, refused unless the pack's palette has it.
+func _pack_colour(hex: String) -> int:
+	var pack := Image.load_from_file(PACK_ROOT + "Palette.png")
+	pack.convert(Image.FORMAT_RGBA8)
+	var colour := Color.html(hex).to_rgba32()
+	if not colour in _ranked(pack, Rect2i(Vector2i.ZERO, pack.get_size()),
+			func(_colour: Color) -> bool: return true):
+		push_error("%s is not a colour of the pack's palette" % hex)
+	return colour
+
+
+## What shows through a see-through wall mass: a field of [code]sky[/code] with the
+## pack's clouds strewn across it, drawn to tile -- a cloud running off one edge comes
+## back on the other -- since the map draws it repeating behind itself. Scattered by a
+## fixed seed, so a rebuild draws the same sky.
+func _backdrop(spec: Dictionary) -> Image:
+	var sky: Dictionary = spec["backdrop"]
+	var size: Vector2i = sky["size"] * TILE
+	var image := Image.create_empty(size.x, size.y, false, Image.FORMAT_RGBA8)
+	image.fill(Color.hex(_pack_colour(sky["sky"])))
+	var sheet := _sheet(sky["clouds"])
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 80
+	var placed: Array[Rect2i] = []
+	for piece: Rect2i in sky["pieces"]:
+		var region := Rect2i(piece.position * TILE, piece.size * TILE)
+		# A few tries for a spot clear of every cloud already down, then give up on it.
+		for attempt in 40:
+			var at := Vector2i(rng.randi_range(0, size.x - 1), rng.randi_range(0, size.y - 1))
+			var room := Rect2i(at, region.size).grow(TILE / 2)
+			if placed.any(func(other: Rect2i) -> bool: return _overlaps_wrapped(room, other, size)):
+				continue
+			placed.append(Rect2i(at, region.size))
+			for dy in [0, -size.y]:
+				for dx in [0, -size.x]:
+					image.blend_rect(sheet, region, at + Vector2i(dx, dy))
+			break
+	return image
+
+
+## Whether [param a] and [param b] overlap on a field of [param size] that wraps.
+func _overlaps_wrapped(a: Rect2i, b: Rect2i, size: Vector2i) -> bool:
+	for dy in [-size.y, 0, size.y]:
+		for dx in [-size.x, 0, size.x]:
+			if a.intersects(Rect2i(b.position + Vector2i(dx, dy), b.size)):
+				return true
+	return false
 
 
 ## The colour covering most of [param cell] of [param image], as an RGBA32 int.

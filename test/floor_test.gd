@@ -11,6 +11,9 @@ extends Node
 ## Where each peering bit points. Sides are checked strictly; a corner is only
 ## meaningful when both sides beside it are wall, which is the same reduction
 ## that takes the blob from 256 arrangements down to 47.
+## A tile's size in pixels, on every biome.
+const TILE := 16
+
 const SIDES := {
 	TileSet.CELL_NEIGHBOR_TOP_SIDE: Vector2i.UP,
 	TileSet.CELL_NEIGHBOR_RIGHT_SIDE: Vector2i.RIGHT,
@@ -111,11 +114,11 @@ func _run() -> void:
 			"every biome dresses its wall mass, as a blob or as forest%s" % (
 				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
 
-	# Floor 85's blob is drawn by the placeholder generator; floors 24, 37, 55 and 75
+	# Floor 95's blob is drawn by the placeholder generator; floors 24, 37, 55 and 75
 	# are the cave's, the ruins', the desert's and the volcanic band's, put together
-	# from the pack's cliffs, on a Walls layer they share with pools that carry a
-	# terrain of their own.
-	for sample: int in [85, 24, 37, 55, 75]:
+	# from the pack's cliffs, and 85 the sky's, rims and earth undersides round open sky -- all on
+	# a Walls layer they share with pools that carry a terrain of their own.
+	for sample: int in [95, 24, 37, 55, 75, 85]:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var wall_set := sample_floor.biome.wall_terrain_set
 		var label := "floor %d (%s)" % [sample, sample_floor.biome.id]
@@ -128,25 +131,39 @@ func _run() -> void:
 		_check(mismatched == 0, "every wall tile on %s matches its neighbours (%d wrong)" % [label, mismatched])
 		_check(edges > 0, "%s's wall mass is joined up rather than left flat (%d edge tiles)" % [label, edges])
 		_check(uncollidable == 0, "every autotiled wall on %s still collides (%d that don't)" % [label, uncollidable])
+		# The sky's wall mass is a window onto the backdrop, rimmed and hung with earth where it
+		# meets the floor. Got wrong, a lawn runs straight off into the sky -- a tile
+		# that describes its neighbours perfectly, and so is invisible to the check above.
+		if sample_floor.biome.id == &"sky":
+			var sky_biome := sample_floor.biome
+			var open := _see_through_edges(tiled_walls, sky_biome)
+			_check(open == 0, "every lawn edge on %s is rimmed or faced, not open to the sky (%d open)" % [
+					label, open])
+			var slot := _tile_image(sky_biome, Vector2i(sky_biome.wall_tile, 0))
+			_check(sky_biome.backdrop != null and slot.get_pixel(8, 8).a == 0.0
+					and tiled.get_node_or_null(MapDresser.BACKDROP) is Parallax2D,
+					"%s's wall mass is see-through, over its backdrop" % label)
 		tiled.free()
 
 	# --- dressing: forest, ground and water ---
-	# Floors 5, 15, 24, 37, 45, 55, 65 and 75 are the meadow, the forest, the cave, the
-	# ruins, the swamp, the desert, the ice and the volcanic band, all pack biomes: the
-	# cave, the ruins, the desert and the volcanic band wall with cliffs, the rest with
-	# trees, and all eight join their ground and water into edges. None of that may touch collision, and all of it has to come out the same
-	# from the same seed.
+	# Floors 5, 15, 24, 37, 45, 55, 65, 75 and 85 are the meadow, the forest, the cave,
+	# the ruins, the swamp, the desert, the ice, the volcanic band and the sky, all pack
+	# biomes: the cave, the ruins, the desert and the volcanic band wall with cliffs,
+	# the sky with a drop, the rest with trees, and all nine join their ground and water
+	# into edges. None of that may touch collision, and all of it has to come out the
+	# same from the same seed.
 	var styles := {5: BiomeKit.WallStyle.TREES, 15: BiomeKit.WallStyle.TREES,
 			24: BiomeKit.WallStyle.BLOB, 37: BiomeKit.WallStyle.BLOB,
 			45: BiomeKit.WallStyle.TREES, 55: BiomeKit.WallStyle.BLOB,
-			65: BiomeKit.WallStyle.TREES, 75: BiomeKit.WallStyle.BLOB}
+			65: BiomeKit.WallStyle.TREES, 75: BiomeKit.WallStyle.BLOB,
+			85: BiomeKit.WallStyle.BLOB}
 	for sample: int in styles:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var sample_biome := sample_floor.biome
 		var label := "floor %d (%s)" % [sample, sample_biome.id]
 		var trees: bool = styles[sample] == BiomeKit.WallStyle.TREES
 		_check(sample_biome.wall_style == styles[sample] and sample_biome.ground_terrain_set >= 0,
-				"%s is a pack biome walling with %s" % [label, "trees" if trees else "cliffs"])
+				"%s is a pack biome walling with %s" % [label, "trees" if trees else "a blob"])
 		var dressed := FloorGenerator.generate(sample_floor, FloorRegistry.seed_for(sample))
 		var props := dressed.get_node_or_null(MapDresser.PROPS) as TileMapLayer
 		var decor := dressed.get_node_or_null(MapDresser.DECOR) as TileMapLayer
@@ -219,6 +236,39 @@ func _run() -> void:
 func _is_wall(walls: TileMapLayer, cell: Vector2i, wall_set: int) -> bool:
 	var data := walls.get_cell_tile_data(cell)
 	return data != null and data.terrain_set == wall_set
+
+
+## Wall cells with a see-through pixel on an edge they share with anything that
+## isn't wall -- where the backdrop would show against the floor.
+func _see_through_edges(walls: TileMapLayer, biome: BiomeKit) -> int:
+	var last := TILE - 1
+	var edges := {Vector2i.UP: [Vector2i(0, 0), Vector2i(1, 0)], Vector2i.RIGHT: [Vector2i(last, 0), Vector2i(0, 1)],
+			Vector2i.DOWN: [Vector2i(0, last), Vector2i(1, 0)], Vector2i.LEFT: [Vector2i(0, 0), Vector2i(0, 1)]}
+	# The map's outer ring faces the void past the map, not floor.
+	var inside := walls.get_used_rect()
+	var open := 0
+	for cell in walls.get_used_cells():
+		if not _is_wall(walls, cell, biome.wall_terrain_set):
+			continue
+		var image := _tile_image(biome, walls.get_cell_atlas_coords(cell))
+		for side: Vector2i in edges:
+			if _is_wall(walls, cell + side, biome.wall_terrain_set) or not inside.has_point(cell + side):
+				continue
+			var edge: Array = edges[side]
+			for step in TILE:
+				if image.get_pixelv(edge[0] + edge[1] * step).a == 0.0:
+					open += 1
+					break
+	return open
+
+
+## The pixels of the tile at [param coords] of [param biome]'s atlas.
+func _tile_image(biome: BiomeKit, coords: Vector2i) -> Image:
+	var source := biome.tile_set.get_source(MapDresser.SOURCE_ID) as TileSetAtlasSource
+	var image := source.texture.get_image()
+	image.decompress()
+	image.convert(Image.FORMAT_RGBA8)
+	return image.get_region(Rect2i(coords * TILE, Vector2i(TILE, TILE)))
 
 
 ## Counts wall cells whose chosen tile describes neighbours it doesn't have.
