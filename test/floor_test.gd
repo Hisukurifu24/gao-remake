@@ -281,7 +281,9 @@ func _run() -> void:
 	var shortest := 1 << 30
 	for walk in _lab_walks:
 		shortest = mini(shortest, walk)
-	_check(shortest >= 24, "the labyrinth always stands in front of the door (shortest walk in: %d tiles)" % shortest)
+	# Measured at 70 over four world seeds. It was 28 when the maze fitted on about a
+	# screen, which is what made it read as a corridor -- see M5.5 §5 in plan.md.
+	_check(shortest >= 60, "the labyrinth always stands in front of the door (shortest walk in: %d tiles)" % shortest)
 
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
@@ -480,13 +482,15 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 	# replacing it would open the map onto the void, and the flood fill above
 	# would quietly reach further rather than fail -- so the sealed outer ring,
 	# which nothing is ever allowed to carve, is checked directly.
-	# The map is the field plus the labyrinth's strip, so its ring is the used
-	# rect's, not the field's -- which the doorstep corridor does cut through.
+	# The map is the field plus the labyrinth's strip, side by side, so its ring is
+	# the used rect's, not the field's -- which the doorstep corridor does cut through.
 	var bounds := walls.get_used_rect()
 	var strip := definition.labyrinth * FloorGenerator.LAB_PITCH \
 			+ Vector2i(FloorGenerator.LAB_WALL, FloorGenerator.LAB_WALL)
+	var field := definition.size
 	if bounds.position != Vector2i.ZERO or not (bounds.size in [
-			definition.size + Vector2i(strip.x, 0), definition.size + Vector2i(0, strip.y)]):
+			Vector2i(field.x + strip.x, maxi(field.y, strip.y)),
+			Vector2i(maxi(field.x, strip.x), field.y + strip.y)]):
 		return "floor %d is %s, not its field plus a labyrinth" % [floor_number, bounds.size]
 	for x in bounds.size.x:
 		if not _sealed(walls, Vector2i(x, 0)) or not _sealed(walls, Vector2i(x, bounds.size.y - 1)):

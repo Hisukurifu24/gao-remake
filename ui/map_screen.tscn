@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ui/map_screen.gd" id="1_map"]
 [ext_resource type="Script" path="res://ui/map_view.gd" id="2_view"]
+[ext_resource type="Script" path="res://ui/map_glyph.gd" id="3_glyph"]
 
 [node name="MapScreen" type="CanvasLayer"]
 layer = 8
@@ -16,95 +17,157 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.169, 0.157, 0.141, 1)
 
-[node name="Window" type="PanelContainer" parent="."]
+[node name="Sheet" type="PanelContainer" parent="."]
 offset_left = 4.0
 offset_top = 4.0
 offset_right = 316.0
-offset_bottom = 168.0
+offset_bottom = 176.0
 mouse_filter = 2
+theme_type_variation = &"DialogPanel"
 
-[node name="Column" type="VBoxContainer" parent="Window"]
+[node name="Column" type="VBoxContainer" parent="Sheet"]
 layout_mode = 2
 theme_override_constants/separation = 2
 
-[node name="Header" type="HBoxContainer" parent="Window/Column"]
+[node name="Header" type="HBoxContainer" parent="Sheet/Column"]
 layout_mode = 2
+theme_override_constants/separation = 4
 
-[node name="Title" type="Label" parent="Window/Column/Header"]
+[node name="Title" type="Label" parent="Sheet/Column/Header"]
 layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"HeaderLabel"
+theme_type_variation = &"InkLabel"
 text = "Map"
 
-[node name="Status" type="Label" parent="Window/Column/Header"]
+[node name="Region" type="Label" parent="Sheet/Column/Header"]
 layout_mode = 2
-theme_type_variation = &"HintLabel"
+size_flags_horizontal = 3
+theme_type_variation = &"InkLabel"
 text = " "
 
-[node name="Inset" type="PanelContainer" parent="Window/Column"]
+[node name="Status" type="Label" parent="Sheet/Column/Header"]
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = " "
+
+[node name="View" type="Control" parent="Sheet/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 mouse_filter = 2
-theme_type_variation = &"InsetPanel"
-
-[node name="View" type="Control" parent="Window/Column/Inset"]
-layout_mode = 2
-mouse_filter = 2
 script = ExtResource("2_view")
 
-[node name="Legend" type="HBoxContainer" parent="."]
-offset_left = 6.0
-offset_top = 170.0
-offset_right = 316.0
-offset_bottom = 179.0
+[node name="Legend" type="HBoxContainer" parent="Sheet/Column"]
+layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 3
+theme_override_constants/separation = 7
 
-[node name="Close" type="Label" parent="Legend"]
+[node name="You" type="HBoxContainer" parent="Sheet/Column/Legend"]
 layout_mode = 2
-theme_type_variation = &"HintLabel"
-text = "[M] close   "
+mouse_filter = 2
+theme_override_constants/separation = 2
 
-[node name="YouKey" type="ColorRect" parent="Legend"]
-custom_minimum_size = Vector2(4, 4)
-layout_mode = 2
-size_flags_vertical = 4
-color = Color(0.455, 0.639, 0.204, 1)
-
-[node name="You" type="Label" parent="Legend"]
-layout_mode = 2
-theme_type_variation = &"HintLabel"
-text = "you "
-
-[node name="DoorKey" type="ColorRect" parent="Legend"]
-custom_minimum_size = Vector2(4, 4)
+[node name="Key" type="Control" parent="Sheet/Column/Legend/You"]
 layout_mode = 2
 size_flags_vertical = 4
-color = Color(0.878, 0.224, 0.298, 1)
+mouse_filter = 2
+script = ExtResource("3_glyph")
+kind = 0
 
-[node name="Door" type="Label" parent="Legend"]
+[node name="Label" type="Label" parent="Sheet/Column/Legend/You"]
 layout_mode = 2
-theme_type_variation = &"HintLabel"
-text = "boss door "
+theme_type_variation = &"InkLabel"
+text = "you"
 
-[node name="ExitKey" type="ColorRect" parent="Legend"]
-custom_minimum_size = Vector2(4, 4)
+[node name="Door" type="HBoxContainer" parent="Sheet/Column/Legend"]
 layout_mode = 2
-size_flags_vertical = 4
-color = Color(0.624, 0.847, 0.937, 1)
+mouse_filter = 2
+theme_override_constants/separation = 2
 
-[node name="Exit" type="Label" parent="Legend"]
-layout_mode = 2
-theme_type_variation = &"HintLabel"
-text = "way out "
-
-[node name="ChestKey" type="ColorRect" parent="Legend"]
-custom_minimum_size = Vector2(4, 4)
+[node name="Key" type="Control" parent="Sheet/Column/Legend/Door"]
 layout_mode = 2
 size_flags_vertical = 4
-color = Color(1, 0.796, 0.302, 1)
+mouse_filter = 2
+script = ExtResource("3_glyph")
+kind = 1
 
-[node name="Chest" type="Label" parent="Legend"]
+[node name="Label" type="Label" parent="Sheet/Column/Legend/Door"]
 layout_mode = 2
-theme_type_variation = &"HintLabel"
+theme_type_variation = &"InkLabel"
+text = "boss door"
+
+[node name="Exit" type="HBoxContainer" parent="Sheet/Column/Legend"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Key" type="Control" parent="Sheet/Column/Legend/Exit"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("3_glyph")
+kind = 2
+
+[node name="Label" type="Label" parent="Sheet/Column/Legend/Exit"]
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = "way out"
+
+[node name="Chest" type="HBoxContainer" parent="Sheet/Column/Legend"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Key" type="Control" parent="Sheet/Column/Legend/Chest"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("3_glyph")
+kind = 3
+
+[node name="Label" type="Label" parent="Sheet/Column/Legend/Chest"]
+layout_mode = 2
+theme_type_variation = &"InkLabel"
 text = "chest"
+
+[node name="Person" type="HBoxContainer" parent="Sheet/Column/Legend"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Key" type="Control" parent="Sheet/Column/Legend/Person"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("3_glyph")
+kind = 4
+
+[node name="Label" type="Label" parent="Sheet/Column/Legend/Person"]
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = "someone"
+
+[node name="Quest" type="HBoxContainer" parent="Sheet/Column/Legend"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Key" type="Control" parent="Sheet/Column/Legend/Quest"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("3_glyph")
+kind = 5
+
+[node name="Label" type="Label" parent="Sheet/Column/Legend/Quest"]
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = "quest"
+
+[node name="Spacer" type="Control" parent="Sheet/Column/Legend"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Close" type="Label" parent="Sheet/Column/Legend"]
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = "[M] close"

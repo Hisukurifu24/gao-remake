@@ -193,8 +193,13 @@ func _capture_combat() -> void:
 	await _press(&"ui_cancel")
 
 	# Let the round play out so there are numbers and a log line on screen.
+	# Caught at the far end of the step: the player mid-swing, the boss flashing.
+	var hero := (get_tree().root.find_child("CombatScreen", true, false) as Node).get_node("Hero") as Control
+	var stance := hero.position
 	_submit(CombatAction.use(SkillLibrary.get_skill(&"slant"),
 			CombatManager.living_enemies()[0]))
+	await _until(func() -> bool: return hero.position.y <= stance.y - 8.0, 2.0)
+	await _capture("07a_combat_strike")
 	await _wait(0.4)
 	await _capture("07_combat_hit")
 
@@ -432,8 +437,29 @@ func _capture_world(main: Node) -> void:
 		player.global_position = spot[1]
 		await _wait(0.5)
 		await _capture(spot[2])
+		if spot[2] == "04p_ashlow_pool":
+			# Rue's wolves, killed: the map should send you back to Rue.
+			GameState.clear_floor(9)
+			if QuestLog.start(&"ashlow_wolves"):
+				for _wolf in 6:
+					EventBus.enemy_defeated.emit(&"dire_wolf")
+				QuestLog.track(&"ashlow_wolves")
+			await _capture_map(main, "04p2_ashlow_map")
+		elif spot[2] == "04u_lanternfall_breach":
+			await _capture_map(main, "04u2_lanternfall_map")
 		GameState.pop_input_lock()
 		await _frames(2)
+
+
+## The map screen over whatever has been explored so far. Opened directly, since
+## the caller is holding the input lock that M would wait for.
+func _capture_map(main: Node, tag: String) -> void:
+	var screen := main.get_node("MapScreen")
+	screen.call(&"open")
+	await _wait(0.2)
+	await _capture(tag)
+	screen.call(&"close")
+	await _frames(2)
 
 
 ## Taps an action as a real input event, so UI listening in _unhandled_input

@@ -29,16 +29,19 @@ const LAB_PITCH := LAB_PASSAGE + LAB_WALL
 ## The boss room, in maze cells -- 10x6 tiles, the size of a field room. Turned
 ## on its side half the time.
 const BOSS_BLOCK := Vector2i(3, 2)
-## A quarter of the floor's monsters stand in the labyrinth: being chased into a
-## dead end is what makes it a labyrinth rather than a long corridor.
-const LAB_MONSTER_SHARE := 4
+## A third of the floor's monsters stand in the labyrinth: being chased into a
+## dead end is what makes it a labyrinth rather than a long corridor. A third, not
+## a quarter, since it grew to be the bigger half of the floor.
+const LAB_MONSTER_SHARE := 3
 
 ## How often the maze carries on from its newest cell rather than branching off
 ## an older one. See [method _grow_maze]. With the regrowth in
 ## [method _carve_labyrinth], measured over 97 floors on four world seeds: the
-## walk from the mouth to the door is never under 28 tiles and its median is
-## about 48. Without the regrowth, the shortest was 14.
-const MAZE_RUN := 0.5
+## walk from the mouth to the door is never under 70 tiles and its median is
+## about 124. At 0.5 a maze this size grew a third more dead ends, most of them
+## a cell or two deep -- wrong turns you read from the junction -- and at 0.9 the
+## walk ran to 368 tiles.
+const MAZE_RUN := 0.75
 ## How many mazes may be grown looking for one with a long enough walk to the
 ## door and enough wrong turns, before settling for the best of them.
 const MAZE_ATTEMPTS := 12
@@ -97,6 +100,7 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	map.set(&"floor_number", definition.floor_number)
 	if _biome:
 		map.modulate = _biome.ambient_tint
+		map.set(&"region", _biome.display_name)
 
 	_ground = _new_layer(map, "Ground", false)
 	_walls = _new_layer(map, "Walls", true)
@@ -150,8 +154,11 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	if _definition.floor_number > 1:
 		_add_stairs(map, _center(entry) + Vector2i(-2, 0))
 
-	# What the tests (and nothing in the game) need to find the labyrinth again.
 	if lab.has_maze():
+		# Inside the labyrinth you see only what is in line of sight.
+		map.set(&"dark_area", lab.rect)
+		map.set(&"landmarks", {"The Labyrinth": lab.rect} as Dictionary[String, Rect2i])
+		# What the tests (and nothing in the game) need to find the labyrinth again.
 		map.set_meta(&"labyrinth", lab.rect)
 		map.set_meta(&"labyrinth_mouth", lab.mouth)
 		map.set_meta(&"boss_room", lab.boss_room)
@@ -179,29 +186,30 @@ func _lay_out(field: Rect2i, lab: Labyrinth) -> void:
 	if cells.x <= longest or cells.y <= longest:
 		return
 	var tiles := cells * LAB_PITCH + Vector2i(LAB_WALL, LAB_WALL)
-	var sides: Array[int] = []
-	if tiles.y <= field.size.y:
-		sides.append_array([Side.EAST, Side.WEST])
-	if tiles.x <= field.size.x:
-		sides.append_array([Side.SOUTH, Side.NORTH])
-	if sides.is_empty():
-		return
-
 	lab.cells = cells
-	lab.side = sides[_rng.randi() % sides.size()]
-	var along_y := _rng.randi_range(0, field.size.y - tiles.y) if tiles.y <= field.size.y else 0
-	var along_x := _rng.randi_range(0, field.size.x - tiles.x) if tiles.x <= field.size.x else 0
+	lab.side = _rng.randi() % 4
+	# Along the side they share, whichever is shorter is slid along the longer one;
+	# what neither covers is rock. A labyrinth longer than the field is the usual
+	# case -- it is meant to be the bigger half of the floor.
+	var shared := 1 if lab.side == Side.EAST or lab.side == Side.WEST else 0
+	var span := maxi(field.size[shared], tiles[shared])
+	var field_along := _rng.randi_range(0, span - field.size[shared])
+	var lab_along := _rng.randi_range(0, span - tiles[shared])
+	var field_at := Vector2i.ZERO
+	var lab_at := Vector2i.ZERO
+	field_at[shared] = field_along
+	lab_at[shared] = lab_along
 	match lab.side:
 		Side.EAST:
-			lab.rect = Rect2i(field.size.x, along_y, tiles.x, tiles.y)
+			lab_at.x = field.size.x
 		Side.WEST:
-			lab.field.position.x = tiles.x
-			lab.rect = Rect2i(0, along_y, tiles.x, tiles.y)
+			field_at.x = tiles.x
 		Side.SOUTH:
-			lab.rect = Rect2i(along_x, field.size.y, tiles.x, tiles.y)
+			lab_at.y = field.size.y
 		Side.NORTH:
-			lab.field.position.y = tiles.y
-			lab.rect = Rect2i(along_x, 0, tiles.x, tiles.y)
+			field_at.y = tiles.y
+	lab.field.position = field_at
+	lab.rect = Rect2i(lab_at, tiles)
 	_size = lab.field.end.max(lab.rect.end)
 
 

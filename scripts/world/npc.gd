@@ -1,3 +1,4 @@
+class_name Npc
 extends Interactable
 ## A talkable villager.
 ##

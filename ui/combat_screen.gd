@@ -12,6 +12,23 @@ extends CanvasLayer
 ## Colours are [UiPalette]'s -- one health language with the HUD.
 const ARROW := preload("res://assets/ninja_adventure/Ui/Arrow.png")
 
+## The player stands in the foreground seen from behind -- the sheet's "up"
+## column -- facing the enemies across the field.
+const HERO_COLUMN := 1
+const HERO_FRAME := Vector2(16, 16)
+## A monster with a walk sheet treads in place, this long a frame.
+const IDLE_FRAME_TIME := 0.18
+## Whoever acts steps this far towards the other side and back; the blow lands
+## at the far end of the step.
+const LUNGE := 9.0
+const LUNGE_TIME := 0.09
+## Who is hit flashes this bright for this long.
+const FLASH := Color(2.4, 2.4, 2.4)
+const FLASH_TIME := 0.12
+## A crit, or a blow that staggers, shakes the screen this many units.
+const SHAKE := 2.0
+const SHAKE_TIME := 0.24
+
 const FLOATER_RISE := 13.0
 const FLOATER_TIME := 0.7
 ## How long the result stays up after the last blow.
@@ -43,14 +60,19 @@ var _actor: Combatant = null
 var _outro: Tween = null
 ## Enemy [Combatant] to the panel drawing it, so a report can find its sprite.
 var _entries: Dictionary[Combatant, Control] = {}
+var _idle_time := 0.0
+var _hero_texture := AtlasTexture.new()
+var _shake: Tween = null
 
 @onready var _backdrop: ColorRect = $Backdrop
+@onready var _sky: TextureRect = $Sky
 @onready var _sky_glow: TextureRect = $SkyGlow
+@onready var _scenery: TextureRect = $Scenery
+@onready var _hero: TextureRect = $Hero
 @onready var _ground: TextureRect = $Ground
 @onready var _horizon: ColorRect = $Horizon
 @onready var _enemy_row: HBoxContainer = $Enemies
 @onready var _log: Label = $Log/Label
-@onready var _party_panel: Control = $Party
 @onready var _party_name: Label = $Party/Rows/Name
 @onready var _party_hp: ProgressBar = $Party/Rows/Hp
 @onready var _party_poise: ProgressBar = $Party/Rows/Poise
@@ -63,6 +85,9 @@ var _entries: Dictionary[Combatant, Control] = {}
 
 func _ready() -> void:
 	_set_visible(false)
+	_hero_texture.atlas = Player.SHEET
+	_hero.texture = _hero_texture
+	_pose_hero(0)
 	CombatManager.combat_began.connect(_on_combat_began)
 	CombatManager.command_requested.connect(_on_command_requested)
 	CombatManager.action_resolved.connect(_on_action_resolved)
@@ -170,10 +195,40 @@ func _on_command_requested(actor: Combatant) -> void:
 	_show_root()
 
 
+## The log line at once; the blow itself at the far end of the actor's step, so
+## a number, a flash and a falling bar all arrive when the strike does.
 func _on_action_resolved(report: CombatReport) -> void:
 	_log.text = report.text
+	var striker := _stand_of(report.actor)
+	var strikes := report.kind == CombatReport.Kind.SKILL and report.hits.any(
+			func(hit: CombatReport.Hit) -> bool: return hit.target.is_player != report.actor.is_player)
+	if striker == null or not strikes or CombatManager.step_delay <= 0.0:
+		_land(report)
+		return
+	var toward := Vector2(0, -LUNGE) if report.actor.is_player else Vector2(LUNGE * 0.6, LUNGE * 0.6)
+	if report.actor.is_player:
+		_pose_hero(Player.ATTACK_ROW)
+	var home := striker.position
+	var step := striker.create_tween()
+	step.tween_property(striker, "position", home + toward, LUNGE_TIME)
+	step.tween_callback(_land.bind(report))
+	step.tween_property(striker, "position", home, LUNGE_TIME * 1.5)
+	if report.actor.is_player:
+		step.tween_callback(_pose_hero.bind(0))
+
+
+## What a report does to the field: numbers, flashes, shake, bars.
+func _land(report: CombatReport) -> void:
+	if not visible:
+		return
+	var heavy := false
 	for hit in report.hits:
 		_float_number(hit)
+		if hit.amount < 0:
+			_flash(hit.target)
+			heavy = heavy or hit.crit or hit.staggered
+	if heavy:
+		_shake_screen()
 	for touched in report.touched():
 		if touched.is_player:
 			_refresh_party(touched)
@@ -210,6 +265,17 @@ func _paint_backdrop(encounter: Encounter) -> void:
 	# against it.
 	_ground.self_modulate = Color.WHITE.lerp(sky, 0.35)
 	_horizon.visible = _ground.visible
+	# A painted sky (the sky's clouds) replaces the glow; dimmed like the rest,
+	# further, since it is further away.
+	_sky.texture = encounter.sky_texture
+	_sky.visible = encounter.sky_texture != null
+	_sky.self_modulate = Color.WHITE.lerp(sky, 0.45)
+	_sky_glow.visible = not _sky.visible
+	_scenery.texture = encounter.scenery
+	_scenery.visible = encounter.scenery != null
+	if _scenery.visible:
+		_scenery.offset_top = _scenery.offset_bottom - encounter.scenery.get_height()
+	_scenery.self_modulate = Color.WHITE.lerp(sky, 0.5)
 
 
 ## A vertical fade from nothing down to [param sky] lifted towards the light,
@@ -391,13 +457,19 @@ func _build_enemies(enemies: Array[Combatant]) -> void:
 		pointer.modulate.a = 0.0
 		column.add_child(pointer)
 
+		# The sprite stands in a plain Control rather than straight in the column,
+		# so it can step forward and back without the column laying it out again.
+		var stand := Control.new()
+		stand.name = "Stand"
+		stand.custom_minimum_size = _battler_size(enemy.battler)
+		column.add_child(stand)
 		var sprite := TextureRect.new()
 		sprite.name = "Sprite"
-		sprite.texture = enemy.battler
-		sprite.custom_minimum_size = _battler_size(enemy.battler)
+		sprite.texture = _idle_texture(enemy)
+		sprite.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		column.add_child(sprite)
+		stand.add_child(sprite)
 
 		var name_label := Label.new()
 		name_label.name = "Name"
@@ -434,7 +506,7 @@ func _refresh_enemy(enemy: Combatant) -> void:
 	(column.get_node("Statuses") as Label).text = " ".join(enemy.status_labels())
 	# A downed enemy stays on the field, greyed, rather than popping out and
 	# reflowing the whole row mid-fight.
-	var sprite := column.get_node("Sprite") as TextureRect
+	var sprite := column.get_node("Stand/Sprite") as TextureRect
 	sprite.modulate = Color(0.35, 0.35, 0.4, 0.55) if not enemy.is_alive() else Color.WHITE
 	if not enemy.is_alive():
 		(column.get_node("Pointer") as CanvasItem).modulate.a = 0.0
@@ -487,13 +559,13 @@ func _float_number(hit: CombatReport.Hit) -> void:
 	tween.chain().tween_callback(label.queue_free)
 
 
-## Where a number should pop for [param who]: over their sprite, or over the
-## party panel for the player.
+## Where a number should pop for [param who]: over their sprite, the player's
+## included.
 func _anchor_for(who: Combatant) -> Vector2:
 	var column := _entries.get(who) as Control
 	if column != null:
 		return column.global_position + Vector2(column.size.x * 0.5, column.size.y * 0.35)
-	return _party_panel.global_position + Vector2(_party_panel.size.x * 0.5, -3.0)
+	return _hero.global_position + Vector2(_hero.size.x * 0.5, -3.0)
 
 
 func _set_visible(shown: bool) -> void:
@@ -509,6 +581,10 @@ func _set_visible(shown: bool) -> void:
 			child.queue_free()
 		for child in _floaters.get_children():
 			child.queue_free()
+		if _shake != null:
+			_shake.kill()
+		offset = Vector2.ZERO
+		_pose_hero(0)
 
 
 ## A battler scaled so it lands on whole screen pixels, which is what keeps
@@ -524,3 +600,80 @@ func _battler_size(texture: Texture2D) -> Vector2:
 	var longest := maxf(size.x, size.y)
 	var factor := 2.0 if longest <= 24.0 else (1.0 if longest < 64.0 or texture is AtlasTexture else 0.5)
 	return size * factor
+
+
+# --- the field moving ------------------------------------------------------
+
+## Monsters with a walk sheet tread in place: alive is something you can see.
+func _process(delta: float) -> void:
+	if not visible:
+		return
+	_idle_time += delta
+	var frame := int(_idle_time / IDLE_FRAME_TIME)
+	for enemy in _entries:
+		var sprite := _entries[enemy].get_node("Stand/Sprite") as TextureRect
+		var art := sprite.texture as AtlasTexture
+		if art == null or not art.has_meta(&"frames") or not enemy.is_alive():
+			continue
+		var base: Rect2 = art.get_meta(&"base")
+		var step: Vector2 = art.get_meta(&"step")
+		art.region = Rect2(base.position + step * (frame % int(art.get_meta(&"frames"))), base.size)
+
+
+## [param enemy]'s battler, as its own copy when it can tread in place -- the
+## type's texture is shared, and stepping its region would step every monster of
+## that kind at once. A 4x4 sheet treads down its front-facing column, an Nx1
+## side view along its row.
+func _idle_texture(enemy: Combatant) -> Texture2D:
+	var art := enemy.battler as AtlasTexture
+	var type := enemy.source
+	if art == null or type == null or type.sheet == null or art.atlas != type.sheet:
+		return enemy.battler
+	var frames := type.sheet_frames
+	var cell := type.sheet.get_size() / Vector2(frames)
+	var count := frames.y if frames.y > 1 else frames.x
+	if count <= 1:
+		return enemy.battler
+	var own := art.duplicate() as AtlasTexture
+	own.set_meta(&"base", art.region)
+	own.set_meta(&"step", Vector2(0, cell.y) if frames.y > 1 else Vector2(cell.x, 0))
+	own.set_meta(&"frames", count)
+	return own
+
+
+## The player's sheet at [param row] of the facing column: 0 standing,
+## [constant Player.ATTACK_ROW] mid-swing.
+func _pose_hero(row: int) -> void:
+	_hero_texture.region = Rect2(Vector2(HERO_COLUMN, row) * HERO_FRAME, HERO_FRAME)
+
+
+## What steps forward when [param who] acts: their sprite, or the player's.
+func _stand_of(who: Combatant) -> Control:
+	if who == null:
+		return null
+	if who.is_player:
+		return _hero
+	var column := _entries.get(who) as Control
+	return column.get_node("Stand/Sprite") as Control if column != null else null
+
+
+func _flash(who: Combatant) -> void:
+	var sprite := _stand_of(who)
+	if sprite == null or (not who.is_player and not who.is_alive()):
+		return
+	sprite.self_modulate = FLASH
+	sprite.create_tween().tween_property(sprite, "self_modulate", Color.WHITE, FLASH_TIME)
+
+
+## Shakes the whole layer, settling back to rest -- in whole units, so the pixel
+## grid never smears.
+func _shake_screen() -> void:
+	if _shake != null:
+		_shake.kill()
+	_shake = create_tween()
+	var steps := 6
+	for i in steps:
+		var strength := SHAKE * (1.0 - float(i) / steps)
+		var kick := Vector2(strength if i % 2 == 0 else -strength, roundf(strength * 0.5) * (1 if i % 3 == 0 else -1))
+		_shake.tween_property(self, "offset", kick.round(), SHAKE_TIME / steps)
+	_shake.tween_property(self, "offset", Vector2.ZERO, SHAKE_TIME / steps)

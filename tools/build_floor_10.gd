@@ -124,6 +124,13 @@ const BOULDERS := [
 ]
 const POOL := Rect2i(35, 29, 3, 2)
 
+## Named places, for the map screen. The glades go unnamed: Ashlow's people
+## don't go into them.
+const LANDMARKS := {
+	"Ashlow": VILLAGE,
+	"the Hollow": HOLLOW,
+}
+
 
 func _init() -> void:
 	floor_number = FLOOR_NUMBER
@@ -134,6 +141,7 @@ func _init() -> void:
 
 func _build() -> Node2D:
 	var map := _new_map("Floor10", &"floor_10", "Floor 10 - Ashlow Wood")
+	_name_places(map, LANDMARKS)
 
 	_carve_village()
 	for glade in [GLADE_A, GLADE_B, GLADE_C]:

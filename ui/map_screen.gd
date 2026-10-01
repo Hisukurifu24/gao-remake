@@ -1,20 +1,38 @@
 extends CanvasLayer
-## The map (M): the map you are standing on, as far as you have seen it.
+## The map (M): the map you are standing on, as far as you have seen it, drawn in
+## ink on a sheet of the pack's paper.
 ##
 ## A view like the journal and the bag -- it reads [GameState]'s explored cells
 ## through [MapView] and changes nothing. It holds the input lock while open, so
 ## nothing on the floor moves while you study it.
 
+## The legend's symbols and their colours -- the same ones [MapView] draws with.
+const KEYS := {
+	&"You/Key": UiPalette.MAP_YOU,
+	&"Door/Key": UiPalette.MAP_DOOR,
+	&"Exit/Key": UiPalette.MAP_EXIT,
+	&"Chest/Key": UiPalette.MAP_CHEST,
+	&"Person/Key": UiPalette.MAP_PERSON,
+	&"Quest/Key": UiPalette.MAP_QUEST,
+}
+
 var _open := false
 
-@onready var _view: MapView = $Window/Column/Inset/View
-@onready var _title: Label = $Window/Column/Header/Title
-@onready var _status: Label = $Window/Column/Header/Status
+@onready var _view: MapView = $Sheet/Column/View
+@onready var _title: Label = $Sheet/Column/Header/Title
+@onready var _region: Label = $Sheet/Column/Header/Region
+@onready var _status: Label = $Sheet/Column/Header/Status
+@onready var _legend: Control = $Sheet/Column/Legend
 
 
 func _ready() -> void:
 	visible = false
 	CombatManager.combat_began.connect(_on_combat_began)
+	# The pack's paper, warmed to parchment.
+	($Sheet as CanvasItem).self_modulate = UiPalette.MAP_SHEET
+	_region.add_theme_color_override(&"font_color", UiPalette.INK_LOCKED)
+	for key: StringName in KEYS:
+		(_legend.get_node(NodePath(key)) as MapGlyph).colour = KEYS[key]
 
 
 func is_open() -> bool:
@@ -29,6 +47,7 @@ func open() -> void:
 	visible = true
 	GameState.push_input_lock()
 	_title.text = map.display_name if not map.display_name.is_empty() else "Map"
+	_region.text = map.region
 	_status.text = _status_line(map)
 	_view.show_map(map)
 

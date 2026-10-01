@@ -2,12 +2,13 @@ class_name FogOfWar
 extends RefCounted
 ## What the player can see from where they stand, cell by cell.
 ##
-## The screen always shows everything in camera -- this is not a darkness over
-## the map. It decides what counts as *explored*: the cells within
+## Over most of a map the screen shows everything in camera, and this decides only
+## what counts as *explored*: the cells within
 ## [constant RADIUS] that a straight line reaches without crossing a wall. A wall
 ## is seen, what is behind it is not, so the map of a labyrinth shows the passages
 ## you have walked and the walls round them -- not the one beyond the wall that
-## you have not found the way into.
+## you have not found the way into. Inside a labyrinth it also decides what is
+## *drawn* -- the same cells are what [Darkness] leaves lit.
 
 ## Seven cells: comfortably inside the 20x11 the camera shows, so nothing is
 ## recorded as explored that was not on screen.

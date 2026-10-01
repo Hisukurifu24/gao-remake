@@ -109,7 +109,17 @@ func _new_map(node_name: String, map_id: StringName, display_name: String) -> No
 	return map
 
 
+## Writes [param places] (name -> rect) onto the map's [code]landmarks[/code], for
+## the map screen to label.
+func _name_places(map: Node2D, places: Dictionary) -> void:
+	var named: Dictionary[String, Rect2i] = {}
+	for place: String in places:
+		named[place] = places[place]
+	map.set(&"landmarks", named)
+
+
 # --- carving ---------------------------------------------------------------
+
 
 func _carve(rect: Rect2i, tile: int) -> void:
 	for y in range(rect.position.y, rect.end.y):

@@ -207,10 +207,17 @@ func _test_labyrinth(main: Node, map: Node2D, player: Player) -> void:
 	var room: Rect2i = map.get_meta(&"boss_room")
 	_check(not GameState.is_explored(&"floor_2", room.get_center()),
 			"and the boss room starts unexplored")
+	var dark := map.get_node_or_null("Darkness") as Darkness
+	_check(dark != null and dark.area == map.get_meta(&"labyrinth"),
+			"the labyrinth is dark beyond what you can see")
+	_check(dark != null and dark.light_at(room.position) == 0.0,
+			"and its boss room is in the dark from the field")
 
 	# Into the room's corner, clear of the door: it turns solid as it appears.
 	player.global_position = walls.map_to_local(room.position)
 	await _physics(4)
+	_check(dark != null and dark.light_at(room.position + Vector2i(1, 0)) < 1.0,
+			"the light fades in rather than jumping")
 	_check(gate.revealed and GameState.has_flag(BossGate.found_flag(2)),
 			"walking into the boss room reveals the door")
 	_check(DialogueRunner.is_running(), "and says so")
@@ -219,14 +226,28 @@ func _test_labyrinth(main: Node, map: Node2D, player: Player) -> void:
 	_check(gate.is_available() and gate.get_node("Sprite2D").visible, "the found door can be challenged")
 	_check(GameState.is_explored(&"floor_2", walls.local_to_map(gate.position)),
 			"and the door's cell is explored once you are in its room")
+	var door_cell := walls.local_to_map(gate.position)
+	for _frame in 60:
+		if dark == null or dark.light_at(door_cell) == 1.0:
+			break
+		await _physics(1)
+	_check(dark != null and dark.light_at(door_cell) == 1.0,
+			"and lit, now you stand in its room")
 
 	var screen: CanvasLayer = main.get_node("MapScreen")
 	await _tap(&"map")
 	_check(screen.call(&"is_open") and screen.visible and GameState.is_input_locked(),
 			"M opens the map, holding the input lock")
-	var status: Label = screen.get_node("Window/Column/Header/Status")
+	var status: Label = screen.get_node("Sheet/Column/Header/Status")
 	_check(status.text.contains("explored") and status.text.contains("door found"),
 			"the map reports what is explored and that the door is found (got '%s')" % status.text)
+	var region: Label = screen.get_node("Sheet/Column/Header/Region")
+	_check(region.text == (map as GameMap).region and not region.text.is_empty(),
+			"and names the floor's region (got '%s')" % region.text)
+	var walked := GameState.walked_cells(&"floor_2")
+	var seen := GameState.explored_cells(&"floor_2")
+	_check(walked.has(walls.local_to_map(player.position)) and walked.size() < seen.size(),
+			"where you stood is walked, and less is walked than seen (%d of %d)" % [walked.size(), seen.size()])
 	await _tap(&"map")
 	_check(not screen.call(&"is_open") and not GameState.is_input_locked(), "and M closes it again")
 

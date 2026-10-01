@@ -12,6 +12,11 @@ const DIR_COLUMNS := {
 	Vector2i(-1, 0): 2,  # left
 	Vector2i(1, 0): 3,   # right
 }
+## Who you are, drawn: the map walks this sheet and the battle screen stands it
+## on the field, so the two can't drift onto different characters.
+const SHEET := preload("res://assets/ninja_adventure/Actor/Character/SamuraiBlue/SpriteSheet.png")
+## The sheet's row of attack poses, one per facing column.
+const ATTACK_ROW := 4
 const WALK_FPS := 8.0
 const WALK_FRAMES := 4
 ## A conversation ends on the same press that closed it, and a player mashing
@@ -37,6 +42,7 @@ var _deaf_until := 0.0
 
 
 func _ready() -> void:
+	_sprite.texture = SHEET
 	EventBus.dialogue_finished.connect(_on_dialogue_finished)
 
 

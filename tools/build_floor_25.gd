@@ -64,6 +64,15 @@ const GALLERIES := [
 ## round it. Blocked as an ellipse after the carve, like a boulder.
 const LAKE := Rect2i(54, 27, 12, 6)
 
+## Named places, for the map screen -- what the miners call them.
+const LANDMARKS := {
+	"Lanternfall": CAMP,
+	"Upper galleries": UPPER,
+	"Stillwater": STILLWATER,
+	"Lower workings": LOWER,
+	"the Breach": BREACH,
+}
+
 ## The main line, top to bottom. Each run is waypoints joined by straight legs.
 const MAIN_LINE := [
 	[Vector2i(28, 12), Vector2i(36, 12), Vector2i(36, 7), Vector2i(46, 7)],
@@ -170,6 +179,7 @@ func _init() -> void:
 
 func _build() -> Node2D:
 	var map := _new_map("Floor25", &"floor_25", "Floor 25 - Lanternfall")
+	_name_places(map, LANDMARKS)
 
 	_carve_cave(CAMP, _biome.floor_tile, 0.10, 3, 0.0)
 	_carve_cave(UPPER, _biome.floor_tile, 0.15, 4, 1.0)

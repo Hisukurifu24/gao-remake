@@ -43,6 +43,9 @@ var _flags: Dictionary[StringName, Variant] = {}
 ## -- which is one more reason [member world_seed] must be in the save: these
 ## cells only mean anything on the same layout.
 var _explored: Dictionary[StringName, Dictionary] = {}
+## The part of [member _explored] the player has actually been: what the map draws
+## as walked rather than only glimpsed. Same shape, same save.
+var _walked: Dictionary[StringName, Dictionary] = {}
 var _input_locks := 0
 
 
@@ -193,15 +196,12 @@ func has_flag(flag: StringName) -> bool:
 
 ## Marks [param cells] of [param map_id] as seen. Returns how many were new.
 func explore(map_id: StringName, cells: Array[Vector2i]) -> int:
-	if map_id == &"":
-		return 0
-	if not _explored.has(map_id):
-		_explored[map_id] = {}
-	var seen: Dictionary = _explored[map_id]
-	var before := seen.size()
-	for cell in cells:
-		seen[cell] = true
-	return seen.size() - before
+	return _mark(_explored, map_id, cells)
+
+
+## Marks [param cells] of [param map_id] as walked -- been there, not just seen it.
+func walk(map_id: StringName, cells: Array[Vector2i]) -> int:
+	return _mark(_walked, map_id, cells)
 
 
 func is_explored(map_id: StringName, cell: Vector2i) -> bool:
@@ -211,6 +211,24 @@ func is_explored(map_id: StringName, cell: Vector2i) -> bool:
 ## Every cell seen on [param map_id], as cell -> true. Read it; don't write it.
 func explored_cells(map_id: StringName) -> Dictionary:
 	return _explored.get(map_id, {})
+
+
+## Every cell walked on [param map_id], as cell -> true. Read it; don't write it.
+func walked_cells(map_id: StringName) -> Dictionary:
+	return _walked.get(map_id, {})
+
+
+func _mark(store: Dictionary[StringName, Dictionary], map_id: StringName,
+		cells: Array[Vector2i]) -> int:
+	if map_id == &"":
+		return 0
+	if not store.has(map_id):
+		store[map_id] = {}
+	var marked: Dictionary = store[map_id]
+	var before := marked.size()
+	for cell in cells:
+		marked[cell] = true
+	return marked.size() - before
 
 
 # --- Input locking ---

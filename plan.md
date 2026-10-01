@@ -129,8 +129,8 @@ loop, not gaps in it. Nothing here blocks M5.
 - [ ] **Stagger pays the attacker.** Poise already costs the victim its turn;
   breaking it should *also* grant the breaker a bonus turn. A few lines in
   `CombatManager._take_turn`, and the cheapest depth on this list.
-- [ ] **Juice**: hit-stop, screen shake, flash-on-hit, a lunge on the attacker.
-  View-only — `action_resolved` already carries everything needed.
+- [x] **Juice**: screen shake, flash-on-hit, a lunge on the attacker — landed with
+  M5.5 §5's battle screen. Hit-stop deliberately not (see there).
 - [ ] **Speed-up / auto-repeat for trash.** Hold to fast-forward, repeat the last
   action. `CombatManager.step_delay` is already the one knob for pacing.
 - [ ] Combat SFX and music (bundled into M7 with the rest of audio).
@@ -228,7 +228,7 @@ timed or failable quests, no branching quests where a choice picks between two
 endings, and **the tracker shows one quest at a time** rather than every live
 objective.
 
-### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2 and §3 ✅
+### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3 ✅, §5 ◐ (battle screen reopened → §6, fight on the map)
 
 Playtest feedback on the finished loop, and it lands on the overworld rather than on any
 one system: **the floors work, but exploring them isn't a game yet.** The camera shows the
@@ -523,7 +523,7 @@ fight starts. It should behave like something living on the floor. *Landed — s
   honoured only in round 1 by `CombatManager._turn_order()` and covered in `combat_test`.
   A "!" pops over a monster when it notices you.
 
-#### 3. Hidden boss room ✅ *(generated floors; authored floors still to revisit)*
+#### 3. Hidden boss room ✅ *(generated floors; authored floors still to revisit — the labyrinth was resized and darkened in §5)*
 In the source material, finding the boss room *is* the first half of the floor — the
 front line spends days mapping the labyrinth before anyone sees the door. Here the door was
 predictably in the farthest room and often on screen.
@@ -598,6 +598,253 @@ the answer. Candidates to weigh:
 - **Room shape variety** in the generator: `_carve_cave()` already exists in the authored
   builder; generated floors are still rects and L-corridors.
 - Ties into M6's *floor-shape variety* and *town hubs on generated floors*.
+
+#### 5. Playtest notes (2026-10-01) — after §3 landed
+Three things from playing the finished §3. None is a bug; all three are "works, doesn't
+feel like enough yet".
+- [x] **The labyrinth is too small, too short and too close.** You can see dead ends from
+  a room away, which breaks the sense of being in a maze — a maze you can read from
+  outside is a corridor with extra steps. *Why it happens:* floor 2's maze is 6×4 cells
+  of 4 tiles = 24×16 tiles, and the camera shows 20×11 (`FloorTuning.labyrinth_cells`).
+  Most of the maze is on screen at once, and the camera sees over walls — fog of war
+  decides what is *explored*, not what is *drawn*. Floor 100's 9×6 is still under two
+  screens. Candidates, likely more than one:
+  - **Much bigger mazes** — several screens in each direction, from the first floor, and
+    growing with the floor. The completability and findability checks already scale; the
+    floor test's "never under 24 tiles in" floor should rise with it.
+  - **Longer passages per cell** (a cell wider than 4 tiles), so a dead end costs a real
+    walk to discover rather than one glance.
+  - **Further from the field**: the mouth sits one corridor from the nearest room. A walk
+    or an antechamber before it would make the labyrinth feel like a place you go to.
+  - **Hide what isn't in line of sight inside the labyrinth** — darken cells `FogOfWar`
+    says you can't see from where you stand, so walls actually block the view. This is the
+    one that makes a maze feel like a maze at any size; it changes the "fog decides what
+    is explored, not what is drawn" rule, so only inside the labyrinth (and decide whether
+    for the whole floor later).
+  - Keep the door rule (shows only from inside its room) and the `_audit_labyrinth` checks
+    as they are; this is about scale and sight, not about where the door goes.
+
+  *Landed: bigger mazes and the dark.* `FloorTuning.labyrinth_cells` is now 12×7 on
+  floor 2 (50×30 tiles, two and a half screens each way) to 20×12 on floor 100, still
+  two-wide passages and two-thick walls. The field no longer has to be longer than the
+  maze: along the side they share, the shorter one slides along the longer and rock fills
+  the rest, so the maze is usually the bigger half of the map, and when its mouth lies
+  beyond the field's end the corridor to it runs out through the rock — which is the
+  *further from the field* candidate for free, some of the time. Inside the labyrinth
+  (`GameMap.dark_area`) **`Darkness`** covers what `FogOfWar` says you can't see: black
+  where you've never looked, dimmed where you have, clear in line of sight — one texel a
+  cell, filtered linearly, so the light is a soft torch-radius that fades after you rather
+  than stepping a cell at a time. Monsters in the dark aren't drawn. The maze grows more
+  depth-first (`MAZE_RUN` 0.5 → 0.75): at 0.5 a maze this size grew a third more dead
+  ends, mostly a cell or two deep; at 0.9 the walk ran to 368 tiles. Measured over 97
+  floors on four world seeds: the walk from the mouth to the door is 70–284 tiles, median
+  ~124 (was 28, ~48); the floor test's floor rose from 24 to 60. A third of the floor's
+  monsters walk the passages now, not a quarter. *Not taken:* longer passages per cell —
+  with the dark, a dead end is only readable from its junction when it is one cell deep,
+  which is how a real maze behaves, and two-and-two is what every biome is checked at.
+  *Still open:* whether the dark should cover the whole floor (the field reads fine lit).
+- [x] **The map screen (M) is too minimalistic.** Flat cream/sage/blue cells with a few
+  markers reads as a debug view, not as something in the world. Directions to weigh:
+  draw it in the biome's own colours or as a parchment map on the pack's paper, a
+  legend, the floor's name and number as a title, room/landmark labels for authored
+  floors, a dimmer "seen but not walked" tone, quest-target markers.
+
+  *Landed: an ink map on parchment.* The whole screen is one sheet of the pack's paper
+  (`DialogPanel`, `self_modulate`d warm to `UiPalette.MAP_SHEET`). The floor's extent is
+  a darker wash with graph-paper dots; walked floor is the paper at its brightest;
+  floor only *glimpsed* — a side passage seen from its junction, the far side of a
+  room — is a shade under it and stippled; rock is a brown wash with an ink line on
+  its side of every edge it shares with open ground; water a blue wash. "Walked" is new
+  state beside "explored": `GameState.walk()` / `walked_cells()`, everything within
+  `GameMap.WALK_REACH` (2) of a cell you stood on that you could also see, so a two-wide
+  passage is walked end to end in either lane — the M7 save keeps it beside the explored
+  cells. Symbols are `MapGlyph`s, pixel tables like the font's with their outline
+  derived: an arrow for you that turns with your facing, a skull for the door, stairs
+  for a way out, a chest, a pawn for anyone you've seen, and a `!` over whoever the
+  *tracked* quest wants — its giver once it's ready to hand in, the person a TALK
+  objective names, or this floor's door when it asks for the floor cleared. The header
+  is the map's name plus `GameMap.region` (a generated floor's biome, "Winding Caves")
+  and the explored/door line; the legend draws the same glyphs. Places are named once
+  any of them is seen, written just above the place (inside its top edge where the sheet
+  runs out) so a name never sits on a symbol: `GameMap.landmarks`, which the generator
+  fills with "The Labyrinth" and `authored_floor.gd`'s `_name_places()` with each
+  floor's `LANDMARKS` table — Ashlow and the Hollow; Lanternfall, the upper galleries,
+  Stillwater, the lower workings and the Breach. *Not taken:* the biome's own colours
+  (parchment reads as a map on every band, and the biome is in the title), markers for
+  KILL and COLLECT objectives (they name no place), the glades' names (unnamed on
+  purpose — nobody in Ashlow goes there).
+- [x] **The battle screen is too minimalistic.** The tiled ground under a horizon and the
+  glowing backdrop are a stage, not a place. Directions to weigh: biome props on the
+  horizon (trees, rocks, columns from the map's own `Props`), a back layer of the biome's
+  wall art, the player's character sprite on the field rather than only a status panel,
+  idle/attack animation frames from the pack's sheets, hit-stop and shake (already listed
+  as a cheap combat-feel win under *Immediate next steps*), damage numbers that pop over
+  the battler.
+
+  *Landed: a horizon, the player on the field, and blows that land.* `Bestiary` builds
+  `Encounter.scenery` per biome (cached, like the ground) from the biome's own atlas: a
+  tree biome gets a tree line two deep, staggered like the map's forest edge; a rock
+  biome gets a ridge — columns of its wall mass one to three tiles high, each tile
+  picked by its neighbour mask the way the map's autotiling picks it, so the band has
+  the biome's rims and faces wherever its outline turns; the sky gets its painted clouds
+  (`Encounter.sky_texture`) instead of the glow. A few pieces of the biome's scatter
+  stand at the foot. The band sits on the horizon dimmed towards the sky, and wraps, so
+  a wide window tiles it. The player stands in the foreground, bottom centre between the
+  panels, seen from behind (`Player.SHEET`, now the one source of the character for the
+  map and the battle), and the player's damage numbers pop over them. A monster with a
+  walk sheet treads in place. Whoever acts steps towards the other side — the player in
+  the sheet's attack pose — and the blow lands at the far end of the step: numbers, a
+  white flash on whoever is hit, the bars falling, and a whole-unit screen shake on a
+  crit or a stagger. All of it is view-only, skipped when `step_delay` is 0, so the
+  headless suites never wait on it; the combat test checks every band has scenery.
+  *Not taken:* true hit-stop (the runner paces itself, and freezing the view alone reads
+  as lag), enemy attack frames (the pack's monster sheets have none). *Still open:* the
+  rock bands are top-down art turned on its side — the ruins read as buttes, the castle
+  as low walls; standing props curated per biome (the pack's towers, columns, big rocks)
+  would read better, and are a `PACK_BIOMES`-sized job.
+- [ ] **The battle screen, second pass** *(playtest 2026-10-01: "map is amazing … battle
+  screen still needs work")*. The map's pass is accepted; the battle's is not. What the
+  screenshots (`05_combat_menu`, `07*_combat_*`) show:
+  - **The backdrop is still top-down art on its side.** The forest's tree line works; the
+    rock bands don't — ruins and desert are flat buttes, volcanic and cave are black boxes
+    with a rim. The pack draws nothing side-on, so this is the one problem art can't be
+    composed out of.
+  - **The ground is a flat fill.** A plain grass or taupe tile tiled across half the
+    screen reads as an empty floor, not as a field going back to the horizon.
+  - **The player is a dark blob.** A 16 px back view, alone at the bottom, reads as a
+    rock; nothing about it says Kirito or says *sword*.
+  - **No depth.** Monsters stand on the horizon line at the trees' scale, in a row, so the
+    fight is a strip at mid-height with two big empty bands above and below it.
+  - **Blows are numbers and a flash.** The pack's `FX/Attack`, `FX/Slash` and
+    `FX/Elemental` sheets (cuts, claws, arcs, fire, ice, thunder, rock) are unused, and so
+    are `Ui/Skill Icon` (for the skill menu) and `Ui/Emote` (for stun/poison/opening).
+  - **The panels are heavy.** Two big wood frames take the bottom third and the command
+    menu is mostly empty space.
+
+  Two ways were weighed: painted side-on backdrops per biome (needs ten downloaded
+  backgrounds, and keeps a stage the pack was never drawn for), or **fighting on the map
+  itself**. *Decided 2026-10-01: fight on the map* — see §6. It answers every bullet
+  above at once: the place is the map you were standing on, drawn by the art that
+  already works; the player is the player; depth is the map's own y-sort.
+
+#### 6. Fight on the map (Chrono Trigger) — *planned, decided 2026-10-01*
+
+**The battle stops being a screen and becomes a moment on the floor.** No fade, no
+backdrop: when a monster reaches you, the two of you step apart into a formation where
+you stood, the camera eases onto the pair, a slim command menu comes up over the map, and
+the blows land on the real sprites. When it ends the camera eases back and you walk on
+from the spot. Every biome is solved at once, by the art that already works on the map,
+and the one piece of the old screen nobody liked — the stage — is deleted rather than
+improved.
+
+**What stays exactly as it is.** `CombatManager` is untouched: it already announces
+everything through signals and takes `submit()`, and it already never learned what a map
+is. The combat test therefore doesn't move, and neither does the balance section. Who
+struck first is still decided by the monster (`Encounter.opening`); losing still sends
+you to the entrance; fleeing still stuns the monster. The rule *flow and view are
+separate* is the reason this is a view job and not a combat rewrite.
+
+**What the plan has to get right:**
+
+- **Where everyone stands is a map question, so the map answers it.**
+  `GameMap.stage_battle(contact, enemy_count) -> BattleField` finds a *formation*: a
+  standing spot for the player and one per enemy, on floor cells (`Walls` empty — water
+  is on `Walls`, so it's excluded for free), facing each other along the contact axis,
+  3–4 tiles apart, with the arena rect that frames them. Try the contact axis, then the
+  other axis, then shrink the gap to 2 tiles. **At most two enemies ever** (escorts are
+  capped at one because the party is one), so a two-wide labyrinth passage always fits a
+  pair side by side. `BattleField` is a `RefCounted`: the spots, the facings, the arena
+  rect, and the map nodes standing in for each combatant.
+- **The view needs to know which sprite is which combatant; combat must not.** The
+  caller already knows both — `Monster._engage()` and `BossGate._fight()` build the
+  encounter — so it builds the field too and announces it with a new
+  `EventBus.battle_staged(field)` just before `CombatManager.start()`. The view pairs
+  `field.enemy_nodes[i]` with `enemies[i]` from `combat_began`, the same order the
+  encounter lists them in. `Encounter` gains nothing; it *loses* its presentation fields.
+- **The intro has to fit inside the runner's opening pause.** `CombatManager._fight()`
+  waits one `step_delay` (0.55 s) before round 1 and nothing waits for the view, so the
+  step-into-formation and the camera ease get ~0.4 s. If that reads rushed, the fix is a
+  view-ready hook on the runner with a timeout — not making combat await a view it must
+  work without.
+- **The camera.** A `BattleCamera` on the map is made current, starts where the
+  player's camera was, eases to the arena's centre and back. Same limits as the
+  player's (an arena by the map's edge just frames off-centre). **Zoom is the open
+  question for the spike**: zoom 1 keeps the pixel scale the UI is laid out at but a
+  16 px boar is small on 320×180; zoom 2 frames 160×90 of world, texels stay whole
+  pixels, and a 70 px boss would fill the screen — so likely ×2 for trash, ×1 for bosses.
+  Decide by screenshot, not in advance.
+- **The dark.** In the labyrinth the fighters stand in `Darkness`. `Darkness` gets a
+  lit rect for the arena while a fight is up, so a maze fight is a pool of light in the
+  black — the mood is the point, not a problem to remove. A fighting monster also skips
+  `Darkness.light_at()` alpha.
+- **Everyone else on the map.** Monsters already freeze under the input lock. Any that
+  stand inside the arena's frame fade back (alpha, not removal) so a frozen boar at the
+  edge doesn't read as a second enemy; they come back on `combat_finished`.
+- **Positions after the fight are real.** The player *is* moved — tweened to its spot
+  while locked, by `position`, not `move_and_slide` — so the spot must be a cell the
+  player's body fits in, which is why spots come from the formation solver and never
+  from "a bit to the left". The player walks on from there. The monster has no body, so
+  its spot only has to be floor.
+
+**The pieces, built in this order:**
+
+1. **Spike — one fight on Floor 2, ugly on purpose.** Stage a monster fight in place
+   with the old screen's menus and nothing else: formation, camera ease, lunge on the
+   real sprites. Screenshot it in a room, in a field corridor and in a labyrinth passage
+   in the dark, at zoom 1 and 2. **Go/no-go gate**: if it doesn't read better than the
+   stage in those six shots, stop and say so before anything below is built.
+2. **Staging.** `BattleField`, `GameMap.stage_battle()`, `EventBus.battle_staged`, and
+   `Monster._engage()` building the field. **New load-bearing floor-test check**: on
+   every generated floor and every authored map, at every walkable cell a monster can
+   reach you from (sampled on generated floors), a formation exists and all its spots
+   are floor. A fight that can't be staged is the in-place version of an unreachable
+   door — it fails in one corner of one floor out of a hundred, and never where anyone playtests.
+3. **The world-space view.** `ui/combat_screen.gd` splits in two:
+   - `BattleStage` (a `Node2D` added to the map for the fight's length): poses the
+     fighters, lunges, white flash, death (flash, the pack's `FX/Smoke` puff, then the
+     monster frees itself as now), damage numbers rising in world space, the target
+     pointer (`Arrow.png`) over the chosen sprite, small enemy bars under each enemy,
+     the whole-unit shake on crits — all the juice the screen has, moved onto the map.
+     Floaters and pointer draw above `Darkness` (`z_index` > 10).
+   - `BattleHud` (`CanvasLayer`): the message line, the player's vitals, and a slim
+     command menu — `HudPanel` plates, not the wood frames, sized to their contents.
+     The HUD's own vitals plate may simply stay up in battle and follow the player's
+     `Combatant` instead of `GameState`, which would mean one vitals plate in the game,
+     not two.
+   Both still only listen to `CombatManager` and answer with `submit()`.
+4. **Bosses.** The door is a door; the boss has to stand somewhere. `BossGate._fight()`
+   spawns the boss (and escort) as map sprites from `EnemyType.sheet` inside the boss
+   room — the door steps aside, the boss steps out — and stages the field from there.
+   The generated boss room (`BOSS_BLOCK` 3×2 cells, ~10×6 tiles) holds a formation
+   comfortably; Illfang's field, Nerith's hollow and Karvos's breach get checked by the
+   same floor-test sweep. Bosses with a 4×4 sheet face the player; a 70 px frame is the
+   case that decides the boss zoom.
+5. **The pack's juice.** `Skill` gets presentation exports (`fx` sheet + frame count),
+   so a skill's look is data like its numbers: cuts and slashes for sword skills, claws
+   for beasts, `FX/Elemental` for the fire, ice, thunder and rock skills enemies already
+   have. Status emotes from `Ui/Emote` over the head that wears them (poison, stun,
+   the ambush `!`). `Ui/Skill Icon` beside each skill in the menu.
+6. **Delete the stage.** `Encounter.backdrop / ground_texture / scenery / sky_texture`,
+   `Bestiary._set_stage()` and every composer under it (`_compose_scenery`, `_blob_tiles`,
+   the ground cut), the combat test's "every band has scenery" check, the old
+   `combat_screen.tscn`. Update CLAUDE.md's combat section — its two "The battle draws…"
+   bullets describe something that will no longer exist.
+7. **Tests and the screenshot pass.** The smoke test's combat section stops asserting
+   `CombatScreen.visible` and asserts the staging instead: a field was announced, every
+   spot is floor, the battle camera was current and the player's is current again, the
+   player ends on a cell their body fits, the lock is released. `tools/screenshot.gd`
+   frames fights in a room, a corridor, a dark passage, a boss room, and one per band.
+
+**Knock-on rules to revisit.** `Monster.CALM_SECONDS` was sized against the combat
+screen's outro *covering the map*; with nothing covering it, the calm may want to be
+shorter. *Fast, skippable combat* (under *Extending it*) gets more valuable, since a fight
+is now an interruption of the walk rather than a separate screen — `step_delay` is still
+the hook.
+
+**Not taken (yet):** moving during the fight (positioning, range — this is turn-based in
+a place, not tactics); a party (formation has room for it — spots are a list — but the
+party is one); pulling nearby monsters into a fight they could see (tempting, and it
+would make the labyrinth's monsters much more dangerous; weigh after it plays).
 
 ### M6 — World depth & floor content
 The 100-floor architecture is in (see *Floors of Aincrad* below); this is the pass that
@@ -830,7 +1077,7 @@ what M4 actually landed; the rest are still open and cross-referenced from
 - ◐ **Cooking/consumables buffs** — the Whetstone is the shape of it: a battle-only item that buys three turns of `+30%` attack. *Pre-battle buffs are impossible until statuses can live outside a fight — they currently ride on `Combatant`, which is why a field-use item can only heal.*
 
 **Presence & polish (cheap, huge payoff)**
-- ◐ **Juice:** floating damage numbers (crits bigger and oranger) are in. *Hit-stop, screen shake, particle bursts and flash-on-hit are all still open and all view-only — `action_resolved` already carries what they'd need.*
+- ◐ **Juice:** floating damage numbers (crits bigger and oranger), a lunge on the attacker, flash-on-hit and screen shake on crits and staggers are in (M5.5 §5). *Particle bursts are still open; hit-stop was weighed and left out.*
 - ◐ **Diegetic MMO UI** — the green/amber/red cursor colour is in and shared by the HUD and the combat screen. *The menu ring and full in-fiction framing are open.*
 - ◐ **NPC schedules / reactive dialogue** — reactive is in and got a second layer with M5: Argo and Nezha now change what they offer based on which quests you hold, how far into them you are, and whether you have reported back, on top of the met/cleared-floor conditions from M2. *Schedules — NPCs being somewhere different at a different hour — are still open, and want a clock first.*
 
@@ -950,9 +1197,14 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    but no floor waits on them.
 2. **M5.5 — Exploration feel, before any new floor.** Camera zoom, moving monsters and a
    boss room you have to find (§3: labyrinth, door that shows from inside, fog of war and
-   the **M** map) are in. **Next: the §4 design pass** on what floors are still missing —
-   play a few generated floors with the labyrinth first, since it changes the answer — and
-   then the authored-floor revisit §3 left open (Illfang, Nerith and Karvos all stand at
+   the **M** map) are in, and §5's playtest notes are answered: the labyrinth is several
+   screens of it in the dark, the map is ink on parchment, the battle has a horizon and
+   the player on the field. The map was signed off in playtest; **the battle screen was
+   not**, and the answer is to drop the battle screen and **fight on the map** (§6,
+   Chrono Trigger-style): a spike with a go/no-go gate first, then staging, the
+   world-space view, bosses, the pack's FX, and deleting the old stage. No new art
+   needed. **Then the §4 design pass** on what floors are still
+   missing, and the authored-floor revisit §3 left open (Illfang, Nerith and Karvos all stand at
    the obvious end of their layouts). Floor 40 should be laid out after §4, for the same
    reason as before.
 3. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
@@ -968,8 +1220,8 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 
 **Cheapest combat-feel wins**, if the fights start to feel flat: the
 stagger *bonus turn* (poise already costs the victim a turn; granting the attacker one is
-a few lines in `CombatManager._take_turn`), and hit-stop/shake in the combat screen, which
-is a view-only change. The full list of what M4 left on the table — with why, and what
+a few lines in `CombatManager._take_turn`); the view-only ones (lunge, flash, shake)
+landed with M5.5 §5. The full list of what M4 left on the table — with why, and what
 each one would touch — is under *Deliberately deferred from M4*.
 
 **One item there is not optional forever:** floor 100 is specced as a multi-phase fight

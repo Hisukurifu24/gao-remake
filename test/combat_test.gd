@@ -93,6 +93,17 @@ func _test_content() -> void:
 			poolless.append(band["biome"])
 	_check(poolless.is_empty(), "every biome band has a monster pool (%s)" % poolless)
 
+	# The battle draws the place: every band's fights stand on its ground in front
+	# of its scenery -- the tree line, the ridge, or (the sky) its painted clouds.
+	var bare := PackedStringArray()
+	for band in FloorRegistry.BIOME_BANDS:
+		var encounter := Bestiary.boss_encounter(band["through"])
+		var scenery := encounter.scenery
+		if encounter.ground_texture == null or scenery == null or scenery.get_width() < 320 \
+				or (scenery.get_height() < 32 and encounter.sky_texture == null):
+			bare.append(band["biome"])
+	_check(bare.is_empty(), "every band's battle has ground and scenery (%s)" % bare)
+
 
 func _test_scaling() -> void:
 	print("\n-- scaling --")

@@ -15,12 +15,34 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.08, 0.09, 0.14, 1)
 
+[node name="Sky" type="TextureRect" parent="."]
+visible = false
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 98.0
+grow_horizontal = 2
+mouse_filter = 2
+stretch_mode = 1
+
 [node name="SkyGlow" type="TextureRect" parent="."]
 anchors_preset = 10
 anchor_right = 1.0
 offset_bottom = 100.0
 grow_horizontal = 2
 mouse_filter = 2
+
+[node name="Scenery" type="TextureRect" parent="."]
+visible = false
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -130.0
+offset_bottom = -82.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+stretch_mode = 1
 
 [node name="Ground" type="TextureRect" parent="."]
 anchors_preset = 12
@@ -43,6 +65,15 @@ offset_bottom = -81.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
+
+[node name="Hero" type="TextureRect" parent="."]
+offset_left = 139.0
+offset_top = 118.0
+offset_right = 171.0
+offset_bottom = 150.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
 
 [node name="Enemies" type="HBoxContainer" parent="."]
 offset_left = 4.0

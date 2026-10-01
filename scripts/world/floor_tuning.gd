@@ -39,11 +39,13 @@ static func map_size(floor_number: int) -> Vector2i:
 
 
 ## The labyrinth in front of the boss room, in maze cells (each is four tiles
-## square: a two-wide passage and a two-thick wall). Floor 2 is 6x4, floor 100
-## is 9x6. It is what the walk to the door is made of, now the camera no longer
-## shows the door from the entrance -- see M5.5 in plan.md.
+## square: a two-wide passage and a two-thick wall). Floor 2 is 12x7 -- 50x30
+## tiles, two and a half screens each way -- and floor 100 is 20x12. It is what
+## the walk to the door is made of. The first cut (6x4) fitted on barely more than
+## one screen, and a maze you can read from outside is a corridor with extra
+## steps -- see M5.5 §5 in plan.md.
 static func labyrinth_cells(floor_number: int) -> Vector2i:
-	return Vector2i(6 + floor_number / 30, 4 + floor_number / 40)
+	return Vector2i(12 + floor_number / 12, 7 + floor_number / 20)
 
 
 static func room_count(floor_number: int) -> int:

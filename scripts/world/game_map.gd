@@ -11,11 +11,23 @@ extends Node2D
 ## Placing the player is the map's job, not the router's: the router only says
 ## *which* spawn point, the map knows where that is.
 
+## How far round the player counts as walked: a two-wide passage is walked end to
+## end by walking down it in either lane.
+const WALK_REACH := 2
+
 @export var map_id: StringName = &""
 @export var display_name := ""
 @export var default_spawn: StringName = &"default"
 ## Which floor of Aincrad this map belongs to. 0 for maps outside the tower.
 @export var floor_number := 0
+## Cells drawn only while in line of sight -- a generated floor's labyrinth. Empty
+## for none: everywhere else the camera sees over walls. See [Darkness].
+@export var dark_area := Rect2i()
+## What the map screen calls this place under its title -- a generated floor's
+## biome. Empty for none.
+@export var region := ""
+## Named places, written on the map screen once any of their cells is seen.
+@export var landmarks: Dictionary[String, Rect2i] = {}
 
 var _player: Player = null
 var _walls: TileMapLayer = null
@@ -23,6 +35,7 @@ var _walls: TileMapLayer = null
 var _biome: BiomeKit = null
 ## The cell the player was last seen from, so fog only works when they move.
 var _seen_from := Vector2i(1 << 30, 1 << 30)
+var _darkness: Darkness = null
 
 
 func _ready() -> void:
@@ -33,7 +46,14 @@ func _ready() -> void:
 	if _player:
 		_player.global_position = _resolve_spawn(SceneRouter.consume_spawn())
 		_apply_camera_limits(_player)
-	set_physics_process(_player != null and _walls != null and map_id != &"")
+	var tracks := _player != null and _walls != null and map_id != &""
+	if tracks and dark_area.has_area():
+		_darkness = Darkness.new()
+		_darkness.name = "Darkness"
+		_darkness.setup(dark_area, _walls.tile_set.tile_size, _walls.get_used_rect())
+		add_child(_darkness)
+	set_physics_process(tracks)
+	set_process(_darkness != null)
 
 
 ## Fog of war: whatever the player can see from the cell they are standing in is
@@ -44,8 +64,29 @@ func _physics_process(_delta: float) -> void:
 	var cell := _walls.local_to_map(_walls.to_local(_player.global_position))
 	if cell == _seen_from:
 		return
+	var first := _seen_from.x == 1 << 30
 	_seen_from = cell
-	GameState.explore(map_id, FogOfWar.visible_from(cell, FogOfWar.RADIUS, blocks_sight))
+	var lit := FogOfWar.visible_from(cell, FogOfWar.RADIUS, blocks_sight)
+	GameState.explore(map_id, lit)
+	var near: Array[Vector2i] = []
+	for seen in lit:
+		var off := (seen - cell).abs()
+		if maxi(off.x, off.y) <= WALK_REACH:
+			near.append(seen)
+	GameState.walk(map_id, near)
+	if _darkness:
+		_darkness.light(lit, GameState.explored_cells(map_id), first)
+
+
+## A monster in the dark is not drawn: the dark covers the ground, but a monster
+## in a remembered passage would otherwise show through it -- and what you
+## remember is the maze, not who was in it.
+func _process(_delta: float) -> void:
+	for child in get_children():
+		var monster := child as Monster
+		if monster:
+			monster.modulate.a = _darkness.light_at(
+					_walls.local_to_map(_walls.to_local(monster.global_position)))
 
 
 ## A wall stops the eye; water does not, or the far shore of a pond would stay
