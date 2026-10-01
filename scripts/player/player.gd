@@ -32,6 +32,9 @@ const INTERACT_GRACE := 0.25
 ## Facing is snapped to 4 directions for sprite/interaction purposes even
 ## though movement itself is free 8-direction.
 var facing := Vector2.DOWN
+## A sheet row to hold instead of walking -- a fight on the map posing the
+## player mid-swing. -1 walks as usual.
+var pose_row := -1
 
 var _walk_time := 0.0
 var _target: Interactable = null
@@ -103,7 +106,9 @@ func _snap_to_4(dir: Vector2) -> Vector2:
 func _update_sprite() -> void:
 	var column: int = DIR_COLUMNS[Vector2i(facing)]
 	var row := 0
-	if _walk_time > 0.0:
+	if pose_row >= 0:
+		row = pose_row
+	elif _walk_time > 0.0:
 		row = int(_walk_time * WALK_FPS) % WALK_FRAMES
 	_sprite.frame = row * _sprite.hframes + column
 

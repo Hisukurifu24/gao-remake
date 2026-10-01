@@ -63,6 +63,11 @@ var _entries: Dictionary[Combatant, Control] = {}
 var _idle_time := 0.0
 var _hero_texture := AtlasTexture.new()
 var _shake: Tween = null
+## Set when the fight is staged on the map: the screen draws only its panels,
+## and the [BattleStage] on the map draws the fight.
+var _on_map := false
+## A field arrived for the fight about to begin.
+var _staged_next := false
 
 @onready var _backdrop: ColorRect = $Backdrop
 @onready var _sky: TextureRect = $Sky
@@ -88,6 +93,7 @@ func _ready() -> void:
 	_hero_texture.atlas = Player.SHEET
 	_hero.texture = _hero_texture
 	_pose_hero(0)
+	EventBus.battle_staged.connect(_on_battle_staged)
 	CombatManager.combat_began.connect(_on_combat_began)
 	CombatManager.command_requested.connect(_on_command_requested)
 	CombatManager.action_resolved.connect(_on_action_resolved)
@@ -181,9 +187,14 @@ func _on_combat_began(encounter: Encounter, party: Array[Combatant], enemies: Ar
 		_outro.kill()
 		_outro = null
 	_set_visible(true)
-	_paint_backdrop(encounter)
+	_on_map = _staged_next
+	_staged_next = false
+	for stage: CanvasItem in [_backdrop, _sky, _sky_glow, _scenery, _ground, _horizon, _hero, _enemy_row]:
+		stage.visible = not _on_map
+	if not _on_map:
+		_paint_backdrop(encounter)
+		_build_enemies(enemies)
 	_log.text = "%s blocks the way." % encounter.label()
-	_build_enemies(enemies)
 	_refresh_party(party[0])
 	_phase = Phase.BUSY
 	_menu.hide()
@@ -199,6 +210,11 @@ func _on_command_requested(actor: Combatant) -> void:
 ## a number, a flash and a falling bar all arrive when the strike does.
 func _on_action_resolved(report: CombatReport) -> void:
 	_log.text = report.text
+	if _on_map:
+		for touched in report.touched():
+			if touched.is_player:
+				_refresh_party(touched)
+		return
 	var striker := _stand_of(report.actor)
 	var strikes := report.kind == CombatReport.Kind.SKILL and report.hits.any(
 			func(hit: CombatReport.Hit) -> bool: return hit.target.is_player != report.actor.is_player)
@@ -247,6 +263,12 @@ func _on_combat_finished(result: CombatResult) -> void:
 	_outro = create_tween()
 	_outro.tween_interval(OUTRO_TIME)
 	_outro.tween_callback(_set_visible.bind(false))
+
+
+## The fight will be on the map: put a stage there to draw it.
+func _on_battle_staged(field: BattleField) -> void:
+	_staged_next = true
+	field.map.add_child(BattleStage.new(field))
 
 
 ## The field the fight happens on: the biome's own floor tiled across the lower
@@ -571,6 +593,7 @@ func _anchor_for(who: Combatant) -> Vector2:
 func _set_visible(shown: bool) -> void:
 	visible = shown
 	if not shown:
+		_on_map = false
 		_phase = Phase.HIDDEN
 		_actor = null
 		_staged = null

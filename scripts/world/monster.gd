@@ -156,6 +156,7 @@ func _engage(opening: Encounter.Opening) -> void:
 	_fighting = true
 	var encounter := Bestiary.single_encounter(enemy, _level(), floor_number)
 	encounter.opening = opening
+	_stage(encounter)
 	var result: CombatResult = await CombatManager.start(encounter)
 	_fighting = false
 	if result == null:
@@ -169,6 +170,39 @@ func _engage(opening: Encounter.Opening) -> void:
 	# Either way you are standing on it. Give you the room to leave.
 	_stun = GRACE_SECONDS
 	_set_state(State.STUNNED)
+
+
+## Asks the map where the fight can stand and announces it, so the view fights
+## it where you are. Nowhere to stand leaves it to the battle screen.
+func _stage(encounter: Encounter) -> void:
+	var map := get_parent() as GameMap
+	var player := _player()
+	if map == null or player == null:
+		return
+	var field := map.stage_battle(map.to_local(player.global_position),
+			map.to_local(global_position), encounter.enemies.size())
+	if field == null:
+		return
+	field.enemy_nodes = [self]
+	EventBus.battle_staged.emit(field)
+
+
+## The sprite a fight on the map lunges and flashes.
+func sprite() -> Sprite2D:
+	return _sprite
+
+
+## Turns to look along [param direction] -- a fight on the map facing you.
+func face(direction: Vector2) -> void:
+	if enemy.sheet == null:
+		return
+	if enemy.sheet_frames.y == 1:
+		if absf(direction.x) > 0.01:
+			_sprite.flip_h = direction.x < 0.0
+		_sprite.frame = 0
+		return
+	_facing_column = _column_for(direction)
+	_sprite.frame = _facing_column
 
 
 func _level() -> int:

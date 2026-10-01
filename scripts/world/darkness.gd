@@ -34,6 +34,11 @@ var _moving: Dictionary[int, bool] = {}
 ## Inner texel -> the border texels off the map's edge that copy it.
 var _mirrors: Dictionary[int, PackedInt32Array] = {}
 var _width := 0
+## Lit whatever line of sight says, while a fight is staged here: a maze fight is
+## a pool of light in the black -- what the fighters can see. Empty for none.
+var _arena: Array[Vector2i] = []
+var _last_lit: Array[Vector2i] = []
+var _last_explored: Dictionary = {}
 
 
 ## [param map_bounds] is the whole map in cells, to tell the area's edges that
@@ -73,8 +78,13 @@ func setup(cells: Rect2i, tile_size: Vector2i, map_bounds: Rect2i) -> void:
 ## [param lit] is what the player sees now, [param explored] everything they
 ## have seen on this map. [param snap] skips the fade, for the first look on arrival.
 func light(lit: Array[Vector2i], explored: Dictionary, snap := false) -> void:
+	_last_lit = lit
+	_last_explored = explored
 	var now: Dictionary[int, bool] = {}
 	for cell in lit:
+		if area.has_point(cell):
+			now[_index(cell - area.position)] = true
+	for cell in _arena:
 		if area.has_point(cell):
 			now[_index(cell - area.position)] = true
 	for y in area.size.y:
@@ -90,6 +100,12 @@ func light(lit: Array[Vector2i], explored: Dictionary, snap := false) -> void:
 				_moving[index] = true
 	if snap:
 		_texture.update(_image)
+
+
+## Lights [param cells] for the length of a fight; an empty list puts it out.
+func light_arena(cells: Array[Vector2i]) -> void:
+	_arena = cells
+	light(_last_lit, _last_explored)
 
 
 ## How lit a cell is, 0 (dark, or only remembered) to 1 (in plain sight) -- what a

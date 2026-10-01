@@ -727,7 +727,7 @@ feel like enough yet".
   above at once: the place is the map you were standing on, drawn by the art that
   already works; the player is the player; depth is the map's own y-sort.
 
-#### 6. Fight on the map (Chrono Trigger) — *planned, decided 2026-10-01*
+#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), steps 2–7 to do*
 
 **The battle stops being a screen and becomes a moment on the floor.** No fade, no
 backdrop: when a monster reaches you, the two of you step apart into a formation where
@@ -793,6 +793,18 @@ separate* is the reason this is a view job and not a combat rewrite.
    real sprites. Screenshot it in a room, in a field corridor and in a labyrinth passage
    in the dark, at zoom 1 and 2. **Go/no-go gate**: if it doesn't read better than the
    stage in those six shots, stop and say so before anything below is built.
+   **✅ Go, 2026-10-01** — the user signed off the six shots (`tools/battle_spike.tscn`
+   writes them, with `spike_sheet.png`), and picked **×2 zoom for trash fights**; boss
+   zoom is still step 4's. Built: `BattleField` and `GameMap.stage_battle()` (contact
+   axis, then its reverse, then the other axis; gap 3, 4 or 2; player spot within ±2
+   cells; a cell a standing prop draws over costs extra, since a forest crown hides the
+   lane above a hedge), `EventBus.battle_staged` from `Monster._engage()`, and
+   `ui/battle_stage.gd` — camera ease and zoom, step into formation, lunge, flash,
+   floaters, shake, enemy bars, bystanders faded to a quarter, and in the dark a pool of
+   light (what each fighter can see, not the arena rect, which read as a lit box). The
+   old screen draws only its panels over a staged fight; bosses and tests still get the
+   stage. Rough edges left for later steps: the wood panels are heavy at ×2 (step 3), an
+   arena by the map's edge frames off-centre (camera limits), no target pointer yet.
 2. **Staging.** `BattleField`, `GameMap.stage_battle()`, `EventBus.battle_staged`, and
    `Monster._engage()` building the field. **New load-bearing floor-test check**: on
    every generated floor and every authored map, at every walkable cell a monster can
