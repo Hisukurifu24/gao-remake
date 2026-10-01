@@ -180,7 +180,62 @@ func _run() -> void:
 	GameState.grant_xp(GameState.xp_to_next_level())
 	_check(GameState.level == level_before + 1, "granting enough xp levels the player up")
 
+	await _test_labyrinth(main, floor_two, floor_two_player as Player)
 	await _test_roaming(floor_two, floor_two_player as Player)
+
+
+## The hidden door on a real generated floor: not there until you walk into its
+## room, there for good once you have; fog of war remembering what you saw on the
+## way; and the map screen opening over it on M.
+func _test_labyrinth(main: Node, map: Node2D, player: Player) -> void:
+	# The floor's monsters would turn a walk into a fight; _test_roaming wants
+	# them gone too, and spawns its own.
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	await _physics(2)
+
+	var walls: TileMapLayer = map.get_node("Walls")
+	var spawn_cell := walls.local_to_map(player.position)
+	_check(GameState.is_explored(&"floor_2", spawn_cell) \
+			and GameState.is_explored(&"floor_2", spawn_cell + Vector2i(2, 0)),
+			"standing on a floor explores what is round you")
+
+	var gate := map.get_node("BossGate") as BossGate
+	_check(not gate.revealed and not gate.is_available() and not gate.get_node("Sprite2D").visible,
+			"the labyrinth door is hidden until its room is found")
+	var room: Rect2i = map.get_meta(&"boss_room")
+	_check(not GameState.is_explored(&"floor_2", room.get_center()),
+			"and the boss room starts unexplored")
+
+	# Into the room's corner, clear of the door: it turns solid as it appears.
+	player.global_position = walls.map_to_local(room.position)
+	await _physics(4)
+	_check(gate.revealed and GameState.has_flag(BossGate.found_flag(2)),
+			"walking into the boss room reveals the door")
+	_check(DialogueRunner.is_running(), "and says so")
+	await _close_dialogue()
+	await _idle(2)
+	_check(gate.is_available() and gate.get_node("Sprite2D").visible, "the found door can be challenged")
+	_check(GameState.is_explored(&"floor_2", walls.local_to_map(gate.position)),
+			"and the door's cell is explored once you are in its room")
+
+	var screen: CanvasLayer = main.get_node("MapScreen")
+	await _tap(&"map")
+	_check(screen.call(&"is_open") and screen.visible and GameState.is_input_locked(),
+			"M opens the map, holding the input lock")
+	var status: Label = screen.get_node("Window/Column/Header/Status")
+	_check(status.text.contains("explored") and status.text.contains("door found"),
+			"the map reports what is explored and that the door is found (got '%s')" % status.text)
+	await _tap(&"map")
+	_check(not screen.call(&"is_open") and not GameState.is_input_locked(), "and M closes it again")
+
+	# Found stays found: the same floor, rebuilt, shows its door from the start --
+	# losing the boss fight rebuilds it exactly like this.
+	var rebuilt := FloorRegistry.build_floor(2)
+	add_child(rebuilt)
+	_check((rebuilt.get_node("BossGate") as BossGate).revealed, "a found door stays found when the floor is rebuilt")
+	rebuilt.free()
 
 
 ## Monsters that move, on a real generated floor with real walls: noticing needs
@@ -343,6 +398,21 @@ func _idle(frames := 1) -> void:
 func _physics(frames := 1) -> void:
 	for _i in frames:
 		await get_tree().physics_frame
+
+
+## A real press and release, so screens listening in _unhandled_input see it --
+## Input.action_press() sets state but synthesises no event.
+func _tap(action: StringName) -> void:
+	var press := InputEventAction.new()
+	press.action = action
+	press.pressed = true
+	Input.parse_input_event(press)
+	await _idle(2)
+	var release := InputEventAction.new()
+	release.action = action
+	release.pressed = false
+	Input.parse_input_event(release)
+	await _idle(2)
 
 
 func _hold(action: StringName, frames: int) -> void:

@@ -17,7 +17,12 @@ extends Resource
 
 @export_group("Generation")
 @export var biome: BiomeKit
+## The field -- rooms and corridors. A labyrinth, if there is one, is added on a
+## side of it, so the map is bigger than this.
 @export var size := Vector2i(64, 48)
+## The labyrinth guarding the boss room, in maze cells. Zero means none: the boss
+## door stands in the field's farthest room, in plain view.
+@export var labyrinth := Vector2i.ZERO
 @export var room_count := 9
 @export var chest_count := 3
 ## 0 = no water/lava pools, 1 = as many as rooms allow.

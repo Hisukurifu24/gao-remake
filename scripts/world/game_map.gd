@@ -17,14 +17,67 @@ extends Node2D
 ## Which floor of Aincrad this map belongs to. 0 for maps outside the tower.
 @export var floor_number := 0
 
+var _player: Player = null
+var _walls: TileMapLayer = null
+## Tells water from wall for [method blocks_sight]; null off the tower.
+var _biome: BiomeKit = null
+## The cell the player was last seen from, so fog only works when they move.
+var _seen_from := Vector2i(1 << 30, 1 << 30)
+
 
 func _ready() -> void:
 	if floor_number > 0:
 		GameState.current_floor = floor_number
-	var player := get_node_or_null("Player") as Player
-	if player:
-		player.global_position = _resolve_spawn(SceneRouter.consume_spawn())
-		_apply_camera_limits(player)
+	_resolve_layers()
+	_player = get_node_or_null("Player") as Player
+	if _player:
+		_player.global_position = _resolve_spawn(SceneRouter.consume_spawn())
+		_apply_camera_limits(_player)
+	set_physics_process(_player != null and _walls != null and map_id != &"")
+
+
+## Fog of war: whatever the player can see from the cell they are standing in is
+## explored. Cheap -- a couple of hundred short lines, and only on a new cell.
+func _physics_process(_delta: float) -> void:
+	if not is_instance_valid(_player):
+		return
+	var cell := _walls.local_to_map(_walls.to_local(_player.global_position))
+	if cell == _seen_from:
+		return
+	_seen_from = cell
+	GameState.explore(map_id, FogOfWar.visible_from(cell, FogOfWar.RADIUS, blocks_sight))
+
+
+## A wall stops the eye; water does not, or the far shore of a pond would stay
+## unexplored until you walked round it. Water lives on Walls (it collides), so
+## it is told apart by its terrain -- or, undressed, by its slot.
+func blocks_sight(cell: Vector2i) -> bool:
+	_resolve_layers()
+	if _walls == null or _walls.get_cell_source_id(cell) == -1:
+		return false
+	return not is_water(cell)
+
+
+func is_water(cell: Vector2i) -> bool:
+	_resolve_layers()
+	if _biome == null or _walls == null:
+		return false
+	var data := _walls.get_cell_tile_data(cell)
+	if data == null:
+		return false
+	if _biome.liquid_terrain_set >= 0 and data.terrain_set == _biome.liquid_terrain_set \
+			and data.terrain == _biome.liquid_terrain:
+		return true
+	return _walls.get_cell_atlas_coords(cell) == Vector2i(_biome.liquid_tile, 0)
+
+
+## Resolved on first use rather than in _ready(), so a map that has not entered
+## the tree -- a test inspecting a freshly generated floor -- can still answer.
+func _resolve_layers() -> void:
+	if _walls == null:
+		_walls = get_node_or_null("Walls") as TileMapLayer
+	if _biome == null and floor_number > 0:
+		_biome = FloorRegistry.get_biome(floor_number)
 
 
 func _resolve_spawn(requested: StringName) -> Vector2:

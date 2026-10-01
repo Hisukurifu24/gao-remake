@@ -51,6 +51,12 @@ func _ready() -> void:
 
 	# One floor per biome band worth showing off, and the authored ones past the
 	# first -- 24 and 25 side by side are the same band generated and built.
+	# The labyrinth in three of the ways a wall can be drawn: trees, cliffs, masonry.
+	# Before the floor shots, which clear every floor below 100 -- and a cleared
+	# floor's door is no longer hidden.
+	for floor_number in [2, 24, 95]:
+		await _capture_labyrinth(main, floor_number)
+
 	for floor_number in [2, 10, 15, 24, 25, 37, 45, 55, 65, 75, 87, 100]:
 		await _capture_floor(floor_number)
 
@@ -309,6 +315,87 @@ func _capture_floor(floor_number: int) -> void:
 	await _frames(2)
 	await _capture("%02d_floor_%d_%s" % [
 		floor_number / 20 + 5, floor_number, FloorRegistry.biome_id(floor_number)])
+
+
+## A generated floor's labyrinth: halfway along the way in, the boss room the
+## moment its door shows, and the map screen with the walk there explored.
+##
+## The walk is a real one -- the shortest path from the spawn to the room, a cell
+## at a time, so fog of war records exactly what a player taking it would have seen.
+func _capture_labyrinth(main: Node, floor_number: int) -> void:
+	for below in range(1, floor_number):
+		GameState.clear_floor(below)
+	SceneRouter.enter_floor(floor_number)
+	await _frames(2)
+	await _until(func() -> bool: return not GameState.is_input_locked(), 10.0)
+	var map := SceneRouter.current_map() as Node2D
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	var player := map.get_node("Player") as Node2D
+	var walls := map.get_node("Walls") as TileMapLayer
+	var lab: Rect2i = map.get_meta(&"labyrinth")
+	var mouth: Rect2i = map.get_meta(&"labyrinth_mouth")
+	var room: Rect2i = map.get_meta(&"boss_room")
+	var path := _path_within(walls, walls.local_to_map(player.position), room.position,
+			walls.get_used_rect())
+	var tag := "%02d_labyrinth_%d" % [floor_number / 20 + 5, floor_number]
+	var inside := 0
+	for cell in path:
+		if lab.has_point(cell):
+			inside += 1
+
+	GameState.push_input_lock()
+	var in_lab := 0
+	for i in path.size() - 1:
+		player.global_position = walls.map_to_local(path[i])
+		await get_tree().physics_frame
+		if lab.has_point(path[i]) and not mouth.has_point(path[i]):
+			in_lab += 1
+			if in_lab == inside / 2:
+				await _wait(0.3)
+				await _capture(tag + "a_passage")
+	GameState.pop_input_lock()
+
+	player.global_position = walls.map_to_local(room.position + Vector2i(1, room.size.y - 2))
+	await _until(func() -> bool: return DialogueRunner.is_running(), 3.0)
+	await _typed(main)
+	await _capture(tag + "b_found")
+	while DialogueRunner.is_running():
+		DialogueRunner.advance()
+		await _typed(main)
+	await _wait(0.8)
+	await _capture(tag + "c_door")
+
+	await _press(&"map")
+	await _frames(4)
+	await _capture(tag + "d_map")
+	await _press(&"map")
+
+
+## The shortest walk between two cells, staying inside [param bounds].
+func _path_within(walls: TileMapLayer, from: Vector2i, to: Vector2i, bounds: Rect2i) -> Array[Vector2i]:
+	var came := {from: from}
+	var queue: Array[Vector2i] = [from]
+	var head := 0
+	while head < queue.size() and not came.has(to):
+		var cell := queue[head]
+		head += 1
+		for step in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var next: Vector2i = cell + step
+			if came.has(next) or not bounds.has_point(next) or walls.get_cell_source_id(next) != -1:
+				continue
+			came[next] = cell
+			queue.append(next)
+	var path: Array[Vector2i] = []
+	if not came.has(to):
+		return path
+	var cell := to
+	while cell != from:
+		path.push_front(cell)
+		cell = came[cell]
+	path.push_front(from)
+	return path
 
 
 ## Floor 1 up close: the depth sort, which is only visible with somebody standing

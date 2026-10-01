@@ -87,6 +87,7 @@ func _synthesise(floor_number: int) -> FloorDefinition:
 	definition.display_name = ""
 	definition.biome = get_biome(floor_number)
 	definition.size = FloorTuning.map_size(floor_number)
+	definition.labyrinth = FloorTuning.labyrinth_cells(floor_number)
 	definition.room_count = FloorTuning.room_count(floor_number)
 	definition.chest_count = FloorTuning.chest_count(floor_number)
 	definition.boss_name = FloorTuning.boss_name(floor_number)

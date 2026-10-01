@@ -1,0 +1,110 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/map_screen.gd" id="1_map"]
+[ext_resource type="Script" path="res://ui/map_view.gd" id="2_view"]
+
+[node name="MapScreen" type="CanvasLayer"]
+layer = 8
+script = ExtResource("1_map")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.169, 0.157, 0.141, 1)
+
+[node name="Window" type="PanelContainer" parent="."]
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 316.0
+offset_bottom = 168.0
+mouse_filter = 2
+
+[node name="Column" type="VBoxContainer" parent="Window"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="Window/Column"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Window/Column/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"HeaderLabel"
+text = "Map"
+
+[node name="Status" type="Label" parent="Window/Column/Header"]
+layout_mode = 2
+theme_type_variation = &"HintLabel"
+text = " "
+
+[node name="Inset" type="PanelContainer" parent="Window/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_type_variation = &"InsetPanel"
+
+[node name="View" type="Control" parent="Window/Column/Inset"]
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_view")
+
+[node name="Legend" type="HBoxContainer" parent="."]
+offset_left = 6.0
+offset_top = 170.0
+offset_right = 316.0
+offset_bottom = 179.0
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="Close" type="Label" parent="Legend"]
+layout_mode = 2
+theme_type_variation = &"HintLabel"
+text = "[M] close   "
+
+[node name="YouKey" type="ColorRect" parent="Legend"]
+custom_minimum_size = Vector2(4, 4)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.455, 0.639, 0.204, 1)
+
+[node name="You" type="Label" parent="Legend"]
+layout_mode = 2
+theme_type_variation = &"HintLabel"
+text = "you "
+
+[node name="DoorKey" type="ColorRect" parent="Legend"]
+custom_minimum_size = Vector2(4, 4)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.878, 0.224, 0.298, 1)
+
+[node name="Door" type="Label" parent="Legend"]
+layout_mode = 2
+theme_type_variation = &"HintLabel"
+text = "boss door "
+
+[node name="ExitKey" type="ColorRect" parent="Legend"]
+custom_minimum_size = Vector2(4, 4)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.624, 0.847, 0.937, 1)
+
+[node name="Exit" type="Label" parent="Legend"]
+layout_mode = 2
+theme_type_variation = &"HintLabel"
+text = "way out "
+
+[node name="ChestKey" type="ColorRect" parent="Legend"]
+custom_minimum_size = Vector2(4, 4)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(1, 0.796, 0.302, 1)
+
+[node name="Chest" type="Label" parent="Legend"]
+layout_mode = 2
+theme_type_variation = &"HintLabel"
+text = "chest"

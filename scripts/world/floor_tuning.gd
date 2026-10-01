@@ -31,9 +31,19 @@ static func boss_level(floor_number: int) -> int:
 	return enemy_level(floor_number) + 1 + floor_number / 20
 
 
+## The field: the rooms and corridors you arrive in. Grows slowly: floor 1 is
+## 50x38, floor 100 is 75x54. The labyrinth is built onto one side of it, so a
+## generated map is bigger than this by [method labyrinth_cells]' footprint.
 static func map_size(floor_number: int) -> Vector2i:
-	# Grows slowly: floor 1 is 50x38, floor 100 is 75x54.
 	return Vector2i(50 + floor_number / 4, 38 + floor_number / 6)
+
+
+## The labyrinth in front of the boss room, in maze cells (each is four tiles
+## square: a two-wide passage and a two-thick wall). Floor 2 is 6x4, floor 100
+## is 9x6. It is what the walk to the door is made of, now the camera no longer
+## shows the door from the entrance -- see M5.5 in plan.md.
+static func labyrinth_cells(floor_number: int) -> Vector2i:
+	return Vector2i(6 + floor_number / 30, 4 + floor_number / 40)
 
 
 static func room_count(floor_number: int) -> int:

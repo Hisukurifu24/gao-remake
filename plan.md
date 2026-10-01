@@ -228,7 +228,7 @@ timed or failable quests, no branching quests where a choice picks between two
 endings, and **the tracker shows one quest at a time** rather than every live
 objective.
 
-### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1 and §2 ✅
+### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2 and §3 ✅
 
 Playtest feedback on the finished loop, and it lands on the overworld rather than on any
 one system: **the floors work, but exploring them isn't a game yet.** The camera shows the
@@ -473,7 +473,9 @@ and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
 
   *Decision: `map_size` stays.* Ten seconds to the door is short, not long — the zoom is
   what stops you seeing it, and §3 (a door you have to find, a labyrinth in front of it) is
-  what should add the time, not bigger empty rooms. Revisit once §3 lands.
+  what should add the time, not bigger empty rooms. *§3 landed: `map_size` is now the
+  field, and the labyrinth beside it adds 28–72 tiles of shortest walk (median ~48, so
+  ~9 s more at 90 px/s) before counting a single wrong turn.*
 - [x] `tools/screenshot.gd` frames and anything else that assumed the old framing. *Nothing
   did — every capture positions the player relative to what it frames. The pass did turn up
   a real bug: the interact prompt survived a map change ("Talk to Argo" on floor 2), because
@@ -521,31 +523,67 @@ fight starts. It should behave like something living on the floor. *Landed — s
   honoured only in round 1 by `CombatManager._turn_order()` and covered in `combat_test`.
   A "!" pops over a monster when it notices you.
 
-#### 3. Hidden boss room
+#### 3. Hidden boss room ✅ *(generated floors; authored floors still to revisit)*
 In the source material, finding the boss room *is* the first half of the floor — the
-front line spends days mapping the labyrinth before anyone sees the door. Here the door is
+front line spends days mapping the labyrinth before anyone sees the door. Here the door was
 predictably in the farthest room and often on screen.
-- [ ] **Fog of war / explored map.** Cells are revealed as the player walks near them; a
-  map screen (and/or minimap) shows only what has been explored. Explored state per floor
-  is a `GameState` set of cells — which puts it in the M7 save, and is one more reason
-  `world_seed` has to be there.
-- [ ] **The door is not where you'd guess.** Seeded choice among the *far* rooms rather
+- [x] **Fog of war / explored map.** Cells are revealed as the player walks near them; a
+  map screen shows only what has been explored. Explored state per map is a `GameState`
+  set of cells — which puts it in the M7 save, and is one more reason `world_seed` has to
+  be there. *Landed as `FogOfWar` (`scripts/world/fog_of_war.gd`): every cell within 7 that
+  a straight line reaches without crossing a wall, recomputed by `GameMap` only when the
+  player changes cell. Walls are seen, what is behind them is not, so a labyrinth's map is
+  the passages you walked, not the one beyond the wall. Water is seen across — it shares
+  `Walls` with the rock and is told apart by its terrain, which the floor test checks on
+  every band. The screen is **M** (`ui/map_screen.tscn`, `MapView` draws it): the map's
+  whole extent a shade darker, explored floor in cream, walls in sage, pools in blue, and
+  markers for you, the found door, ways out and unopened chests, with "54% explored — door
+  found" over it. No corner minimap: at 320×180 it would cost the view.*
+- [x] **The door is not where you'd guess.** Seeded choice among the *far* rooms rather
   than always the farthest; and generated floors grow a **labyrinth section** in front of
   the boss room (tighter, twistier corridors, dead ends) — the labyrinth tower is how SAO
-  floors actually end.
-- [ ] **Candidates to decide between, not all to build:** a secret wall / hidden passage
+  floors actually end. *Landed as a strip of its own on a seeded side of the field
+  (`FloorTuning.labyrinth_cells`, 6×4 cells on floor 2 to 9×6 on 100, four tiles a cell:
+  a two-wide passage, a two-thick wall — what every biome's walls can draw). The field is
+  still a rectangle, so no field corridor can cut into it; one corridor runs from the
+  nearest room to its single mouth, and the player arrives in a room in the far half from
+  that mouth. Inside is a perfect maze (a growing tree, half newest-cell, half branching)
+  with the boss room as one of its leaves, placed in the far third from the mouth. Grid
+  distance turned out to be a poor guess at walking distance — a room two cells away was
+  sometimes six tiles' walk — so the maze is regrown from the same seeded stream until the
+  walk is at least the grid's width plus height and it has two dead ends. Measured over
+  97 floors on four world seeds: never under 28 tiles from the mouth to the door, median
+  ~48, and on ~80% of floors the door is not the maze's farthest point. One of the floor's
+  chests waits at a dead end and a quarter of its monsters walk the passages.*
+- [x] **Candidates to decide between, not all to build:** a secret wall / hidden passage
   on the last stretch; a boss room that only shows its door once you are inside it; a
   boss room whose location Argo will *sell* you (she is an information broker — this is the
-  most in-fiction version, and dialogue can already give flags).
-- [ ] **Found stays found.** Reaching the door sets `boss_found_<n>`; the map marks it from
+  most in-fiction version, and dialogue can already give flags). *Decided: **the door
+  shows from inside**, on top of the labyrinth. The boss room is a leaf of the maze, so
+  being in it means having solved it; `BossGate.reveal_area` hides the door (no sprite, no
+  collision, no prompt) until the player's body enters that room, then it fades in with a
+  line of text and `EventBus.boss_room_found`. The room's own floor (the biome's special
+  tile — dirt, the castle's framed hall) is the tell you can see over a wall. Argo selling
+  it stays open as an add-on: `BossGate.reveal()` is public, so a dialogue effect could
+  call it once generated floors have someone to sell it.*
+- [x] **Found stays found.** Reaching the door sets `boss_found_<n>`; the map marks it from
   then on. Losing to the boss already sends you back to the entrance — making you re-find
-  the door on top of that would be punishment, not difficulty.
-- [ ] **The floor test must keep proving completability** with whatever hides the door:
+  the door on top of that would be punishment, not difficulty. *A cleared floor counts as
+  found too.*
+- [x] **The floor test must keep proving completability** with whatever hides the door:
   a secret wall counts as passable for the flood fill, *and* a new check that the hidden
   thing is discoverable (it has a tell), or procgen will ship an unfindable boss the way it
-  used to ship unreachable ones.
+  used to ship unreachable ones. *`_audit_labyrinth`, on every generated floor: the door
+  is in a boss room inside the labyrinth and hides in exactly that room; the labyrinth's
+  outer wall is open only at its mouth, and walling the mouth up puts the door out of
+  reach; the boss room has exactly one doorway and can be walked into; the maze has two
+  dead ends or more. Across the run, the door is not always the farthest point and never
+  under 24 tiles in. The smoke test walks into the room on a real floor 2 and opens the map.*
 - [ ] Revisit authored floors: Illfang's door sits in plain view in the field, Nerith's
-  hollow and Karvos's Breach are both at the obvious end of their layouts.
+  hollow and Karvos's Breach are both at the obvious end of their layouts. *They get fog
+  of war and the map for free; `reveal_area` is the hook for hiding their doors, but each
+  wants a layout change to be worth hiding — a door at the end of a straight road is found
+  by walking down it.*
 
 #### 4. "Something's missing" in floor structure — design pass
 The layouts aren't bad but don't hold attention yet. Decide what the missing thing is
@@ -848,6 +886,13 @@ the pack's paper dialogue box with a framed portrait and a name tag, orange butt
 life bar and keycaps, and a thin pixel font drawn to match — all laid out at the map's
 own pixel scale, so a panel's border is exactly as thick as a tile's outline.
 
+And the door has to be found now. Every generated floor ends in a **labyrinth** built onto
+one side of the field — hedges in the forests, cliffs in the caves, masonry in the Ruby
+Palace — and the boss room is somewhere in it, a dead end among dead ends. The door is
+not there until you walk into its room. **M** opens a map of what you have seen, which
+remembers the passages you walked and marks the door once you have found it; losing the
+fight sends you back to the entrance, but the door stays found.
+
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
 
@@ -869,8 +914,8 @@ bottom only goes up.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 54-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 110-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 65-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 125-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 84-check combat test
@@ -903,12 +948,13 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 1. ~~Finish the art rollout~~ (M5.5 §0): **done** — every band, every authored floor and
    the UI are on the pack. Lanternfall's props and the item icons are still open in §0,
    but no floor waits on them.
-2. **M5.5 — Exploration feel, before any new floor.** Camera zoom and moving monsters are
-   in. **Next: §3, a boss room you have to find** — which starts with picking among its
-   candidates (secret wall, door that only shows from inside, Argo selling the location),
-   then the §4 design pass on what floors are still missing. Building Floor 40 first would mean laying it out for a
-   camera and an encounter model that are about to change — and revisiting it along with
-   1, 10 and 25.
+2. **M5.5 — Exploration feel, before any new floor.** Camera zoom, moving monsters and a
+   boss room you have to find (§3: labyrinth, door that shows from inside, fog of war and
+   the **M** map) are in. **Next: the §4 design pass** on what floors are still missing —
+   play a few generated floors with the labyrinth first, since it changes the answer — and
+   then the authored-floor revisit §3 left open (Illfang, Nerith and Karvos all stand at
+   the obvious end of their layouts). Floor 40 should be laid out after §4, for the same
+   reason as before.
 3. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
    a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest
    each and an authored boss — Lanternfall took that from a design job to a content job, and

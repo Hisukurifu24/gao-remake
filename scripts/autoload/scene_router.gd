@@ -62,6 +62,14 @@ func enter_floor(floor_number: int, spawn: StringName = &"", fade_time := FADE_T
 	floor_entered.emit(floor_number)
 
 
+## The map the player is on, or null between maps. For views that draw it --
+## the map screen -- and nothing that should be changing it.
+func current_map() -> Node:
+	if _world_root == null or _world_root.get_child_count() == 0:
+		return null
+	return _world_root.get_child(0)
+
+
 ## Maps call this in _ready() to learn which spawn point to use.
 ## Returns &"" on a cold boot, meaning "use the map's default".
 func consume_spawn() -> StringName:

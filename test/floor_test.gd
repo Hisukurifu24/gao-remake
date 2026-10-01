@@ -30,6 +30,10 @@ const CORNERS := {
 
 var _failures: PackedStringArray = PackedStringArray()
 var _checks := 0
+## Gathered by [method _audit_labyrinth] across every generated floor.
+var _lab_floors := 0
+var _lab_not_farthest := 0
+var _lab_walks: Array[int] = []
 
 
 func _ready() -> void:
@@ -85,6 +89,51 @@ func _run() -> void:
 
 	for map in [map_a, map_b, map_c]:
 		map.free()
+
+	# --- fog of war ---
+	# A wall five cells to your east, nine tall: the wall is seen, what is behind it
+	# is not, and open ground is seen out to the radius and no further.
+	var solid := {}
+	for y in range(-4, 5):
+		solid[Vector2i(2, y)] = true
+	var seen := FogOfWar.visible_from(Vector2i.ZERO, FogOfWar.RADIUS, func(cell: Vector2i) -> bool:
+		return solid.has(cell))
+	_check(Vector2i(2, 0) in seen and Vector2i(2, 3) in seen, "fog of war sees the wall in front of you")
+	_check(not (Vector2i(4, 0) in seen) and not (Vector2i(6, 2) in seen), "and not what is behind it")
+	_check(Vector2i(-FogOfWar.RADIUS, 0) in seen and not (Vector2i(-FogOfWar.RADIUS - 1, 0) in seen),
+			"open ground is seen out to the radius and no further")
+	_check(GameState.explore(&"fog_test", seen) == seen.size() and GameState.explore(&"fog_test", seen) == 0,
+			"explored cells are remembered, each once")
+	_check(GameState.is_explored(&"fog_test", Vector2i(2, 0)) and not GameState.is_explored(&"fog_test", Vector2i(4, 0))
+			and not GameState.is_explored(&"elsewhere", Vector2i.ZERO), "and remembered per map")
+
+	# On real floors: water is seen across, the wall mass is not. Water shares the
+	# Walls layer with the rock, and after dressing it is told apart only by its
+	# terrain -- get that wrong and the far shore of every pond stays unexplored.
+	var misread: PackedStringArray = PackedStringArray()
+	var bands_with_water := 0
+	for sample: int in [5, 15, 24, 37, 45, 55, 65, 75, 85, 95]:
+		var fog_floor := FloorGenerator.generate(FloorRegistry.get_floor(sample), FloorRegistry.seed_for(sample))
+		var fog_walls := fog_floor.get_node("Walls") as TileMapLayer
+		var water := 0
+		var rock_seen_through := 0
+		for cell in fog_walls.get_used_cells():
+			if fog_floor.call(&"is_water", cell):
+				water += 1
+				if fog_floor.call(&"blocks_sight", cell):
+					rock_seen_through += 1
+			elif not fog_floor.call(&"blocks_sight", cell):
+				rock_seen_through += 1
+		if rock_seen_through > 0:
+			misread.append("%d (%d wrong)" % [sample, rock_seen_through])
+		if water > 0:
+			bands_with_water += 1
+		fog_floor.free()
+	# Not every floor draws a pool (55's seed draws none), but most bands must, or
+	# the water half of this check is passing on nothing.
+	_check(misread.is_empty() and bands_with_water >= 7,
+			"fog of war sees across water and not through rock (water on %d of 10 bands)%s" % [
+				bands_with_water, "" if misread.is_empty() else " -- not on " + ", ".join(misread)])
 
 	# --- progression gating ---
 	_check(GameState.is_floor_unlocked(1), "floor 1 starts unlocked")
@@ -224,6 +273,15 @@ func _run() -> void:
 		map.free()
 	_check(broken.is_empty(), "all %d generated floors are completable%s" % [generated,
 			"" if broken.is_empty() else " -- " + ", ".join(broken)])
+	# The door is somewhere in the far third of the maze, not in its farthest corner
+	# every time -- or the labyrinth is a corridor with a known end.
+	_check(_lab_floors == generated and _lab_not_farthest * 4 >= _lab_floors,
+			"the boss room is not always the labyrinth's farthest point (%d of %d floors aren't)" % [
+				_lab_not_farthest, _lab_floors])
+	var shortest := 1 << 30
+	for walk in _lab_walks:
+		shortest = mini(shortest, walk)
+	_check(shortest >= 24, "the labyrinth always stands in front of the door (shortest walk in: %d tiles)" % shortest)
 
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
@@ -422,13 +480,140 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 	# replacing it would open the map onto the void, and the flood fill above
 	# would quietly reach further rather than fail -- so the sealed outer ring,
 	# which nothing is ever allowed to carve, is checked directly.
-	for x in definition.size.x:
-		if not _sealed(walls, Vector2i(x, 0)) or not _sealed(walls, Vector2i(x, definition.size.y - 1)):
+	# The map is the field plus the labyrinth's strip, so its ring is the used
+	# rect's, not the field's -- which the doorstep corridor does cut through.
+	var bounds := walls.get_used_rect()
+	var strip := definition.labyrinth * FloorGenerator.LAB_PITCH \
+			+ Vector2i(FloorGenerator.LAB_WALL, FloorGenerator.LAB_WALL)
+	if bounds.position != Vector2i.ZERO or not (bounds.size in [
+			definition.size + Vector2i(strip.x, 0), definition.size + Vector2i(0, strip.y)]):
+		return "floor %d is %s, not its field plus a labyrinth" % [floor_number, bounds.size]
+	for x in bounds.size.x:
+		if not _sealed(walls, Vector2i(x, 0)) or not _sealed(walls, Vector2i(x, bounds.size.y - 1)):
 			return "floor %d has a hole in its outer wall" % floor_number
-	for y in definition.size.y:
-		if not _sealed(walls, Vector2i(0, y)) or not _sealed(walls, Vector2i(definition.size.x - 1, y)):
+	for y in bounds.size.y:
+		if not _sealed(walls, Vector2i(0, y)) or not _sealed(walls, Vector2i(bounds.size.x - 1, y)):
 			return "floor %d has a hole in its outer wall" % floor_number
+	return _audit_labyrinth(map, walls, gate, start, reachable)
+
+
+## The labyrinth stands between the field and the door, the door hides in a room
+## with one way in, and finding that room is all it takes to see the door.
+##
+## The hidden-door half of the floor test: the flood fill above proves the door can
+## be reached, and this proves it can be *found* -- the failure mode a hidden door
+## adds is an unfindable one, which no flood fill sees.
+func _audit_labyrinth(map: Node2D, walls: TileMapLayer, gate: Node, start: Vector2i,
+		reachable: Dictionary) -> String:
+	var floor_number := int(gate.get(&"floor_number"))
+	if not (map.has_meta(&"labyrinth") and map.has_meta(&"labyrinth_mouth") and map.has_meta(&"boss_room")):
+		return "floor %d has no labyrinth" % floor_number
+	var lab: Rect2i = map.get_meta(&"labyrinth")
+	var mouth: Rect2i = map.get_meta(&"labyrinth_mouth")
+	var room: Rect2i = map.get_meta(&"boss_room")
+	var gate_cell := walls.local_to_map((gate as Node2D).position)
+
+	if not room.has_point(gate_cell) or not lab.encloses(room):
+		return "floor %d's door is not in a boss room inside its labyrinth" % floor_number
+	var hides: Rect2 = gate.get(&"reveal_area")
+	if hides != Rect2(room.position * 16, room.size * 16):
+		return "floor %d's door does not hide in its boss room (%s)" % [floor_number, hides]
+
+	# One way into the labyrinth: the mouth, and nothing else through its outer wall.
+	var openings := 0
+	for cell in _ring(lab):
+		if walls.get_cell_source_id(cell) == -1:
+			if not mouth.has_point(cell):
+				return "floor %d's labyrinth is open at %s, not only at its mouth" % [floor_number, cell]
+			openings += 1
+	if openings == 0:
+		return "floor %d's labyrinth has no way in" % floor_number
+	# And it is the way in: wall the mouth up and the door is out of reach.
+	var sealed := _flood_except(walls, start, mouth)
+	if sealed.has(gate_cell):
+		return "floor %d's door can be reached without going through the labyrinth" % floor_number
+
+	# One way into the boss room, so being in it means having found it.
+	var doorways := 0
+	for cell in _ring(room.grow(1)):
+		if walls.get_cell_source_id(cell) == -1:
+			doorways += 1
+	if doorways != FloorGenerator.LAB_PASSAGE:
+		return "floor %d's boss room has %d open cells round it, not one doorway" % [floor_number, doorways]
+	if not reachable.has(room.position):
+		return "floor %d's boss room cannot be walked into" % floor_number
+
+	# What the labyrinth is like to walk: its dead ends, and how far the door is
+	# along it against the farthest cell it has.
+	var dead_ends := 0
+	for j in range((lab.size.y - FloorGenerator.LAB_WALL) / FloorGenerator.LAB_PITCH):
+		for i in range((lab.size.x - FloorGenerator.LAB_WALL) / FloorGenerator.LAB_PITCH):
+			var cell := lab.position + Vector2i(FloorGenerator.LAB_WALL, FloorGenerator.LAB_WALL) \
+					+ Vector2i(i, j) * FloorGenerator.LAB_PITCH
+			if room.has_point(cell):
+				continue
+			var exits := 0
+			for side in [Vector2i(-1, 0), Vector2i(FloorGenerator.LAB_PASSAGE, 0),
+					Vector2i(0, -1), Vector2i(0, FloorGenerator.LAB_PASSAGE)]:
+				if walls.get_cell_source_id(cell + side) == -1:
+					exits += 1
+			if exits == 1:
+				dead_ends += 1
+	if dead_ends < 2:
+		return "floor %d's labyrinth has %d dead ends -- a corridor, not a maze" % [floor_number, dead_ends]
+	var steps := _distances_within(walls, mouth.position, lab)
+	var farthest := 0
+	for cell: Vector2i in steps:
+		farthest = maxi(farthest, steps[cell])
+	var to_door: int = steps.get(gate_cell, -1)
+	_lab_floors += 1
+	_lab_walks.append(to_door)
+	if to_door < farthest * 9 / 10:
+		_lab_not_farthest += 1
 	return ""
+
+
+func _ring(rect: Rect2i) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for x in range(rect.position.x, rect.end.x):
+		cells.append(Vector2i(x, rect.position.y))
+		cells.append(Vector2i(x, rect.end.y - 1))
+	for y in range(rect.position.y + 1, rect.end.y - 1):
+		cells.append(Vector2i(rect.position.x, y))
+		cells.append(Vector2i(rect.end.x - 1, y))
+	return cells
+
+
+## [method _flood], treating [param blocked] as wall.
+func _flood_except(walls: TileMapLayer, from: Vector2i, blocked: Rect2i) -> Dictionary:
+	var seen := {from: true}
+	var queue: Array[Vector2i] = [from]
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_back()
+		for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var next: Vector2i = cell + offset
+			if seen.has(next) or blocked.has_point(next) or walls.get_cell_source_id(next) != -1:
+				continue
+			seen[next] = true
+			queue.append(next)
+	return seen
+
+
+## Walking distance from [param from] to every open cell inside [param bounds].
+func _distances_within(walls: TileMapLayer, from: Vector2i, bounds: Rect2i) -> Dictionary:
+	var steps := {from: 0}
+	var queue: Array[Vector2i] = [from]
+	var head := 0
+	while head < queue.size():
+		var cell := queue[head]
+		head += 1
+		for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var next: Vector2i = cell + offset
+			if steps.has(next) or not bounds.has_point(next) or walls.get_cell_source_id(next) != -1:
+				continue
+			steps[next] = steps[cell] + 1
+			queue.append(next)
+	return steps
 
 
 func _sealed(walls: TileMapLayer, cell: Vector2i) -> bool:

@@ -83,3 +83,5 @@ signal hp_changed(hp: int, max_hp: int)
 signal xp_gained(amount: int)
 signal leveled_up(new_level: int)
 signal floor_cleared(floor_number: int)
+## The player walked into a floor's hidden boss room and the door showed itself.
+signal boss_room_found(floor_number: int)
