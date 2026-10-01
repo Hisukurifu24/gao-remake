@@ -385,7 +385,33 @@ and one style across tiles, characters, 60+ monsters, bosses, UI and audio.
   - **Open:** the earth's shape repeats every cell, so a long edge reads as a regular
     frieze of lumps. The rims round the lawns' other three sides are the hole's thin
     dashed line.
-- [ ] **The last biome** — the castle.
+- [x] **The last biome** — the castle (Floors 90–100, Ruby Palace). Stone walls, as decided:
+  - **The walls are the pack's masonry** (`Interior/TilesetWallSimple.png`, the grey-brown
+    5x5 room outline at (0,6)), composed into the 47-blob by `_compose_masonry`. Its bands
+    are 10-13 px deep, shadow included -- deeper than half a cell -- so quarters don't work
+    the way they do for cliffs and the hole: every pixel of every blob tile is copied from
+    the outline's piece for whichever open floor side or corner is *nearest* it
+    (`_nearest_floor`). Every arrangement the pack draws comes out as drawn; the ones it
+    doesn't (wall ends, pillars, one-wide walls) get bands meeting on a mitre. The mass
+    behind is the outline's own near-black.
+  - **The floor is the pack's orange brick** (`Interior/TilesetInteriorFloor.png`, the block
+    at (0,6)), and its inlay is the path: corridors are bordered runners and the boss room a
+    framed hall, while rooms are the plain brick -- which is the "grass", so decor lands
+    there. The inlay is drawn in the brick's own colours, so `_is_dirt` can't read it.
+    `_framed_links` floods the regions between the frame lines and lets each vote by its
+    deepest pixels against the meadow's block (`ground_layout`), which is drawn alike; a
+    cell is used only if both readings agree on everything the terrain can express
+    (`_expressible` -- the meadow claims one 2 px corner sliver no neighbourhood ever asks
+    for). `ground_fill` fills the one blank cell of the block.
+  - **Pools are the desert's oasis with its sand cut away** (`liquid_cut`), so a pool sits
+    sunk in the brick like a basin; the pack draws no stone pool. The obstacle is a stone
+    block from the dungeon sheet, and scatter is cracks, rubble and bones at 4%.
+  - The floor test samples floor 95 for walls and dressing, and refuses any wall facing a
+    hall whose band shows the mass's black where the stone should be. No band draws
+    placeholder walls any more, so the placeholder-blob sample is gone.
+  - **Open:** every room is the same brick; a second floor palette for the boss floor, or
+    carpets, would be the next step if the band reads flat. The rebuild left every other
+    biome's tileset byte-identical.
 - [ ] Lanternfall's props: the camp sheet has lantern posts, crates, a campfire, and the relief
   detail sheet has ladders and a mine mouth for the lift. Needs a way to place standing props
   on authored maps that isn't `_house()`.
@@ -814,7 +840,8 @@ orange dunes, pale sand trails between the rooms and the odd oasis; Floors 60–
 wood under snow, white trails through old snow and frozen pools, where golems walk; Floors
 70–79 red rock under a charred crust, cinder trails across the ash and lava pooled in the
 rooms, where the drakes nest; Floors 80–89 lawns floating over open
-sky, earth hanging under each. Only the castle still draws placeholders.
+sky, earth hanging under each; and Floors 90–100 are the Ruby Palace, halls of orange
+brick walled in grey stone, with bordered runners between them.
 
 And the screens finally match the maps. Every menu is on the pack now: wooden windows,
 the pack's paper dialogue box with a framed portrait and a name tag, orange buttons, its
@@ -873,10 +900,9 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 `build_biomes.gd` is always safe — it only touches derived resources.
 
 ## Immediate next steps
-1. **Finish the art rollout, before any new floor** (M5.5 §0). Meadow, forest, cave and
-   ruins are done, and with them every authored floor so far; the swamp and the desert are
-   done too, the swamp ready for Floor 40, the ice, the volcanic band and the sky. One band remains, the castle. The UI is done. Same reason as the rest of M5.5: a floor laid out on placeholder
-   art is laid out twice.
+1. ~~Finish the art rollout~~ (M5.5 §0): **done** — every band, every authored floor and
+   the UI are on the pack. Lanternfall's props and the item icons are still open in §0,
+   but no floor waits on them.
 2. **M5.5 — Exploration feel, before any new floor.** Camera zoom and moving monsters are
    in. **Next: §3, a boss room you have to find** — which starts with picking among its
    candidates (secret wall, door that only shows from inside, Argo selling the location),

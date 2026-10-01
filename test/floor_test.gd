@@ -114,11 +114,12 @@ func _run() -> void:
 			"every biome dresses its wall mass, as a blob or as forest%s" % (
 				"" if without_terrain.is_empty() else " -- missing on " + ", ".join(without_terrain)))
 
-	# Floor 95's blob is drawn by the placeholder generator; floors 24, 37, 55 and 75
-	# are the cave's, the ruins', the desert's and the volcanic band's, put together
-	# from the pack's cliffs, and 85 the sky's, rims and earth undersides round open sky -- all on
-	# a Walls layer they share with pools that carry a terrain of their own.
-	for sample: int in [95, 24, 37, 55, 75, 85]:
+	# Floors 24, 37, 55 and 75 are the cave's, the ruins', the desert's and the volcanic
+	# band's blobs, put together from the pack's cliffs; 85 the sky's, rims and earth
+	# undersides round open sky; 95 the castle's, dressed stone drawn a pixel at a time
+	# from the pack's interior walls -- all on a Walls layer they share with pools that
+	# carry a terrain of their own. No band draws placeholder walls any more.
+	for sample: int in [24, 37, 55, 75, 85, 95]:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var wall_set := sample_floor.biome.wall_terrain_set
 		var label := "floor %d (%s)" % [sample, sample_floor.biome.id]
@@ -143,20 +144,26 @@ func _run() -> void:
 			_check(sky_biome.backdrop != null and slot.get_pixel(8, 8).a == 0.0
 					and tiled.get_node_or_null(MapDresser.BACKDROP) is Parallax2D,
 					"%s's wall mass is see-through, over its backdrop" % label)
+		# The castle's masonry is a band along every floor it faces, drawn by whichever
+		# floor is nearest each pixel. Got wrong, a hall runs straight into the dark of
+		# the wall's top with no wall there -- again a tile whose neighbours are right.
+		if sample_floor.biome.id == &"castle":
+			var bare := _bare_masonry_edges(tiled_walls, sample_floor.biome)
+			_check(bare == 0, "every wall facing a hall on %s is faced with masonry (%d bare)" % [label, bare])
 		tiled.free()
 
 	# --- dressing: forest, ground and water ---
-	# Floors 5, 15, 24, 37, 45, 55, 65, 75 and 85 are the meadow, the forest, the cave,
-	# the ruins, the swamp, the desert, the ice, the volcanic band and the sky, all pack
-	# biomes: the cave, the ruins, the desert and the volcanic band wall with cliffs,
-	# the sky with a drop, the rest with trees, and all nine join their ground and water
-	# into edges. None of that may touch collision, and all of it has to come out the
-	# same from the same seed.
+	# Floors 5, 15, 24, 37, 45, 55, 65, 75, 85 and 95 are the meadow, the forest, the
+	# cave, the ruins, the swamp, the desert, the ice, the volcanic band, the sky and the
+	# castle -- every band, all on the pack: the cave, the ruins, the desert and the
+	# volcanic band wall with cliffs, the sky with a drop, the castle with masonry, the
+	# rest with trees, and all ten join their ground and water into edges. None of that
+	# may touch collision, and all of it has to come out the same from the same seed.
 	var styles := {5: BiomeKit.WallStyle.TREES, 15: BiomeKit.WallStyle.TREES,
 			24: BiomeKit.WallStyle.BLOB, 37: BiomeKit.WallStyle.BLOB,
 			45: BiomeKit.WallStyle.TREES, 55: BiomeKit.WallStyle.BLOB,
 			65: BiomeKit.WallStyle.TREES, 75: BiomeKit.WallStyle.BLOB,
-			85: BiomeKit.WallStyle.BLOB}
+			85: BiomeKit.WallStyle.BLOB, 95: BiomeKit.WallStyle.BLOB}
 	for sample: int in styles:
 		var sample_floor := FloorRegistry.get_floor(sample)
 		var sample_biome := sample_floor.biome
@@ -260,6 +267,39 @@ func _see_through_edges(walls: TileMapLayer, biome: BiomeKit) -> int:
 					open += 1
 					break
 	return open
+
+
+## Wall cells showing the dark of the wall's top, not masonry, just inside an edge
+## they share with anything that isn't wall. The edge's own row is the band's shadow,
+## which is that dark too, so the three rows behind it are read, away from the corners.
+func _bare_masonry_edges(walls: TileMapLayer, biome: BiomeKit) -> int:
+	var dark := _tile_image(biome, Vector2i(biome.wall_tile, 0)).get_pixel(TILE / 2, TILE / 2)
+	var last := TILE - 1
+	# Per side: the edge's first pixel, the step along it, and the step inwards.
+	var edges := {Vector2i.UP: [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1)],
+			Vector2i.RIGHT: [Vector2i(last, 0), Vector2i(0, 1), Vector2i(-1, 0)],
+			Vector2i.DOWN: [Vector2i(0, last), Vector2i(1, 0), Vector2i(0, -1)],
+			Vector2i.LEFT: [Vector2i(0, 0), Vector2i(0, 1), Vector2i(1, 0)]}
+	var inside := walls.get_used_rect()
+	var bare := 0
+	for cell in walls.get_used_cells():
+		if not _is_wall(walls, cell, biome.wall_terrain_set):
+			continue
+		var image := _tile_image(biome, walls.get_cell_atlas_coords(cell))
+		for side: Vector2i in edges:
+			if _is_wall(walls, cell + side, biome.wall_terrain_set) or not inside.has_point(cell + side):
+				continue
+			var edge: Array = edges[side]
+			var dark_pixels := 0
+			var read := 0
+			for step in range(3, TILE - 3):
+				for depth in range(1, 4):
+					read += 1
+					if image.get_pixelv(edge[0] + edge[1] * step + edge[2] * depth).is_equal_approx(dark):
+						dark_pixels += 1
+			if dark_pixels * 2 > read:
+				bare += 1
+	return bare
 
 
 ## The pixels of the tile at [param coords] of [param biome]'s atlas.

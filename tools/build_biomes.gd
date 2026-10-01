@@ -123,6 +123,13 @@ const UNDERSIDE_ROOTS := [Vector2i(9, 13), Vector2i(9, 14), Vector2i(14, 12)]
 ## the four pixels nearest it: each column's first and last row, nearest first.
 const UNDERSIDE_END_TOP := [0, 0, 1, 3]
 const UNDERSIDE_END_LAST := [10, 9, 8, 6]
+## The pack's stone walls (Interior/TilesetWallSimple.png) as a spec's "masonry" origin
+## lays them out: the 5x5 outline of a room, bands of wall round floor, void outside.
+## Relative to that origin, the cell drawing a wall with floor across one side -- the
+## run's middle, which tiles, rather than its capped ends -- and the corner cell
+## drawing a wall with floor across one diagonal only.
+const MASONRY_SIDES := {BIT_N: Vector2i(3, 4), BIT_E: Vector2i(0, 1), BIT_S: Vector2i(3, 0), BIT_W: Vector2i(4, 1)}
+const MASONRY_CORNERS := {BIT_NE: Vector2i(0, 4), BIT_SE: Vector2i(0, 0), BIT_SW: Vector2i(4, 0), BIT_NW: Vector2i(4, 4)}
 
 ## Biomes cut from the pack. Every entry names a sheet under PACK_TILESETS and a
 ## 16px cell (or cell rect) in it.
@@ -557,6 +564,48 @@ const PACK_BIOMES := {
 		],
 		"decor_density": 0.06,
 	},
+	"castle": {
+		# Halls walled in dressed stone: the pack's interior walls, a band of masonry
+		# round every floor with the dark of the wall's top beyond it. The pack draws
+		# them as a room's outline only, in bands wider than half a cell, so the 47 are
+		# put together a pixel at a time rather than from quarters; see _compose_masonry.
+		"walls": "masonry",
+		"masonry": ["Interior/TilesetWallSimple.png", Vector2i(0, 6)],
+		"slots": [
+			["Interior/TilesetInteriorFloor.png", Vector2i(1, 7)],  # floor: brick
+			["Interior/TilesetInteriorFloor.png", Vector2i(1, 7)],  # floor-alt: the pack draws no variant
+			["Interior/TilesetInteriorFloor.png", Vector2i(1, 7)],  # path: the inlay's brick
+			["Interior/TilesetInteriorFloor.png", Vector2i(1, 7)],  # special: the same
+			["TilesetWater.png", Vector2i(1, 1)],    # liquid: open water
+			["TilesetDungeon.png", Vector2i(11, 3)],  # obstacle: a dressed stone block
+			null,                                    # wall: the masonry blob's solid tile
+			null,                                    # wall-alt: invisible, a house's footprint
+		],
+		# A brick floor inlaid with a frame, laid out as the meadow's block: the inlay
+		# is the dirt, so corridors run as bordered runners and the throne room is
+		# framed. The block draws no plain floor outside an inlay -- its outside is a
+		# border of small bricks, meant to meet a wall -- so the rooms are the inlay's
+		# own brick, copied over the block's plain cell (where the pack drew a patch
+		# of light). The frame can only be read against the layout; see _framed_links.
+		"ground": ["Interior/TilesetInteriorFloor.png", Rect2i(0, 6, 11, 6)],
+		"ground_fill": {Vector2i(0, 5): Vector2i(1, 1)},
+		"ground_layout": ["TilesetFloor.png", Rect2i(0, 7, 11, 6)],
+		"ground_frame": "ef914f",
+		# The desert's oasis with its sand cut away, so the pool sits sunk in whatever
+		# floor is under it, its banks for a kerb.
+		"liquid": ["TilesetWater.png", Rect2i(0, 0, 11, 5)],
+		"liquid_cut": ["TilesetWater.png", Vector2i(0, 5)],
+		# Cracks in the brick, rubble, and the bones of whoever came up first.
+		"decor": [
+			["TilesetFloorDetail.png", Vector2i(5, 0)], ["TilesetFloorDetail.png", Vector2i(6, 0)],
+			["TilesetFloorDetail.png", Vector2i(7, 0)], ["TilesetFloorDetail.png", Vector2i(8, 0)],
+			["TilesetFloorDetail.png", Vector2i(5, 0)], ["TilesetFloorDetail.png", Vector2i(6, 0)],
+			["TilesetReliefDetail.png", Vector2i(0, 0)], ["TilesetReliefDetail.png", Vector2i(0, 2)],
+			["TilesetReliefDetail.png", Vector2i(0, 0)],
+			["TilesetFloorDetail.png", Vector2i(13, 0)], ["TilesetFloorDetail.png", Vector2i(14, 0)],
+		],
+		"decor_density": 0.04,
+	},
 }
 
 const PACK_ROOT := "res://assets/ninja_adventure/"
@@ -743,14 +792,23 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 			if _is_empty(atlas, coords):
 				continue
 			var link_cell := Vector2i(x, y)
+			var links: Array[bool]
 			if link_sheet != null:
 				link_cell += (spec["ground_links"] as Rect2i).position
 				if not _drawn_alike(link_sheet, link_cell, ground.position + Vector2i(x, y), link_palette):
 					continue
+				links = _links(link_sheet, link_cell, dirt_test)
+			elif spec.has("ground_layout"):
+				var layout: Array = spec["ground_layout"]
+				links = _framed_links(atlas, coords, _sheet(layout[0]),
+						(layout[1] as Rect2i).position + link_cell, Color.html(spec["ground_frame"]).to_rgba32())
+				if links.is_empty():
+					print("  ground %s is not the layout's drawing; left out" % link_cell)
+					continue
+			else:
+				links = _links(atlas, coords, dirt_test)
 			source.create_tile(coords)
 			var data := source.get_tile_data(coords, 0)
-			var links := _links(atlas, coords, dirt_test) if link_sheet == null \
-					else _links(link_sheet, link_cell, dirt_test)
 			data.terrain_set = ground_set
 			data.terrain = GROUND_DIRT if links[8] else GROUND_GRASS
 			for index in 8:
@@ -869,7 +927,13 @@ func _compose(spec: Dictionary) -> Image:
 		_compose_cliffs(atlas, spec)
 	elif spec.has("hole"):
 		_compose_hole(atlas, spec)
+	elif spec.has("masonry"):
+		_compose_masonry(atlas, spec)
 	_blit(atlas, spec["ground"][0], spec["ground"][1], Vector2i(0, ROW_GROUND))
+	var fill: Dictionary = spec.get("ground_fill", {})
+	for cell: Vector2i in fill:
+		atlas.blit_rect(atlas, Rect2i((Vector2i(0, ROW_GROUND) + fill[cell]) * TILE, Vector2i(TILE, TILE)),
+				(Vector2i(0, ROW_GROUND) + cell) * TILE)
 	_blit(atlas, spec["liquid"][0], spec["liquid"][1], Vector2i(0, ROW_LIQUID))
 	if spec.has("liquid_palette"):
 		var swap: Array = spec["liquid_palette"]
@@ -891,6 +955,14 @@ func _compose(spec: Dictionary) -> Image:
 		else:
 			changed = _repaint(atlas, liquid_cells, {from: to})
 		print("  shoreline repainted: %d pixels" % changed)
+	if spec.has("liquid_cut"):
+		# A pond drawn on a ground no floor of this biome is: its land is cut away, so
+		# the pool shows the floor laid under it, and its banks stay.
+		var land: Array = spec["liquid_cut"]
+		var liquid_px := Rect2i(Vector2i(0, ROW_LIQUID) * TILE, (spec["liquid"][1] as Rect2i).size * TILE)
+		var pond := atlas.get_region(liquid_px)
+		_cut(pond, _dominant(_sheet(land[0]), land[1]))
+		atlas.blit_rect(pond, Rect2i(Vector2i.ZERO, pond.get_size()), liquid_px.position)
 	# From the atlas rather than the sheet, so it comes already repainted.
 	var strip := (Vector2i(0, ROW_LIQUID) + LIQUID_STRIP) * TILE
 	atlas.blit_rect(atlas, Rect2i(strip + Vector2i(0, PUDDLE_TOP_ROWS.x), Vector2i(TILE, PUDDLE_TOP_ROWS.y)),
@@ -943,7 +1015,7 @@ func _compose_cliffs(atlas: Image, spec: Dictionary) -> void:
 
 ## Whether the spec composes a wall blob, and so pays for its rows.
 func _has_blob(spec: Dictionary) -> bool:
-	return spec.has("cliffs") or spec.has("hole")
+	return spec.has("cliffs") or spec.has("hole") or spec.has("masonry")
 
 
 ## The plain wall slot is the blob's solid tile: what a mass cell draws before it is
@@ -1031,6 +1103,56 @@ func _compose_hole(atlas: Image, spec: Dictionary) -> void:
 						Vector2i.ZERO)
 			atlas.blit_rect(piece, Rect2i(Vector2i.ZERO, half), at + offset)
 	_fill_wall_slot(atlas)
+
+
+## A 47-tile wall blob of dressed stone, from the pack's interior walls. The pack
+## draws them as the outline of one room -- a band of masonry along each side, a
+## corner where two bands meet round the room's corner, and the void of the wall's top
+## beyond -- and its bands are 10 to 13 pixels deep, shadow included, so no quarter of a cell can be
+## chosen by what that quarter alone touches, the way the cliffs and the hole are.
+##
+## So every pixel is drawn by the floor nearest it: an open side makes it that
+## side's band, an open corner between two walls the room corner's, each sampled at
+## the same pixel of the cell the pack draws it in. A tile the pack draws comes out
+## as drawn, since its one floor is nearest everything; one it doesn't -- a wall
+## end, a pillar, a wall one cell thick -- is its bands meeting where they reach
+## each other, a mitre at a corner the floor wraps round.
+func _compose_masonry(atlas: Image, spec: Dictionary) -> void:
+	var sheet := _sheet(spec["masonry"][0])
+	var origin: Vector2i = spec["masonry"][1]
+	var void_colour := sheet.get_pixelv(origin * TILE)
+	var masks := _blob_masks()
+	for index in masks.size():
+		var at := _pack_blob_coords(index) * TILE
+		for y in TILE:
+			for x in TILE:
+				var piece := _nearest_floor(masks[index], Vector2(x, y) + Vector2(0.5, 0.5))
+				atlas.set_pixelv(at + Vector2i(x, y), void_colour if piece.x < 0
+						else sheet.get_pixelv((origin + piece) * TILE + Vector2i(x, y)))
+	_fill_wall_slot(atlas)
+
+
+## The masonry piece drawing the floor nearest [param point] of a wall cell whose
+## wall neighbours are [param mask], or (-1, -1) where it has none. A side beats a
+## corner it ties with: along a side, the corner is that side's.
+func _nearest_floor(mask: int, point: Vector2) -> Vector2i:
+	var far := Vector2(TILE, TILE) - point
+	var sides := {BIT_N: point.y, BIT_E: far.x, BIT_S: far.y, BIT_W: point.x}
+	var corners := {BIT_NE: Vector2(far.x, point.y), BIT_SE: far, BIT_SW: Vector2(point.x, far.y),
+			BIT_NW: point}
+	var best := INF
+	var piece := Vector2i(-1, -1)
+	for bit: int in sides:
+		if (mask & bit) == 0 and sides[bit] < best:
+			best = sides[bit]
+			piece = MASONRY_SIDES[bit]
+	for corner: Array in CORNERS:
+		var open: bool = (mask & corner[1]) != 0 and (mask & corner[2]) != 0 and (mask & corner[0]) == 0
+		var distance: float = (corners[corner[0]] as Vector2).length()
+		if open and distance < best:
+			best = distance
+			piece = MASONRY_CORNERS[corner[0]]
+	return piece
 
 
 ## The earth under a floating floor, which the pack does not draw, in the pack's
@@ -1249,6 +1371,86 @@ func _drawn_alike(image: Image, reference: Vector2i, cell: Vector2i, palette: Di
 			elif palette.get(from.to_rgba32(), -1) != to.to_rgba32():
 				off += 1
 	return off <= 4
+
+
+## How a cell of an inlaid floor links, or nothing if that cannot be trusted. Its
+## inlay and the brick round it are the same colours, so which side of the frame is
+## inlay is only known from the layout: [param frame] splits the cell into regions,
+## and each is inlay when [param reference_cell] of [param reference], the pack's
+## block laid out alike, is dirt where the region lies farthest from the frame. Not
+## where most of it lies: the block draws an inner corner as a notch of a pixel or
+## three, the inlay as a square four across, and most of that square is the block's
+## dirt. The links read off that are kept only if they are the reference's own, as
+## far as a terrain can tell them apart (see _expressible).
+func _framed_links(atlas: Image, coords: Vector2i, reference: Image, reference_cell: Vector2i,
+		frame: int) -> Array[bool]:
+	var origin := coords * TILE
+	var framed: Array[Vector2i] = []
+	for y in TILE:
+		for x in TILE:
+			if atlas.get_pixel(origin.x + x, origin.y + y).to_rgba32() == frame:
+				framed.append(Vector2i(x, y))
+	var inlay := Image.create_empty(TILE, TILE, false, Image.FORMAT_RGBA8)
+	var seen := {}
+	for start: Vector2i in framed:
+		# The frame is the inlay's own edge.
+		inlay.set_pixelv(start, Color.RED)
+		seen[start] = true
+	for y in TILE:
+		for x in TILE:
+			var start := Vector2i(x, y)
+			if seen.has(start):
+				continue
+			seen[start] = true
+			var region: Array[Vector2i] = [start]
+			var next := 0
+			while next < region.size():
+				var pixel := region[next]
+				next += 1
+				for step: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+					var near := pixel + step
+					if near.x >= 0 and near.y >= 0 and near.x < TILE and near.y < TILE and not seen.has(near):
+						seen[near] = true
+						region.append(near)
+			var deepest := -1
+			var votes := 0
+			var dirt := 0
+			for pixel in region:
+				var depth := TILE
+				for edge in framed:
+					depth = mini(depth, maxi(absi(edge.x - pixel.x), absi(edge.y - pixel.y)))
+				if depth > deepest:
+					deepest = depth
+					votes = 0
+					dirt = 0
+				if depth == deepest:
+					votes += 1
+					if _passes(reference, reference_cell * TILE + pixel, _is_dirt):
+						dirt += 1
+			for pixel in region:
+				inlay.set_pixelv(pixel, Color.RED if dirt * 2 >= votes else Color.GREEN)
+	var links := _links(inlay, Vector2i.ZERO, _is_dirt)
+	if _expressible(links) != _expressible(_links(reference, reference_cell, _is_dirt)):
+		return []
+	return links
+
+
+## [param links] with every corner set to what its sides already say, where they
+## say it: inside the terrain a corner is its own only when both sides beside it
+## are, and outside it a side showing the terrain takes the corners along it (as
+## MapDresser.expected_flags has it). The meadow's block draws a two-pixel sliver of
+## dirt in the corner of a cell whose side beside it is grass -- a corner no
+## neighbourhood can ask for, which the inlay does not draw.
+func _expressible(links: Array[bool]) -> Array[bool]:
+	var flags := links.duplicate()
+	for corner in 4:
+		var a: bool = links[MapDresser.CORNER_SIDES[corner][0]]
+		var b: bool = links[MapDresser.CORNER_SIDES[corner][1]]
+		if links[8]:
+			flags[4 + corner] = links[4 + corner] and a and b
+		else:
+			flags[4 + corner] = links[4 + corner] or a or b
+	return flags
 
 
 ## Repaints [param cells] by the spec's [code]ground_recolour[/code], if it has one:
