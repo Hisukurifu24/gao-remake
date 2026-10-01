@@ -727,7 +727,7 @@ feel like enough yet".
   above at once: the place is the map you were standing on, drawn by the art that
   already works; the player is the player; depth is the map's own y-sort.
 
-#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), steps 2–7 to do*
+#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), staging ✅, steps 3–7 to do*
 
 **The battle stops being a screen and becomes a moment on the floor.** No fade, no
 backdrop: when a monster reaches you, the two of you step apart into a formation where
@@ -811,6 +811,24 @@ separate* is the reason this is a view job and not a combat rewrite.
    reach you from (sampled on generated floors), a formation exists and all its spots
    are floor. A fight that can't be staged is the in-place version of an unreachable
    door — it fails in one corner of one floor out of a hundred, and never where anyone playtests.
+   **✅ 2026-10-01.** The staging itself came with the spike, so this step was the
+   sweep, plus what it needed from the solver. Not sampled after all: every cell a
+   body can walk to from the spawn on every generated floor and every authored map
+   with monsters, 235k of them, ~7 s. To get there the solver stopped asking the
+   physics server: `GameMap.refresh_solids()` reads chests, NPCs and shown doors off
+   the nodes, so a map the test built and never added to the tree answers like a
+   played one (refreshed every fight, since a door just found has just become solid),
+   and `formation(cell, contact, count)` tries its candidates cheapest first and
+   stops at the first that fits in the open — about four cells asked, usually. And
+   the slide now only goes where you could have **walked** inside the slide box: two
+   cells over can be across a one-thick wall, and the player is moved by position.
+   The sweep checks that too, plus every spot on floor in the same region and the
+   lane to the enemy clear. What it found on the first run: a cell on floor 77 boxed
+   in by two chests and two boulders, reachable by the wall-only flood fill and by
+   no body; the sweep now walks standable cells from the spawn. Measured: no cell
+   anywhere needs a formation behind a crown (the check allows 1%), and a third of
+   fights slide the player a cell or two — sliding costs less than turning, which is
+   the spike's weighting, kept.
 3. **The world-space view.** `ui/combat_screen.gd` splits in two:
    - `BattleStage` (a `Node2D` added to the map for the fight's length): poses the
      fighters, lunges, white flash, death (flash, the pack's `FX/Smoke` puff, then the

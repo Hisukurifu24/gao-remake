@@ -21,6 +21,8 @@ const FORMATION_GAPS: Array[int] = [3, 4, 2]
 ## What a fighter standing behind a tree costs the formation: nearly a refusal,
 ## but a fight that can only be staged half-hidden is still better than none.
 const HIDDEN_COST := 20.0
+## The player's body, centred on a cell -- what a spot has to have room for.
+const BODY := Vector2(12, 8)
 
 @export var map_id: StringName = &""
 @export var display_name := ""
@@ -47,6 +49,11 @@ var _darkness: Darkness = null
 ## across. Built on first use; props never move.
 var _covered: Dictionary[Vector2i, bool] = {}
 var _covered_built := false
+## Cells something solid stands in, from [method refresh_solids].
+var _solid_cells: Dictionary[Vector2i, bool] = {}
+## Every slide, axis and gap the solver may try, cheapest first. See
+## [method _formation_candidates].
+static var _candidates: Array[Vector4] = []
 
 
 func _ready() -> void:
@@ -139,41 +146,60 @@ func stage_battle(player_at: Vector2, enemy_at: Vector2, enemy_count: int) -> Ba
 	_resolve_layers()
 	if _walls == null:
 		return null
-	var start := _walls.local_to_map(_walls.to_local(to_global(player_at) + Vector2(0, -4)))
+	refresh_solids()
+	var start := _walls.local_to_map(_walls.transform.affine_inverse() * (player_at + Vector2(0, -4)))
 	var toward := enemy_at - player_at
 	var contact := Vector2i.RIGHT
 	if absf(toward.y) > absf(toward.x):
 		contact = Vector2i(0, signi(roundi(signf(toward.y))))
 	elif toward.x != 0.0:
 		contact = Vector2i(signi(roundi(signf(toward.x))), 0)
+	return formation(start, contact, enemy_count)
+
+
+## The formation for a player standing on [param start], struck from along
+## [param contact] -- [method stage_battle] without the positions, and against
+## the solid things as [method refresh_solids] last found them. The floor test
+## sweeps every cell of every floor through this.
+##
+## Candidates are tried cheapest first (see [method _formation_candidates]), so
+## the first that fits in the open is the answer and the usual case asks about
+## four cells. The player only slides to cells they could have walked to inside
+## the slide box: a cell two along might be across a one-thick wall, and the
+## player is moved by position, so the solver is all that stands between them
+## and being set down in the next corridor.
+func formation(start: Vector2i, contact: Vector2i, enemy_count: int) -> BattleField:
+	_resolve_layers()
+	if _walls == null:
+		return null
 	var axes: Array[Vector2i] = [contact, -contact,
 			Vector2i(contact.y, contact.x), -Vector2i(contact.y, contact.x)]
+	var near := _walkable_near(start)
 
 	var best_cost := INF
 	var field: BattleField = null
-	for dy in range(-FORMATION_SLIDE, FORMATION_SLIDE + 1):
-		for dx in range(-FORMATION_SLIDE, FORMATION_SLIDE + 1):
-			var cell := start + Vector2i(dx, dy)
-			if not is_standable(cell):
-				continue
-			for a in axes.size():
-				for gap in FORMATION_GAPS:
-					var cost := absi(dx) + absi(dy) + a * 2 + absi(gap - FORMATION_GAPS[0]) * 1.5
-					if cost >= best_cost:
-						continue
-					var enemies := _enemy_cells(cell, axes[a], gap, enemy_count)
-					if enemies.is_empty():
-						continue
-					for fighter: Vector2i in enemies + [cell]:
-						if is_covered(fighter):
-							cost += HIDDEN_COST
-					if cost >= best_cost:
-						continue
-					best_cost = cost
-					field = BattleField.new()
-					field.player_cell = cell
-					field.enemy_cells = enemies
-					field.axis = axes[a]
+	for candidate: Vector4 in _formation_candidates():
+		var cost := candidate.w
+		if cost >= best_cost:
+			break
+		var cell := start + Vector2i(roundi(candidate.x), roundi(candidate.y))
+		if not near.has(cell):
+			continue
+		var axis := axes[roundi(candidate.z) / FORMATION_GAPS.size()]
+		var gap: int = FORMATION_GAPS[roundi(candidate.z) % FORMATION_GAPS.size()]
+		var enemies := _enemy_cells(cell, axis, gap, enemy_count)
+		if enemies.is_empty():
+			continue
+		for fighter: Vector2i in enemies + [cell]:
+			if is_covered(fighter):
+				cost += HIDDEN_COST
+		if cost >= best_cost:
+			continue
+		best_cost = cost
+		field = BattleField.new()
+		field.player_cell = cell
+		field.enemy_cells = enemies
+		field.axis = axis
 	if field == null:
 		return null
 
@@ -191,7 +217,7 @@ func stage_battle(player_at: Vector2, enemy_at: Vector2, enemy_count: int) -> Ba
 
 
 ## A cell someone can be put on: floor, not wall or water, and nothing solid in
-## it -- a chest, a shown door.
+## it -- a chest, an NPC, a shown door -- as of the last [method refresh_solids].
 func is_standable(cell: Vector2i) -> bool:
 	_resolve_layers()
 	if _walls.get_cell_source_id(cell) != -1:
@@ -199,15 +225,41 @@ func is_standable(cell: Vector2i) -> bool:
 	var ground := get_node_or_null("Ground") as TileMapLayer
 	if ground != null and ground.get_cell_source_id(cell) == -1:
 		return false
-	if not is_inside_tree():
-		return true
-	var query := PhysicsShapeQueryParameters2D.new()
-	var body := RectangleShape2D.new()
-	body.size = Vector2(12, 8)
-	query.shape = body
-	query.transform = Transform2D(0.0, to_global(_feet(cell) + Vector2(0, -4)))
-	query.collision_mask = 1
-	return get_world_2d().direct_space_state.intersect_shape(query, 1).is_empty()
+	return not _solid_cells.has(cell)
+
+
+## Finds the cells something solid stands in: any child's layer-1 body whose
+## shape would overlap a body set down in the cell. Read off the nodes rather
+## than asked of the physics server, so a map the floor test has built but never
+## added to the tree answers the same as one being played. Not cached between
+## fights, because a door that has just been found has just become solid.
+func refresh_solids() -> void:
+	_solid_cells.clear()
+	_resolve_layers()
+	if _walls == null:
+		return
+	var to_walls := _walls.transform.affine_inverse()
+	for child in get_children():
+		var holder := child as Node2D
+		if holder == null or holder is TileMapLayer:
+			continue
+		for body in holder.get_children():
+			var solid := body as StaticBody2D
+			if solid == null or solid.collision_layer & 1 == 0:
+				continue
+			for shape_node in solid.get_children():
+				var shape := shape_node as CollisionShape2D
+				if shape == null or shape.disabled or shape.shape == null:
+					continue
+				var rect := to_walls * holder.transform * solid.transform * shape.transform \
+						* shape.shape.get_rect()
+				var from := _walls.local_to_map(rect.position)
+				var to := _walls.local_to_map(rect.end)
+				for y in range(from.y, to.y + 1):
+					for x in range(from.x, to.x + 1):
+						var body_rect := Rect2(_walls.map_to_local(Vector2i(x, y)) - BODY / 2.0, BODY)
+						if body_rect.intersects(rect):
+							_solid_cells[Vector2i(x, y)] = true
 
 
 ## Whether a standing prop is drawn over [param cell]: whoever stands there is
@@ -250,10 +302,52 @@ func _enemy_cells(from: Vector2i, axis: Vector2i, gap: int, count: int) -> Array
 	return cells
 
 
+## The standable cells a player on [param start] can walk to without leaving
+## the slide box -- the only cells a formation may move them to.
+func _walkable_near(start: Vector2i) -> Dictionary[Vector2i, bool]:
+	var box := Rect2i(start - Vector2i.ONE * FORMATION_SLIDE, Vector2i.ONE * (FORMATION_SLIDE * 2 + 1))
+	var near: Dictionary[Vector2i, bool] = {}
+	var queue: Array[Vector2i] = [start]
+	if is_standable(start):
+		near[start] = true
+	# Walked from the start even when it is not standable itself: feet can sit in
+	# a cell a chest's corner reaches into, and the cells round it are still yours.
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_back()
+		for step: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var next := cell + step
+			if box.has_point(next) and not near.has(next) and is_standable(next):
+				near[next] = true
+				queue.append(next)
+	return near
+
+
+## (dx, dy, axis * gaps + gap index, cost) for every way the solver may arrange
+## a fight, sorted by cost: distance slid, then the axis (contact first), then
+## how far the gap is from the one wanted. Built once; the sort is stable on the
+## index, so equal costs always come out in the same order.
+static func _formation_candidates() -> Array[Vector4]:
+	if not _candidates.is_empty():
+		return _candidates
+	var gaps := FORMATION_GAPS.size()
+	var keyed: Array = []
+	for dy in range(-FORMATION_SLIDE, FORMATION_SLIDE + 1):
+		for dx in range(-FORMATION_SLIDE, FORMATION_SLIDE + 1):
+			for a in 4:
+				for g in gaps:
+					var cost := absi(dx) + absi(dy) + a * 2 + absi(FORMATION_GAPS[g] - FORMATION_GAPS[0]) * 1.5
+					keyed.append([cost, keyed.size(), Vector4(dx, dy, a * gaps + g, cost)])
+	keyed.sort_custom(func(p: Array, q: Array) -> bool:
+		return p[0] < q[0] or (p[0] == q[0] and p[1] < q[1]))
+	for entry: Array in keyed:
+		_candidates.append(entry[2])
+	return _candidates
+
+
 ## Where feet stand on [param cell], map-local: low in the cell, so the sprite
 ## stands on it rather than over the row above.
 func _feet(cell: Vector2i) -> Vector2:
-	return to_local(_walls.to_global(_walls.map_to_local(cell))) + Vector2(0, 4)
+	return _walls.transform * _walls.map_to_local(cell) + Vector2(0, 4)
 
 
 ## Resolved on first use rather than in _ready(), so a map that has not entered

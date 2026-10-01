@@ -34,6 +34,11 @@ var _checks := 0
 var _lab_floors := 0
 var _lab_not_farthest := 0
 var _lab_walks: Array[int] = []
+## Gathered by [method _audit_formations] across every map with monsters on it.
+var _formations := 0
+var _hidden_formations := 0
+var _slid_formations := 0
+var _unstaged: PackedStringArray = PackedStringArray()
 
 
 func _ready() -> void:
@@ -294,6 +299,18 @@ func _run() -> void:
 	_check(broken_authored.is_empty(), "every authored floor is completable%s" % (
 			"" if broken_authored.is_empty() else " -- " + ", ".join(broken_authored)))
 
+	# --- a fight can be staged wherever one can start ---
+	# Swept by both audits above, over every cell a monster can reach you on. A
+	# formation drawn behind a crown is allowed -- the solver would rather that than
+	# no fight on the map -- but it must stay rare, or fights read as half-hidden.
+	_check(_unstaged.is_empty() and _formations > 10000,
+			"a fight can be staged on every cell of every map with monsters (%d cells)%s" % [
+				_formations, "" if _unstaged.is_empty() else " -- " + ", ".join(_unstaged)])
+	_check(_hidden_formations * 100 <= _formations,
+			"a staged fight is hidden behind a prop on at most 1%% of cells (%d of %d)" % [
+				_hidden_formations, _formations])
+	print("       (%d of those had to slide the player off the cell they stood on)" % _slid_formations)
+
 
 # --- helpers ---------------------------------------------------------------
 
@@ -498,7 +515,10 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 	for y in bounds.size.y:
 		if not _sealed(walls, Vector2i(0, y)) or not _sealed(walls, Vector2i(bounds.size.x - 1, y)):
 			return "floor %d has a hole in its outer wall" % floor_number
-	return _audit_labyrinth(map, walls, gate, start, reachable)
+	var lost := _audit_labyrinth(map, walls, gate, start, reachable)
+	if lost.is_empty():
+		_audit_formations(map, walls, start, reachable, "floor %d" % floor_number)
+	return lost
 
 
 ## The labyrinth stands between the field and the door, the door hides in a room
@@ -575,6 +595,79 @@ func _audit_labyrinth(map: Node2D, walls: TileMapLayer, gate: Node, start: Vecto
 	if to_door < farthest * 9 / 10:
 		_lab_not_farthest += 1
 	return ""
+
+
+## A fight can be staged on every cell a body can walk to from [param start], and
+## every formation stands where it claims to: on floor in [param reachable], the
+## player no further from where they stood than a short walk inside the slide
+## box, the enemies at the end of a clear lane. The in-place version of an
+## unreachable door: a fight with nowhere to stand falls back to the old screen
+## in one corner of one floor out of a hundred, and never where anyone playtests.
+##
+## The contact side rotates with the cell, so every axis gets asked first
+## somewhere; existence doesn't depend on it, since the solver tries all four.
+func _audit_formations(map: Node2D, walls: TileMapLayer, start: Vector2i, reachable: Dictionary,
+		label: String) -> void:
+	var problem := _formation_problem(map, walls, start, reachable, label)
+	if not problem.is_empty():
+		_unstaged.append(problem)
+
+
+func _formation_problem(map: Node2D, walls: TileMapLayer, start: Vector2i, reachable: Dictionary,
+		label: String) -> String:
+	var game_map := map as GameMap
+	if game_map == null:
+		return "%s is not a GameMap" % label
+	game_map.refresh_solids()
+	# Where you can stand and walk to, not just what isn't wall: a chest is solid,
+	# and four of them by a boulder can box in a cell no body ever gets into.
+	if not game_map.is_standable(start):
+		return "%s spawns somewhere nobody can stand, at %s" % [label, start]
+	var standing := _flood_standable(game_map, start)
+	var sides: Array[Vector2i] = [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP]
+	var slide := GameMap.FORMATION_SLIDE
+	for cell: Vector2i in standing:
+		var field := game_map.formation(cell, sides[posmod(cell.x + cell.y, 4)], 1)
+		if field == null:
+			return "%s cannot stage a fight at %s" % [label, cell]
+		_formations += 1
+		var fighters: Array[Vector2i] = field.enemy_cells.duplicate()
+		fighters.append(field.player_cell)
+		for fighter in fighters:
+			if walls.get_cell_source_id(fighter) != -1 or not reachable.has(fighter) \
+					or not game_map.is_standable(fighter):
+				return "%s stages a fight at %s with someone off the floor at %s" % [label, cell, fighter]
+			if game_map.is_covered(fighter):
+				_hidden_formations += 1
+				break
+		if field.player_cell != cell:
+			_slid_formations += 1
+			var box := Rect2i(cell - Vector2i.ONE * slide, Vector2i.ONE * (slide * 2 + 1))
+			if not _flood_within(walls, cell, box).has(field.player_cell):
+				return "%s moves the player at %s through a wall to %s" % [label, cell, field.player_cell]
+		var lane := field.enemy_cells[0] - field.player_cell
+		if lane.x != 0 and lane.y != 0:
+			return "%s stages a fight at %s off the axis" % [label, cell]
+		var step := lane.sign()
+		for i in range(1, absi(lane.x + lane.y)):
+			if walls.get_cell_source_id(field.player_cell + step * i) != -1:
+				return "%s stages a fight at %s across a wall" % [label, cell]
+	return ""
+
+
+## The cells a body can walk to from [param from] without passing through
+## anything solid -- walls, water, chests, people.
+func _flood_standable(map: GameMap, from: Vector2i) -> Dictionary:
+	var seen := {from: true}
+	var queue: Array[Vector2i] = [from]
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_back()
+		for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var next: Vector2i = cell + offset
+			if not seen.has(next) and map.is_standable(next):
+				seen[next] = true
+				queue.append(next)
+	return seen
 
 
 func _ring(rect: Rect2i) -> Array[Vector2i]:
@@ -718,6 +811,12 @@ func _audit_authored(floor_number: int) -> String:
 			map.free()
 			break
 
+		var hunted := false
+		for child in map.get_children():
+			hunted = hunted or child is Monster
+		if first_visit and hunted:
+			_audit_formations(map, walls, start, reachable, label)
+
 		# A map with no way off it is a map whose walls are all there is between
 		# the player and the void, so the outer ring has to hold -- the same check
 		# the generated floors get, and for the same reason: autotiling rewrote
@@ -796,7 +895,8 @@ func _flood(walls: TileMapLayer, from: Vector2i) -> Dictionary:
 	return seen
 
 
-## [method _flood], kept inside [param bounds]. See its one caller for why.
+## [method _flood], kept inside [param bounds]: an authored map's border has
+## exits in it, and a formation's slide is a box round the player.
 func _flood_within(walls: TileMapLayer, from: Vector2i, bounds: Rect2i) -> Dictionary:
 	var seen := {from: true}
 	var queue: Array[Vector2i] = [from]

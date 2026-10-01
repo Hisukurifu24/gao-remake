@@ -100,7 +100,8 @@ Maps are engine-generated because `tile_map_data` is a binary blob inside the `.
 # wall autotiling (cave, ruins, desert and volcanic cliffs, the sky's rims and undersides, the castle's masonry), the forest, ground and pool dressing, fog of war's line of sight (and seeing
 # across water on every band), a flood-fill of EVERY generated floor proving each is
 # completable, still sealed and its hidden door findable through its labyrinth, and
-# the same walk over every authored floor (plus its monster count against the curve)
+# the same walk over every authored floor (plus its monster count against the curve),
+# and a fight on the map staged at every cell you can stand on of every map with monsters
 "$GODOT" --headless --path . res://test/floor_test.tscn
 
 # The dialogue system: conditions, entry selection, branching, effects, the input
@@ -124,9 +125,10 @@ Maps are engine-generated because `tile_map_data` is a binary blob inside the `.
 "$GODOT" --headless --path . res://test/quest_test.tscn
 ```
 
-All six exit non-zero on failure. Four checks are load-bearing and should not be weakened:
+All six exit non-zero on failure. Five checks are load-bearing and should not be weakened:
 
 - **The floor test's completability flood fill.** An unreachable boss door is the failure mode procedural generation reliably ships, and playtesting will not find it. It also checks the outer ring is still sealed: autotiling rewrites every wall on the floor, and dropping one instead of replacing it would open the map onto the void — which the flood fill alone would answer by quietly reaching *further*, not by failing. **Authored floors get the same walk**, since hand-building fails at this the same way and with no seed to blame; that walk follows `MapExit`s, because an authored floor may span several maps (Floor 1's door is in the field, not the town). Its flood fill is *bounded* to the walls' used rect — an authored map is allowed holes in its border where an exit sits in them, and an unbounded fill walks out through one and expands forever. Whether a map's ring must be sealed is decided *per map*: an exit to another map excuses holes, an exit back into the same map (Lanternfall's lift) does not. **And a hidden door must be findable**, which no flood fill sees: `_audit_labyrinth` checks the door hides in exactly its boss room, the room has one doorway, the labyrinth is open only at its mouth and walling that up puts the door out of reach, and the maze has dead ends — plus, across all floors, that the door is not always the farthest point and never under 24 tiles in.
+- **The floor test's formation sweep.** A fight on the map needs somewhere to stand, and a cell with no formation falls back to the old screen in one corner of one floor nobody playtests. At every cell a body can walk to from the spawn (standable cells -- a chest-boxed pocket the wall flood reaches is not one), on every generated floor and every authored map with monsters, `GameMap.formation()` must find spots on floor in the same region, the player slid only to a cell walkable inside the slide box (never through a wall), and a clear lane to the enemy. It runs off the map's nodes, not physics (`refresh_solids()`), which is why it works on maps never added to the tree.
 - **The combat test's balance section.** Its numbers were measured, not chosen. A stat, curve or growth-rate edit that makes floor 50 unwinnable fails here instead of 20 hours into a playthrough. If one moves, decide whether the climb *should* have changed shape before re-baselining it.
 - **The inventory test's item-id sweep.** Every id the rest of the game emits — `EnemyType.loot`, `FloorGenerator.CHEST_*`, every authored floor's chests, dialogue's `GIVE_ITEM` — must name a real `.tres`. A typo is silent everywhere else: the drop simply never arrives.
 - **The quest test's objective-target sweep.** The same failure, one layer up: every KILL must name an enemy id, every COLLECT an item id, every TALK a conversation, every REACH a floor in range. A typo makes an objective that can never be completed, and nothing else in the game will say so.
