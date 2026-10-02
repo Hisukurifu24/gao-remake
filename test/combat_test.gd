@@ -93,6 +93,37 @@ func _test_content() -> void:
 			poolless.append(band["biome"])
 	_check(poolless.is_empty(), "every biome band has a monster pool (%s)" % poolless)
 
+	# The look is data like the numbers, so a skill with none lands as a bare
+	# flash and nothing else says so. Every skill anyone can swing has an effect,
+	# every one in the player's menu an icon in both states, and every status any
+	# of them (or an item) can put on someone a bubble to show it.
+	var skills: Array[Skill] = [SkillLibrary.basic_attack(), load(Bestiary.BOSS_SKILL)]
+	skills.append_array(SkillLibrary.all())
+	for id in Bestiary.ENEMIES:
+		skills.append_array(Bestiary.get_enemy(StringName(id)).skills)
+	var unseen := PackedStringArray()
+	var unmarked := PackedStringArray()
+	var statuses: Array[StatusEffect] = []
+	for skill in skills:
+		if skill.fx == null or skill.fx.sheet == null:
+			unseen.append(skill.id)
+		var player_side := skill == SkillLibrary.basic_attack() or skill in SkillLibrary.all()
+		if player_side and (skill.icon == null or skill.icon_disabled == null):
+			unmarked.append(skill.id)
+		if skill.applies != null:
+			statuses.append(skill.applies)
+	for id in ItemLibrary.ITEMS:
+		var item := ItemLibrary.get_item(StringName(id))
+		if item != null and item.applies != null:
+			statuses.append(item.applies)
+	_check(unseen.is_empty(), "every skill has an effect to land with (%s)" % unseen)
+	_check(unmarked.is_empty(), "every skill in the menu has its icons (%s)" % unmarked)
+	var mute := PackedStringArray()
+	for status in statuses:
+		if status.emote == null and status.id not in mute:
+			mute.append(status.id)
+	_check(mute.is_empty(), "every status shows a bubble (%s)" % mute)
+
 	# The battle draws the place: every band's fights stand on its ground in front
 	# of its scenery -- the tree line, the ridge, or (the sky) its painted clouds.
 	var bare := PackedStringArray()

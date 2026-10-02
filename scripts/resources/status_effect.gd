@@ -32,6 +32,9 @@ enum Kind {
 @export var duration := 3
 ## Purely presentational: the tag colour in the combat screen.
 @export var color := Color(0.85, 0.45, 0.45)
+## Purely presentational: the pack's speech-bubble emote shown over the head
+## that wears it, on the map.
+@export var emote: Texture2D
 ## Debuffs are worth telling the player about in red; buffs in green.
 @export var is_debuff := true
 

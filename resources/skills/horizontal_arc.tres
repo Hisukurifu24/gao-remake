@@ -1,6 +1,9 @@
-[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Skill" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/circular_slash.tres" id="fx_res"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Skill Icon/Items & Weapon/Shuriken.png" id="icon_tex"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Skill Icon/Items & Weapon/ShurikenDisabled.png" id="icon_off"]
 
 [resource]
 script = ExtResource("skill")
@@ -17,3 +20,6 @@ cooldown = 3
 post_motion = 1
 unlock_level = 4
 announce = "%s: Horizontal Arc!"
+fx = ExtResource("fx_res")
+icon = ExtResource("icon_tex")
+icon_disabled = ExtResource("icon_off")

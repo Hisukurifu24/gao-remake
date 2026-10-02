@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="SkillFx" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill_fx.gd" id="fx"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/FX/Magic/Circle/SpriteSheetWhite.png" id="sheet"]
+
+[resource]
+script = ExtResource("fx")
+sheet = ExtResource("sheet")
+frames = 4
+frame_time = 0.07
+follows_swing = false

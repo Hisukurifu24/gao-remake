@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="EnemyType" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="EnemyType" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
 [ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Monster/Bamboo/SpriteSheet.png" id="sheet"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/venom_bite.tres" id="venom_bite"]
+[ext_resource type="Resource" path="res://resources/fx/claw.tres" id="strike_fx_res"]
 
 [sub_resource type="AtlasTexture" id="battler"]
 atlas = ExtResource("sheet")
@@ -32,3 +33,4 @@ xp_growth = 3.6
 skills = Array[ExtResource("skill")]([ExtResource("venom_bite")])
 loot = Array[StringName]([&"nepent_ovule"])
 loot_chance = 0.5
+strike_fx = ExtResource("strike_fx_res")

@@ -44,6 +44,10 @@ extends Resource
 @export var skills: Array[Skill] = []
 ## How often it reaches for a skill rather than swinging. 0 = never.
 @export_range(0.0, 1.0) var skill_bias := 0.5
+## How its plain attack looks where it lands -- claws for a beast. Empty uses
+## the attack's own, a sword's cut. Presentation only: the attack is the same
+## [method SkillLibrary.basic_attack] everyone swings.
+@export var strike_fx: SkillFx
 
 @export_group("Rewards")
 @export var xp_reward := 8

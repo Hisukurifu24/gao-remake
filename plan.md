@@ -727,7 +727,7 @@ feel like enough yet".
   above at once: the place is the map you were standing on, drawn by the art that
   already works; the player is the player; depth is the map's own y-sort.
 
-#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), staging ✅, view ✅, bosses ✅, steps 5–7 to do*
+#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), staging ✅, view ✅, bosses ✅, juice ✅, steps 6–7 to do*
 
 **The battle stops being a screen and becomes a moment on the floor.** No fade, no
 backdrop: when a monster reaches you, the two of you step apart into a formation where
@@ -903,6 +903,39 @@ separate* is the reason this is a view job and not a combat rewrite.
    for beasts, `FX/Elemental` for the fire, ice, thunder and rock skills enemies already
    have. Status emotes from `Ui/Emote` over the head that wears them (poison, stun,
    the ambush `!`). `Ui/Skill Icon` beside each skill in the menu.
+   **✅ 2026-10-02** (my calls, not reviewed yet — `tools/juice_spike.tscn` writes
+   `juice_sheet.png`: an opened fight and an ambush on Floor 2, alarm, menu, skills,
+   a slash landing, a claw landing on you, a heal, bubbles). The look is a
+   `SkillFx` resource (sheet, frames, frame time, `follows_swing`) in
+   `resources/fx/`, shared by every skill that looks alike, and `Skill.fx` points at
+   one: Strike a cut, Slant the curved slash, Horizontal Arc the circular one, Sonic
+   Leap the double cut, Vorpal Strike the X, Second Wind and every item drunk
+   mid-fight the pack's sparkle; the monsters' fire breath is `Elemental/Flam`,
+   slam the rock spikes, rampage the explosion, shield bash and guard break the
+   white and orange rings, twin roar the aura, wither the spirit, rend and bites
+   claws. **A monster's plain attack is its own**: `EnemyType.strike_fx` (claws for
+   the boar, wolf, bat, nepent and drake, a ring for the golem and giant, the
+   spirit for the wraith), so the attack stays the one `basic_attack()` everyone
+   swings and only its look differs. A cut is mirrored, or turned a whole quarter
+   on a fight stood up the screen, to follow the swing; a boss's is drawn ×2 like
+   its puff. **Statuses wear the pack's bubbles** (`StatusEffect.emote`): poison
+   the queasy face, bleed the broken heart, dazed the x-eyes, slowed the "...",
+   sundered the worried face, weakened the sad one, focused the star, regen the
+   heart. The bubble sits at the head's top corner, clear of the pointer, and a
+   fighter wearing two shows each in turn (0.9 s). The opening's red `!` goes over
+   whoever was caught -- the monster you surprised, or you. **Icons**: every row of
+   the command menu has one at half size (12 units, each texel two screen
+   pixels) -- Attack wears Strike's, the others are the pack's sword, potion, shield
+   and boot -- skills on cooldown wear the pack's `Disabled` drawing, and the item
+   list shows each item's bag icon at half size in the same slot so the text lines
+   up. **The skill and item descriptions moved into the message line**, in the hint
+   colour: under the menu, three or four wrapped lines made it tall enough to
+   stand on the enemy, and the message line has nothing to say while you choose.
+   The combat test checks every skill anyone can swing has an effect, every skill in
+   the menu both icons, and every status a skill or item applies a bubble. Not done:
+   a monster that *notices* you could show the `!` on the map too (it's the classic
+   cue, and cheap, but it's map behaviour, not a fight's); a miss's "miss" can
+   briefly overlap a status bubble.
 6. **Delete the stage.** `Encounter.backdrop / ground_texture / scenery / sky_texture`,
    `Bestiary._set_stage()` and every composer under it (`_compose_scenery`, `_blob_tiles`,
    the ground cut), the combat test's "every band has scenery" check, the old
@@ -1240,11 +1273,11 @@ bottom only goes up.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 71-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 127-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 73-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 128-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 85-check combat test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 88-check combat test
 "$GODOT" --headless --path . res://test/quest_test.tscn     # 173-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 

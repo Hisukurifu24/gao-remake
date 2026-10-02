@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="StatusEffect" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="StatusEffect" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/status_effect.gd" id="status"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Emote/emote29.png" id="emote_tex"]
 
 [resource]
 script = ExtResource("status")
@@ -11,3 +12,4 @@ magnitude = 30
 duration = 3
 color = Color(1, 0.86, 0.5, 1)
 is_debuff = false
+emote = ExtResource("emote_tex")

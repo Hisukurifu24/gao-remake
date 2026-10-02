@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="EnemyType" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="EnemyType" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
 [ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantBlueSamurai/Idle.png" id="battler_art"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/slam.tres" id="slam"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/twin_roar.tres" id="twin_roar"]
+[ext_resource type="Resource" path="res://resources/fx/ring_white.tres" id="strike_fx_res"]
 
 [sub_resource type="AtlasTexture" id="battler"]
 atlas = ExtResource("battler_art")
@@ -32,3 +33,4 @@ xp_growth = 5.5
 skills = Array[ExtResource("skill")]([ExtResource("slam"), ExtResource("twin_roar")])
 loot = Array[StringName]([&"deepiron_blade"])
 loot_chance = 1.0
+strike_fx = ExtResource("strike_fx_res")

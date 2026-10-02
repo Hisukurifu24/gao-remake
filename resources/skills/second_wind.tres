@@ -1,7 +1,10 @@
-[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="Skill" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
 [ext_resource type="Resource" path="res://resources/statuses/regen.tres" id="regen"]
+[ext_resource type="Resource" path="res://resources/fx/sparkle.tres" id="fx_res"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Skill Icon/Spell/Heal.png" id="icon_tex"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Skill Icon/Spell/HealDisabled.png" id="icon_off"]
 
 [resource]
 script = ExtResource("skill")
@@ -20,3 +23,6 @@ applies = ExtResource("regen")
 apply_chance = 100
 unlock_level = 3
 announce = "%s catches their breath."
+fx = ExtResource("fx_res")
+icon = ExtResource("icon_tex")
+icon_disabled = ExtResource("icon_off")

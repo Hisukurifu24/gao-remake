@@ -1,6 +1,9 @@
-[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Skill" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/cut.tres" id="fx_res"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Skill Icon/Items & Weapon/Guard.png" id="icon_tex"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Skill Icon/Items & Weapon/GuardDisabled.png" id="icon_off"]
 
 [resource]
 script = ExtResource("skill")
@@ -17,3 +20,6 @@ cooldown = 0
 post_motion = 0
 unlock_level = 1
 announce = "%s attacks!"
+fx = ExtResource("fx_res")
+icon = ExtResource("icon_tex")
+icon_disabled = ExtResource("icon_off")

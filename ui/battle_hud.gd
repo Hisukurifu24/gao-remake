@@ -19,6 +19,18 @@ signal aimed(target: Combatant)
 
 ## How long the result stays up after the last blow.
 const OUTRO_TIME := 1.1
+## A row's icon slot, in screen units: the pack's 24 px skill icons at half
+## size, so each texel is still whole screen pixels. A 16 px bag icon draws at
+## half too, centred in the same slot, so the text lines up down the menu.
+const ICON_SLOT := Vector2(12, 12)
+const ICON := "res://assets/ninja_adventure/Ui/Skill Icon/"
+## Root commands that aren't a skill. Attack wears the plain attack's own.
+const COMMAND_ICONS := {
+	Command.SKILLS: ["Spell/AttackUpgrade", "Spell/AttackUpgradeDisabled"],
+	Command.ITEM: ["Job & Action/Potion", "Job & Action/PotionDisabled"],
+	Command.DEFEND: ["Spell/DefenseUpgrade", "Spell/DefenseUpgradeDisabled"],
+	Command.FLEE: ["Items & Weapon/Boot", "Items & Weapon/BootDisabled"],
+}
 
 ## What the command menu is currently asking for.
 enum Phase { HIDDEN, BUSY, ROOT, SKILLS, ITEMS, TARGET }
@@ -44,12 +56,13 @@ var _aimed: Combatant = null
 ## cancel it: a fight that starts inside the pause would otherwise be hidden when
 ## it runs out, and the manager would wait forever on a menu nobody can see.
 var _outro: Tween = null
+## The last line of the fight, for the message line to go back to after a hint.
+var _said := ""
 
 @onready var _log: Control = $Log
 @onready var _log_label: Label = $Log/Label
 @onready var _menu: Control = $Menu
 @onready var _list: VBoxContainer = $Menu/Column/List
-@onready var _hint: Label = $Menu/Column/Hint
 
 
 func _ready() -> void:
@@ -139,6 +152,7 @@ func _send(action: CombatAction) -> void:
 	if CombatManager.submit(action):
 		_phase = Phase.BUSY
 		_menu.hide()
+		_show_line(_said, false)
 		_aim(null)
 
 
@@ -192,7 +206,15 @@ func _on_combat_finished(result: CombatResult) -> void:
 
 
 func _say(text: String) -> void:
+	_said = text
+	_show_line(text, false)
+
+
+## [param hinting]: a menu row's description rather than a line of the fight,
+## drawn in the hint colour so the two never read alike.
+func _show_line(text: String, hinting: bool) -> void:
 	_log_label.text = text
+	_log_label.theme_type_variation = &"HintLabel" if hinting else &""
 	# Anchored bottom-left and growing up, so a second line pushes the plate up
 	# rather than off the screen.
 	UiLayout.shrink_wrap(_log)
@@ -209,14 +231,16 @@ func _show_root() -> void:
 
 	var labels := PackedStringArray()
 	var locked := PackedInt32Array()
+	var icons: Array[Texture2D] = []
 	for i in _commands.size():
 		labels.append(_command_label(_commands[i]))
 		# Item stays on the list with an empty bag rather than disappearing:
 		# a verb that comes and goes is a verb the player never learns.
-		if _commands[i] == Command.ITEM and Inventory.usable_stacks(true).is_empty():
+		var off := _commands[i] == Command.ITEM and Inventory.usable_stacks(true).is_empty()
+		if off:
 			locked.append(i)
-	_hint.text = ""
-	_populate(labels, locked)
+		icons.append(_command_icon(_commands[i], off))
+	_populate(labels, locked, icons)
 
 
 func _show_skills() -> void:
@@ -228,13 +252,15 @@ func _show_skills() -> void:
 
 	var labels := PackedStringArray()
 	var locked := PackedInt32Array()
+	var icons: Array[Texture2D] = []
 	for i in _skill_rows.size():
 		var skill := _skill_rows[i]
 		var left := _actor.cooldown_left(skill)
 		labels.append("%s  (%d)" % [skill.label(), left] if left > 0 else skill.label())
 		if left > 0:
 			locked.append(i)
-	_populate(labels, locked)
+		icons.append(skill.icon_disabled if left > 0 and skill.icon_disabled != null else skill.icon)
+	_populate(labels, locked, icons)
 
 
 func _show_items() -> void:
@@ -245,9 +271,11 @@ func _show_items() -> void:
 		return
 
 	var labels := PackedStringArray()
+	var icons: Array[Texture2D] = []
 	for stack in _item_rows:
 		labels.append(stack.label())
-	_populate(labels, PackedInt32Array())
+		icons.append(stack.item.icon)
+	_populate(labels, PackedInt32Array(), icons)
 
 
 func _show_targets(candidates: Array[Combatant]) -> void:
@@ -258,21 +286,34 @@ func _show_targets(candidates: Array[Combatant]) -> void:
 		var tags := target.status_labels()
 		labels.append("%s  %d/%d%s" % [target.display_name, target.hp, target.max_hp,
 				("  " + " ".join(tags)) if not tags.is_empty() else ""])
-	_hint.text = ""
 	_populate(labels, PackedInt32Array())
 
 
 ## Draws [param labels] as the menu, greying out the [param locked] indices and
-## parking the cursor on the first row that can actually be picked.
-func _populate(labels: PackedStringArray, locked: PackedInt32Array) -> void:
+## parking the cursor on the first row that can actually be picked. With
+## [param icons], each row wears its own beside the text (a null leaves the slot
+## empty, so the text still lines up).
+func _populate(labels: PackedStringArray, locked: PackedInt32Array,
+		icons: Array[Texture2D] = []) -> void:
 	for row in _list.get_children():
 		_list.remove_child(row)
 		row.queue_free()
 
 	_selected = -1
 	for i in labels.size():
-		var row := Label.new()
+		# Cursor, icon, text: the cursor is its own label so the icons stay in
+		# a column whichever row it is on.
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override(&"separation", 2)
 		row.set_meta(&"locked", i in locked)
+		var cursor := Label.new()
+		cursor.custom_minimum_size = Vector2(6, 0)
+		row.add_child(cursor)
+		if not icons.is_empty():
+			row.add_child(_icon_slot(icons[i] if i < icons.size() else null))
+		var text := Label.new()
+		text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(text)
 		_list.add_child(row)
 		if _selected < 0 and i not in locked:
 			_selected = i
@@ -297,22 +338,29 @@ func _move_selection(step: int) -> void:
 
 func _paint() -> void:
 	for i in _list.get_child_count():
-		var row := _list.get_child(i) as Label
+		var row := _list.get_child(i)
 		var color := UiPalette.TEXT
 		if row.get_meta(&"locked", false):
 			color = UiPalette.LOCKED
 		elif i == _selected:
 			color = UiPalette.TARGETED if _phase == Phase.TARGET else UiPalette.SELECTED
-		row.add_theme_color_override(&"font_color", color)
-		row.text = ("> " if i == _selected else "  ") + _rows_text[i]
+		var cursor := row.get_child(0) as Label
+		var text := row.get_child(row.get_child_count() - 1) as Label
+		for label in [cursor, text]:
+			label.add_theme_color_override(&"font_color", color)
+		cursor.text = ">" if i == _selected else ""
+		text.text = _rows_text[i]
 
+	# What the row under the cursor does goes in the message line, which has
+	# nothing to say while you choose -- under the menu it made the menu tall
+	# enough to stand on the enemy. The root menu and the target list are their
+	# own explanation, so the line goes back to the last thing that happened.
+	var hint := ""
 	if _phase == Phase.SKILLS and _selected < _skill_rows.size():
-		_hint.text = _skill_rows[_selected].description
+		hint = _skill_rows[_selected].description
 	elif _phase == Phase.ITEMS and _selected < _item_rows.size():
-		_hint.text = _item_rows[_selected].item.description
-	# The hint is only a row while there is something to say: the root menu and
-	# the target list are their own explanation.
-	_hint.visible = not _hint.text.is_empty()
+		hint = _item_rows[_selected].item.description
+	_show_line(hint if not hint.is_empty() else _said, not hint.is_empty())
 	_aim(_target_rows[_selected] if _phase == Phase.TARGET and _selected < _target_rows.size() else null)
 	# Collapse onto the new rows: the panel is anchored bottom-right and grows up
 	# and left.
@@ -326,6 +374,29 @@ func _aim(target: Combatant) -> void:
 		return
 	_aimed = target
 	aimed.emit(target)
+
+
+## A fixed-size slot holding [param icon] at half its size, centred.
+func _icon_slot(icon: Texture2D) -> Control:
+	var slot := CenterContainer.new()
+	slot.custom_minimum_size = ICON_SLOT
+	if icon != null:
+		var picture := TextureRect.new()
+		picture.texture = icon
+		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		picture.stretch_mode = TextureRect.STRETCH_SCALE
+		picture.custom_minimum_size = icon.get_size() / 2.0
+		slot.add_child(picture)
+	return slot
+
+
+func _command_icon(command: Command, locked: bool) -> Texture2D:
+	if command == Command.ATTACK:
+		return SkillLibrary.basic_attack().icon
+	var paths: Array = COMMAND_ICONS.get(command, [])
+	if paths.is_empty():
+		return null
+	return load(ICON + paths[1 if locked else 0] + ".png") as Texture2D
 
 
 func _command_label(command: Command) -> String:

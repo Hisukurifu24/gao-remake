@@ -16,6 +16,13 @@ const ARROW := preload("res://assets/ninja_adventure/Ui/Arrow.png")
 const SMOKE := preload("res://assets/ninja_adventure/FX/Smoke/Smoke/SpriteSheet.png")
 const SMOKE_FRAMES := 6
 const SMOKE_FRAME_TIME := 0.07
+## Over whoever sits out round 1: the side the other caught off guard.
+const ALARM := preload("res://assets/ninja_adventure/Ui/Emote/emote22.png")
+const ALARM_TIME := 1.2
+## Each status a fighter wears shows this long before the next takes its turn.
+const EMOTE_HOLD := 0.9
+## Anything drunk or eaten mid-fight lands like a heal.
+const ITEM_FX := preload("res://resources/fx/sparkle.tres")
 ## The pointer hangs this far over the top of the enemy's sprite and bobs this much.
 const POINTER_LIFT := 1.0
 const POINTER_BOB := 1.0
@@ -63,6 +70,12 @@ var _player_camera: Camera2D
 ## Enemy [Combatant] to the map node standing in for it.
 var _nodes: Dictionary[Combatant, Node2D] = {}
 var _bars: Dictionary[Combatant, ProgressBar] = {}
+var _player: Combatant = null
+## The bubble over each fighter's head, and who is showing the opening's alarm.
+var _emotes: Dictionary[Combatant, Sprite2D] = {}
+var _alarmed: Array[Combatant] = []
+## Counts [constant EMOTE_HOLD]s, so a fighter wearing two statuses shows each in turn.
+var _emote_beat := 0
 var _shake: Tween = null
 var _bystanders: Array[Sprite2D] = []
 var _pointer: Sprite2D
@@ -87,14 +100,16 @@ func _ready() -> void:
 	add_child(_pointer)
 
 
-func _on_combat_began(_encounter: Encounter, _party: Array[Combatant],
+func _on_combat_began(_encounter: Encounter, party: Array[Combatant],
 		enemies: Array[Combatant]) -> void:
+	_player = party[0] if not party.is_empty() else null
 	for i in mini(enemies.size(), field.enemy_nodes.size()):
 		_nodes[enemies[i]] = field.enemy_nodes[i]
 	_step_into_formation()
 	_fade_bystanders()
 	_build_bars()
 	_close_in()
+	_build_emotes()
 	var dark := field.map.darkness()
 	if dark != null:
 		dark.light_arena(_pool_of_light())
@@ -209,6 +224,8 @@ func _refresh_bar(enemy: Combatant) -> void:
 
 
 func _on_action_resolved(report: CombatReport) -> void:
+	if report.kind == CombatReport.Kind.OPENING:
+		_alarm(report.actor)
 	var striker := _sprite_of(report.actor)
 	var strikes := report.kind == CombatReport.Kind.SKILL and report.hits.any(
 			func(hit: CombatReport.Hit) -> bool: return hit.target.is_player != report.actor.is_player)
@@ -229,7 +246,11 @@ func _on_action_resolved(report: CombatReport) -> void:
 
 func _land(report: CombatReport) -> void:
 	var heavy := false
+	var fx := _fx_of(report)
+	var swing := Vector2(field.axis) * (1.0 if report.actor != null and report.actor.is_player else -1.0)
 	for hit in report.hits:
+		if fx != null and not hit.missed:
+			_play_fx(fx, hit.target, swing)
 		_float_number(hit)
 		if hit.amount < 0:
 			_flash(hit.target)
@@ -241,6 +262,113 @@ func _land(report: CombatReport) -> void:
 			_refresh_bar(touched)
 			if not touched.is_alive():
 				_fall(touched)
+	_refresh_emotes()
+
+
+## What [param report]'s blow looks like where it lands, or null. A monster's
+## plain attack is its own -- a boar claws, it doesn't cut.
+func _fx_of(report: CombatReport) -> SkillFx:
+	if report.kind == CombatReport.Kind.ITEM:
+		return ITEM_FX
+	if report.kind != CombatReport.Kind.SKILL or report.skill == null:
+		return null
+	var source := report.actor.source if report.actor != null else null
+	if report.skill == SkillLibrary.basic_attack() and source != null and source.strike_fx != null:
+		return source.strike_fx
+	return report.skill.fx
+
+
+## Plays [param fx] once over [param target]'s body. A cut is mirrored or turned
+## a quarter to follow [param swing] -- by whole quarters, so no texel is
+## resampled -- and a boss's is drawn bigger, by a whole number.
+func _play_fx(fx: SkillFx, target: Combatant, swing: Vector2) -> void:
+	if fx.sheet == null or CombatManager.step_delay <= 0.0:
+		return
+	var over := _node_of(target)
+	var burst := Sprite2D.new()
+	burst.texture = fx.sheet
+	burst.hframes = maxi(1, fx.frames)
+	var size := maxf(1.0, floorf(_width_of(over) / 24.0))
+	burst.scale = Vector2(size, size)
+	if fx.follows_swing:
+		if field.axis.x != 0:
+			burst.flip_h = swing.x < 0.0
+		else:
+			burst.rotation = PI / 2.0 * signf(swing.y)
+	burst.position = _spot_of(target) + Vector2(0, -roundf(_height_of(over) / 2.0))
+	add_child(burst)
+	var play := burst.create_tween()
+	play.tween_property(burst, "frame", burst.hframes - 1, fx.frame_time * burst.hframes).from(0)
+	play.tween_callback(burst.queue_free)
+
+
+# --- emotes ------------------------------------------------------------------
+
+## A bubble over every fighter's head, hidden until it has something to say,
+## and the beat that turns a second status's bubble over.
+func _build_emotes() -> void:
+	var fighters: Array[Combatant] = []
+	fighters.assign(_nodes.keys())
+	if _player != null:
+		fighters.append(_player)
+	for fighter in fighters:
+		var bubble := Sprite2D.new()
+		bubble.centered = false
+		bubble.visible = false
+		add_child(bubble)
+		_emotes[fighter] = bubble
+	if CombatManager.step_delay > 0.0:
+		var beat := Timer.new()
+		beat.wait_time = EMOTE_HOLD
+		beat.autostart = true
+		beat.timeout.connect(func() -> void:
+			_emote_beat += 1
+			_refresh_emotes())
+		add_child(beat)
+	CombatManager.turn_began.connect(_on_turn_began)
+
+
+## Statuses age at the start of a turn, sometimes without a report to say so.
+func _on_turn_began(_actor: Combatant) -> void:
+	_refresh_emotes()
+
+
+## [param striker]'s side struck first: the other side gets the alarm.
+func _alarm(striker: Combatant) -> void:
+	if striker == null or CombatManager.step_delay <= 0.0:
+		return
+	for fighter in _emotes:
+		if fighter.is_player != striker.is_player:
+			_alarmed.append(fighter)
+	_refresh_emotes()
+	create_tween().tween_callback(func() -> void:
+		_alarmed.clear()
+		_refresh_emotes()).set_delay(ALARM_TIME)
+
+
+func _refresh_emotes() -> void:
+	for fighter in _emotes:
+		var bubble := _emotes[fighter]
+		var shown: Texture2D = null
+		if fighter.is_alive():
+			if fighter in _alarmed:
+				shown = ALARM
+			else:
+				var worn: Array[Texture2D] = []
+				for active in fighter.statuses:
+					if active.effect.emote != null:
+						worn.append(active.effect.emote)
+				if not worn.is_empty():
+					shown = worn[_emote_beat % worn.size()]
+		bubble.visible = shown != null
+		if shown == null:
+			continue
+		bubble.texture = shown
+		# The bubble's tail at the top corner of the head, clear of the pointer
+		# and the numbers over its middle.
+		var over := _node_of(fighter)
+		bubble.position = (_spot_of(fighter) + Vector2(
+				roundf(_width_of(over) / 4.0), -_height_of(over) - shown.get_height())).round()
 
 
 ## A felled monster goes out in the pack's puff of smoke where it stands; the
@@ -300,6 +428,10 @@ func _on_combat_finished(_result: CombatResult) -> void:
 	CombatManager.combat_began.disconnect(_on_combat_began)
 	CombatManager.action_resolved.disconnect(_on_action_resolved)
 	CombatManager.combat_finished.disconnect(_on_combat_finished)
+	if CombatManager.turn_began.is_connected(_on_turn_began):
+		CombatManager.turn_began.disconnect(_on_turn_began)
+	for bubble in _emotes.values():
+		bubble.hide()
 	field.player.pose_row = -1
 	aim(null)
 	var dark := field.map.darkness()
@@ -354,7 +486,7 @@ func _float_number(hit: CombatReport.Hit) -> void:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
 	label.size = Vector2(32, 8)
-	var over := _nodes.get(hit.target) as Node2D if not hit.target.is_player else field.player
+	var over := _node_of(hit.target)
 	label.position = _spot_of(hit.target) + Vector2(-16, -_height_of(over) - FLOATER_LIFT)
 	if CombatManager.step_delay <= 0.0:
 		label.queue_free()
@@ -370,6 +502,11 @@ func _spot_of(who: Combatant) -> Vector2:
 		return field.player.position
 	var node := _nodes.get(who) as Node2D
 	return node.position if node != null else field.player.position
+
+
+## The map node standing in for [param who].
+func _node_of(who: Combatant) -> Node2D:
+	return field.player if who.is_player else _nodes.get(who) as Node2D
 
 
 func _sprite_of(who: Combatant) -> Node2D:

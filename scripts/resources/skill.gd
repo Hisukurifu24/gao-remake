@@ -62,6 +62,12 @@ enum Target {
 @export_group("Presentation")
 ## Shown when the skill fires; "%s" is the user. Falls back to "X uses Y!".
 @export var announce := ""
+## Played over whoever it lands on. Empty lands with the flash alone.
+@export var fx: SkillFx
+## Its row in the command menu, and the greyed one while it cools down -- the
+## pack draws both.
+@export var icon: Texture2D
+@export var icon_disabled: Texture2D
 
 
 func label() -> String:

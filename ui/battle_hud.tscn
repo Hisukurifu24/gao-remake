@@ -45,10 +45,3 @@ theme_override_constants/separation = 2
 [node name="List" type="VBoxContainer" parent="Menu/Column"]
 layout_mode = 2
 theme_override_constants/separation = 0
-
-[node name="Hint" type="Label" parent="Menu/Column"]
-custom_minimum_size = Vector2(88, 0)
-layout_mode = 2
-theme_type_variation = &"HintLabel"
-text = " "
-autowrap_mode = 3

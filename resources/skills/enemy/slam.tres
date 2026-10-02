@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/rock_spike.tres" id="fx_res"]
 
 [resource]
 script = ExtResource("skill")
@@ -17,3 +18,4 @@ cooldown = 3
 post_motion = 1
 ai_weight = 1.0
 announce = "%s brings both fists down!"
+fx = ExtResource("fx_res")

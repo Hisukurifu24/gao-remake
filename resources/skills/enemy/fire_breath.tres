@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="Skill" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/flame.tres" id="fx_res"]
 
 [resource]
 script = ExtResource("skill")
@@ -16,3 +17,4 @@ stagger = 14
 cooldown = 3
 ai_weight = 1.0
 announce = "%s breathes fire!"
+fx = ExtResource("fx_res")
