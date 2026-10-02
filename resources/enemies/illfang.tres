@@ -15,6 +15,7 @@ script = ExtResource("enemy")
 id = &"illfang"
 display_name = "Illfang the Kobold Lord"
 battler = SubResource("battler")
+idle_frames = 6
 max_hp = 26
 attack = 6
 defense = 4

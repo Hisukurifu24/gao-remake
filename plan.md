@@ -727,7 +727,7 @@ feel like enough yet".
   above at once: the place is the map you were standing on, drawn by the art that
   already works; the player is the player; depth is the map's own y-sort.
 
-#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), staging ✅, view ✅, steps 4–7 to do*
+#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), staging ✅, view ✅, bosses ✅, steps 5–7 to do*
 
 **The battle stops being a screen and becomes a moment on the floor.** No fade, no
 backdrop: when a monster reaches you, the two of you step apart into a formation where
@@ -870,6 +870,34 @@ separate* is the reason this is a view job and not a combat rewrite.
    comfortably; Illfang's field, Nerith's hollow and Karvos's breach get checked by the
    same floor-test sweep. Bosses with a 4×4 sheet face the player; a 70 px frame is the
    case that decides the boss zoom.
+   **✅ 2026-10-02** (my calls, not reviewed yet — `tools/boss_spike.tscn` writes
+   `boss_sheet.png`: Illfang, a generated floor 2, Nerith, Karvos, and a floor-52 boss
+   with its escort in the dark). `BossGate._step_out()` makes a `FoeFigure` per enemy
+   (a sprite with `sprite()`/`face()`, nothing else), fades the door aside as they fade
+   in on its threshold and walks them out to their spots — 0.5 s, locked, *before*
+   `CombatManager.start()`, so it is its own beat rather than a race with the opening
+   pause — then announces the field; the door comes back when the fight ends. The
+   formation is its own solver, `GameMap.boss_formation()`, because the boss is
+   anchored and the player moves: the boss steps up to 3 cells out of the door and 2
+   either side, the player walks back up to 6 steps, facing the door wanted, from the
+   side fine, back to the door last. **Gaps are sized by the sprites** (`_clearance`):
+   side by side half of each, one above the other the lower one's height, plus a cell —
+   at a monster's 3 cells a 60 px boss below you stands on your head. The escort goes
+   beside the boss, clear of it and, one above the other, of the health bar between
+   them. Generated bosses are their 16 px trash template drawn ×2 (the old screen did
+   the same); authored ones breathe through a new `EnemyType.idle_frames`. **Boss
+   zoom: ×2 where it fits, ×1 where it doesn't** — `BattleStage.fits()` asks whether
+   the fighters, the pointer's headroom over the tallest and the menu band fit at ×2,
+   and the camera centres that same box. Measured: no monster fight changes (all fit),
+   1437 of the 2200 boss challenge cells close in, every authored boss faced up or
+   down the screen is framed at ×1. The floor-test sweep: every cell within two of the
+   door on all 100 floors, enemies on floor, walk ≤ 6, clear lane, escort lane, and no
+   two fighters' sprites overlapping; it also prints how many fights put your back to
+   the door (0 now — the 1% limit I first gave it was on the wrong thing, since the door
+   has faded by then). The smoke test checks Illfang and his escort step out and are
+   gone after. Open: generated bosses at ×2 are visibly chunkier than the map around
+   them; the pack's own boss art (`Actor/Boss/*` — frogs, slimes, cyclops, tengu, a
+   squid…) could play the ten archetypes instead, which is a content pass, not this one.
 5. **The pack's juice.** `Skill` gets presentation exports (`fx` sheet + frame count),
    so a skill's look is data like its numbers: cuts and slashes for sword skills, claws
    for beasts, `FX/Elemental` for the fire, ice, thunder and rock skills enemies already

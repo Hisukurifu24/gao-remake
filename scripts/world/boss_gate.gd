@@ -16,6 +16,12 @@ extends Interactable
 ## What you are left standing with after losing a boss fight: enough to walk
 ## back to the door, not enough to walk straight through it.
 const DEFEAT_HP_RATIO := 0.35
+## The door fading aside and the boss fading in on its threshold, before it
+## walks out to its spot. Locked, and before the fight starts, so it has its own
+## beat rather than racing the runner's opening pause.
+const STEP_OUT_TIME := 0.5
+## What the door fades to while its boss is out of it.
+const ASIDE_ALPHA := 0.0
 
 @export var floor_number := 1
 @export var boss_name := ""
@@ -27,6 +33,8 @@ const DEFEAT_HP_RATIO := 0.35
 ## sets it.
 var revealed := true
 var _trigger: Area2D = null
+## The boss and its escort while they are out of the door.
+var _figures: Array[FoeFigure] = []
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _solid_shape: CollisionShape2D = $Solid/CollisionShape2D
@@ -118,7 +126,9 @@ func _fight() -> void:
 		"%s is waiting beyond the door." % _boss_label(),
 	]))
 
+	await _step_out(encounter)
 	var result: CombatResult = await CombatManager.start(encounter)
+	_step_back(result)
 	if result == null:
 		return
 
@@ -134,6 +144,67 @@ func _fight() -> void:
 		]))
 	else:
 		_revive()
+
+
+## The boss -- and its escort -- step out of the door to fight where you stand:
+## a figure for each enemy fades in on the threshold as the door fades aside,
+## the map finds them a formation, and they walk out to it. Nowhere to stand
+## leaves the fight to the old screen, with the door where it was.
+func _step_out(encounter: Encounter) -> void:
+	var map := get_parent() as GameMap
+	var player := get_tree().get_first_node_in_group(&"player") as Player
+	if map == null or player == null:
+		return
+	var bodies: Array[Vector2] = []
+	for i in encounter.enemies.size():
+		bodies.append(FoeFigure.body_of(encounter.enemies[i], i == 0))
+	var field := map.stage_boss(map.to_local(player.global_position), position, bodies)
+	if field == null:
+		return
+	for i in encounter.enemies.size():
+		var figure := FoeFigure.new(encounter.enemies[i], i == 0)
+		figure.position = position
+		figure.face(Vector2(-field.axis))
+		map.add_child(figure)
+		_figures.append(figure)
+		field.enemy_nodes.append(figure)
+
+	var paced := CombatManager.step_delay > 0.0
+	if not paced:
+		_sprite.modulate.a = ASIDE_ALPHA
+		for i in _figures.size():
+			_figures[i].position = field.enemy_spots[i]
+		EventBus.battle_staged.emit(field)
+		return
+	GameState.push_input_lock()
+	for figure in _figures:
+		figure.modulate.a = 0.0
+	var out := create_tween().set_parallel()
+	out.tween_property(_sprite, "modulate:a", ASIDE_ALPHA, STEP_OUT_TIME)
+	for i in _figures.size():
+		var figure := _figures[i]
+		out.tween_property(figure, "modulate:a", 1.0, STEP_OUT_TIME * 0.5)
+		out.tween_property(figure, "position", field.enemy_spots[i], STEP_OUT_TIME) \
+				.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await out.finished
+	GameState.pop_input_lock()
+	EventBus.battle_staged.emit(field)
+
+
+## The fight is over: the figures go -- a beaten boss has already gone up in
+## smoke on the stage -- and the door comes back. A defeat reloads the floor, which
+## takes them with it, but they are freed here all the same.
+func _step_back(_result: CombatResult) -> void:
+	for figure in _figures:
+		if is_instance_valid(figure):
+			figure.queue_free()
+	_figures.clear()
+	if _sprite.modulate.a >= 1.0:
+		return
+	if CombatManager.step_delay <= 0.0:
+		_sprite.modulate.a = 1.0
+		return
+	create_tween().tween_property(_sprite, "modulate:a", 1.0, STEP_OUT_TIME)
 
 
 ## A defeat drops the player at the floor entrance on their last legs. Rebuilding

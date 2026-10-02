@@ -25,6 +25,9 @@ var enemy_cells: Array[Vector2i] = []
 var axis := Vector2i.RIGHT
 ## What the camera frames, map-local.
 var arena := Rect2()
+## What the fighters themselves cover, standing on their spots: the tightest
+## rect the camera may close in on. Map-local.
+var bodies := Rect2()
 
 
 ## The rect of cells the fight covers, for lighting it in the dark.

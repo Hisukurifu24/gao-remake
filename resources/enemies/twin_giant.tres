@@ -15,6 +15,7 @@ script = ExtResource("enemy")
 id = &"twin_giant"
 display_name = "Karvos the Twin-Headed"
 battler = SubResource("battler")
+idle_frames = 6
 max_hp = 40
 attack = 11
 defense = 7

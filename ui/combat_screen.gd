@@ -1,7 +1,10 @@
 extends CanvasLayer
 ## The old battle stage: a fight drawn on a screen of its own, for a fight that
-## was not staged on the map -- a boss, until bosses step out of their doors
-## (plan.md M5.5 §6 step 4). The words and the menu are [BattleHud]'s and the
+## was not staged on the map. Every fight in the game is staged now -- the floor
+## test proves a formation for every cell a monster can catch you on and every
+## cell a door can be challenged from -- so this only draws fights started with
+## no map behind them, the screenshot tool's, and goes in plan.md M5.5 §6 step 6.
+## The words and the menu are [BattleHud]'s and the
 ## player's vitals the HUD's, for either kind of fight; this draws only the
 ## place and the fighters, and decides nothing.
 ##

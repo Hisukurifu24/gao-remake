@@ -17,6 +17,9 @@ var _checks := 0
 # so a lambda writing to a local would silently drop the result.
 var _last_target: Node = null
 var _last_speaker := ""
+## How many figures a [BossGate] stood on the map for the last fight staged, or
+## -1 for none. A member, not a captured local: lambdas capture by value.
+var _staged_figures := -1
 
 
 func _ready() -> void:
@@ -148,9 +151,21 @@ func _run() -> void:
 	GameState.set_hp(4000)
 
 	var gate: Node2D = field.get_node("BossGate")
+	_staged_figures = -1
+	EventBus.battle_staged.connect(_on_battle_staged)
+	# Challenged from the doorstep, as it is in play: the boss steps out to where
+	# you stand, and the spawn point is the other side of the map.
+	field_player.global_position = gate.global_position + Vector2(0, 28)
 	gate.interact(field_player)
 	await _auto_battle()
+	EventBus.battle_staged.disconnect(_on_battle_staged)
 	_check(GameState.is_floor_cleared(1), "beating the boss clears the floor")
+	# The boss stepped out of its door: Illfang and the sentinel stood on the map,
+	# and nothing of them is left on it now.
+	_check(_staged_figures == 2, "the boss and its escort step out of the door to fight on the map")
+	await get_tree().process_frame
+	_check(field.get_children().all(func(node: Node) -> bool: return not node is FoeFigure),
+			"and are gone from it once the fight is over")
 	_check(GameState.is_floor_unlocked(2), "clearing floor 1 unlocks floor 2")
 
 	# The quest taken back in town, finished by the boss fight it asked for --
@@ -471,6 +486,10 @@ func _close_dialogue(timeout_frames := 600) -> void:
 ## Presses through a fight the way a player would: clear whatever dialogue is in
 ## the way, then attack until it is over. Attack is always legal, so this can
 ## never park the turn loop waiting for a command it refused.
+func _on_battle_staged(field: BattleField) -> void:
+	_staged_figures = field.enemy_nodes.filter(func(node: Node2D) -> bool: return node is FoeFigure).size()
+
+
 func _auto_battle(timeout_frames := 4000) -> void:
 	for _i in timeout_frames:
 		if CombatManager.is_running():

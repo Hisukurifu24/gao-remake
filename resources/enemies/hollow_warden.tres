@@ -15,6 +15,7 @@ script = ExtResource("enemy")
 id = &"hollow_warden"
 display_name = "Nerith the Hollow Warden"
 battler = SubResource("battler")
+idle_frames = 6
 max_hp = 30
 attack = 7
 defense = 5

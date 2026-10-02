@@ -20,6 +20,10 @@ extends Resource
 ## sheet is a side view drawn facing right. Empty draws [member battler] instead.
 @export var sheet: Texture2D
 @export var sheet_frames := Vector2i(4, 4)
+## With no [member sheet]: how many idle frames [member battler]'s atlas holds,
+## side by side and evenly spaced, the region being the first. A boss's map figure
+## breathes through them; 0 or 1 stands still.
+@export var idle_frames := 0
 
 @export_group("Base stats")
 @export var max_hp := 24

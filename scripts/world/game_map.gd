@@ -23,6 +23,14 @@ const FORMATION_GAPS: Array[int] = [3, 4, 2]
 const HIDDEN_COST := 20.0
 ## The player's body, centred on a cell -- what a spot has to have room for.
 const BODY := Vector2(12, 8)
+## What the player and a roaming monster cover standing: width, height above the
+## feet. A formation keeps bigger bodies -- a boss -- clear of each other by it.
+const STANDING := Vector2(16, 16)
+## How far a boss steps out of its door, in cells.
+const BOSS_STEP := 3
+## How far a boss fight may walk the player back from the door, in steps. Further
+## than a monster fight's slide: a boss needs more room, and the room is there.
+const BOSS_WALK := 6
 
 @export var map_id: StringName = &""
 @export var display_name := ""
@@ -147,14 +155,20 @@ func stage_battle(player_at: Vector2, enemy_at: Vector2, enemy_count: int) -> Ba
 	if _walls == null:
 		return null
 	refresh_solids()
-	var start := _walls.local_to_map(_walls.transform.affine_inverse() * (player_at + Vector2(0, -4)))
-	var toward := enemy_at - player_at
-	var contact := Vector2i.RIGHT
-	if absf(toward.y) > absf(toward.x):
-		contact = Vector2i(0, signi(roundi(signf(toward.y))))
-	elif toward.x != 0.0:
-		contact = Vector2i(signi(roundi(signf(toward.x))), 0)
-	return formation(start, contact, enemy_count)
+	return formation(_cell_at(player_at), _axis_of(enemy_at - player_at), enemy_count)
+
+
+## Where a boss fight challenged at the door on [param door_at] stands: the boss
+## steps out of the door towards the player, its escort beside it, and the
+## player walks back to face them -- see [method boss_formation]. [param bodies]
+## is what each enemy covers standing ([method FoeFigure.body_of]), boss first.
+## Null if nothing fits.
+func stage_boss(player_at: Vector2, door_at: Vector2, bodies: Array[Vector2]) -> BattleField:
+	_resolve_layers()
+	if _walls == null:
+		return null
+	refresh_solids()
+	return boss_formation(_cell_at(player_at), _cell_at(door_at), bodies)
 
 
 ## The formation for a player standing on [param start], struck from along
@@ -213,6 +227,80 @@ func formation(start: Vector2i, contact: Vector2i, enemy_count: int) -> BattleFi
 		field.enemy_spots.append(spot)
 		bounds = bounds.expand(spot)
 	field.arena = bounds.grow_individual(tile.x * 1.5, tile.y * 2.5, tile.x * 1.5, tile.y)
+	var standing: Array[Vector2] = []
+	standing.resize(field.enemy_spots.size())
+	standing.fill(STANDING)
+	field.bodies = _bodies_of(field, standing)
+	return field
+
+
+## The formation for a boss fight challenged from [param start] at the door on
+## [param door] -- [method stage_boss] without the positions. The floor test
+## sweeps every cell the door can be challenged from through this.
+##
+## Unlike a monster, a boss is anchored: it steps out of its door, up to
+## [constant BOSS_STEP] cells towards the player and two either side, and the
+## player is the one who moves -- back to wherever, within
+## [constant BOSS_WALK] steps, they can face it across a clear lane. How far
+## apart is set by the bodies, not a constant: a 60 px boss below you would
+## stand on your head at a monster's three cells, so the gap is whatever keeps
+## the sprites apart plus a cell. Facing the door is wanted, from the side is
+## fine, and from behind the boss -- between it and its door -- is a last resort.
+func boss_formation(start: Vector2i, door: Vector2i, bodies: Array[Vector2]) -> BattleField:
+	_resolve_layers()
+	if _walls == null or bodies.is_empty():
+		return null
+	var out := _axis_of(Vector2(start - door))
+	var side := Vector2i(out.y, out.x)
+	# From the player towards the boss, most wanted first, and what each costs.
+	var axes: Array[Vector2i] = [-out, side, -side, out]
+	var axis_costs: Array[float] = [0.0, 2.0, 2.0, 6.0]
+	var walk := _walk_distances(start, BOSS_WALK)
+
+	var best_cost := INF
+	var field: BattleField = null
+	for k in range(1, BOSS_STEP + 1):
+		for s in range(-2, 3):
+			var boss := door + out * k + side * s
+			if not is_standable(boss):
+				continue
+			for a in axes.size():
+				var axis := axes[a]
+				var gaps := _boss_gaps(axis, bodies[0])
+				for g in gaps.size():
+					var player := boss - axis * gaps[g]
+					if not walk.has(player):
+						continue
+					var cost: float = (k - 1) + absi(s) + axis_costs[a] + g * 1.5 + walk[player]
+					if cost >= best_cost or not _lane_clear(player, axis, gaps[g]):
+						continue
+					var cells: Array[Vector2i] = [boss]
+					if bodies.size() >= 2:
+						var escort := _escort_cell(boss, axis, bodies[0], bodies[1])
+						if escort == boss:
+							continue
+						cells.append(escort)
+					for fighter: Vector2i in cells + [player]:
+						if is_covered(fighter):
+							cost += HIDDEN_COST
+					if cost >= best_cost:
+						continue
+					best_cost = cost
+					field = BattleField.new()
+					field.player_cell = player
+					field.enemy_cells = cells
+					field.axis = axis
+	if field == null:
+		return null
+
+	field.map = self
+	field.player = _player
+	field.player_spot = _feet(field.player_cell)
+	for cell in field.enemy_cells:
+		field.enemy_spots.append(_feet(cell))
+	field.bodies = _bodies_of(field, bodies)
+	var tile := Vector2(_walls.tile_set.tile_size)
+	field.arena = field.bodies.grow_individual(tile.x, tile.y, tile.x, tile.y * 0.5)
 	return field
 
 
@@ -280,6 +368,111 @@ func is_covered(cell: Vector2i) -> bool:
 					for x in range(rect.position.x, rect.end.x):
 						_covered[Vector2i(x, y)] = true
 	return _covered.has(cell)
+
+
+## The gaps a player may stand from a boss of [param body] along [param axis]
+## (player towards boss), most wanted first: a monster's three if that keeps the
+## two apart, else just enough, then one more, then the least that will do.
+func _boss_gaps(axis: Vector2i, body: Vector2) -> Array[int]:
+	var least := _clearance(axis, STANDING, body) + 1
+	var wanted := maxi(FORMATION_GAPS[0], least)
+	var gaps: Array[int] = [wanted, wanted + 1]
+	if least < wanted:
+		gaps.append(least)
+	return gaps
+
+
+## How many cells along [param direction] something of [param far] has to stand
+## from something of [param near] for the two sprites not to overlap. Bodies are
+## centred on their feet across and stand up from them: side by side it is half
+## the width of each; one below the other it is the height of the lower one,
+## whose head must not reach up past the upper one's feet.
+func _clearance(direction: Vector2i, near: Vector2, far: Vector2) -> int:
+	var tile := Vector2(_walls.tile_set.tile_size)
+	var cells := 0
+	if direction.x != 0:
+		cells = ceili((near.x + far.x) / 2.0 / tile.x)
+	elif direction.y > 0:
+		cells = ceili(far.y / tile.y)
+	else:
+		cells = ceili(near.y / tile.y)
+	return maxi(1, cells)
+
+
+## Every standable cell from [param from] along [param axis] up to
+## [param gap] cells: the lane between two fighters, and the far one's cell.
+func _lane_clear(from: Vector2i, axis: Vector2i, gap: int) -> bool:
+	for step in range(1, gap + 1):
+		if not is_standable(from + axis * step):
+			return false
+	return true
+
+
+## Where an escort of [param escort] stands beside a boss of [param boss] on
+## [param at], across [param axis]: far enough not to overlap it, on whichever
+## side needs less room, with floor all the way -- or [param at] itself if
+## neither side has it.
+func _escort_cell(at: Vector2i, axis: Vector2i, boss: Vector2, escort: Vector2) -> Vector2i:
+	var across := Vector2i(axis.y, axis.x)
+	var sides: Array[Vector2i] = [across, -across]
+	sides.sort_custom(func(p: Vector2i, q: Vector2i) -> bool:
+		return _escort_reach(p, boss, escort) < _escort_reach(q, boss, escort))
+	for direction in sides:
+		var reach := _escort_reach(direction, boss, escort)
+		if _lane_clear(at, direction, reach):
+			return at + direction * reach
+	return at
+
+
+## How far along [param direction] an escort stands from its boss: clear of the
+## sprite, and one above the other a cell further, for the health bar that hangs
+## under the upper one's feet.
+func _escort_reach(direction: Vector2i, boss: Vector2, escort: Vector2) -> int:
+	return _clearance(direction, boss, escort) + (1 if direction.y != 0 else 0)
+
+
+## Steps to every standable cell within [param limit] of [param start], walking.
+## Walked from the start even when it is not standable itself, as in
+## [method _walkable_near].
+func _walk_distances(start: Vector2i, limit: int) -> Dictionary[Vector2i, int]:
+	var steps: Dictionary[Vector2i, int] = {}
+	if is_standable(start):
+		steps[start] = 0
+	var frontier: Array[Vector2i] = [start]
+	for distance in range(1, limit + 1):
+		var next_frontier: Array[Vector2i] = []
+		for cell in frontier:
+			for step: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				var next := cell + step
+				if next != start and not steps.has(next) and is_standable(next):
+					steps[next] = distance
+					next_frontier.append(next)
+		frontier = next_frontier
+	return steps
+
+
+## The rect the fighters cover standing on their spots, enemies drawn as
+## [param bodies] and the player as [constant STANDING].
+func _bodies_of(field: BattleField, bodies: Array[Vector2]) -> Rect2:
+	var covered := Rect2(field.player_spot - Vector2(STANDING.x / 2.0, STANDING.y), STANDING)
+	for i in field.enemy_spots.size():
+		var body: Vector2 = bodies[mini(i, bodies.size() - 1)]
+		covered = covered.merge(Rect2(field.enemy_spots[i] - Vector2(body.x / 2.0, body.y), body))
+	return covered
+
+
+## The cell under feet at [param point], map-local.
+func _cell_at(point: Vector2) -> Vector2i:
+	return _walls.local_to_map(_walls.transform.affine_inverse() * (point + Vector2(0, -4)))
+
+
+## The axis direction [param toward] mostly points along; right for none.
+static func _axis_of(toward: Vector2) -> Vector2i:
+	if absf(toward.y) > absf(toward.x):
+		return Vector2i(0, signi(roundi(signf(toward.y))))
+	if toward.x != 0.0:
+		return Vector2i(signi(roundi(signf(toward.x))), 0)
+	return Vector2i.RIGHT
 
 
 ## The enemy cells for a player on [param from] facing along [param axis]

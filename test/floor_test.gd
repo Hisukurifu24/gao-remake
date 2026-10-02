@@ -38,7 +38,14 @@ var _lab_walks: Array[int] = []
 var _formations := 0
 var _hidden_formations := 0
 var _slid_formations := 0
+## Monster fights too tall for [member BattleStage.zoom], framed at 1 instead.
+var _wide_formations := 0
 var _unstaged: PackedStringArray = PackedStringArray()
+## Gathered by [method _audit_boss_formations] across every floor's door.
+var _boss_formations := 0
+var _boss_doors := 0
+var _boss_from_behind := 0
+var _boss_close := 0
 
 
 func _ready() -> void:
@@ -309,7 +316,20 @@ func _run() -> void:
 	_check(_hidden_formations * 100 <= _formations,
 			"a staged fight is hidden behind a prop on at most 1%% of cells (%d of %d)" % [
 				_hidden_formations, _formations])
-	print("       (%d of those had to slide the player off the cell they stood on)" % _slid_formations)
+	print("       (%d of those had to slide the player off the cell they stood on, %d are framed at x1)" % [
+			_slid_formations, _wide_formations])
+	# The boss steps out of its door to fight where you challenged it. Swept from
+	# every cell the door can be challenged from, on every floor: a door with
+	# nowhere for its boss to stand drops back to the old screen, on one floor out
+	# of a hundred.
+	_check(_unstaged.is_empty() and _boss_doors == FloorTuning.TOP_FLOOR and _boss_formations > 1000,
+			"a boss fight can be staged from every cell of every door (%d doors, %d cells)" % [
+				_boss_doors, _boss_formations])
+	# Not a limit: the door has faded aside by then, so a fight with your back to
+	# it reads fine. It is what the solver settles for when a boss room's near
+	# side has no room, and a count that jumps means the rooms have changed shape.
+	print("       (%d of those close in to x%d, the rest are framed at x1; %d face the boss with their back to its door)" % [
+			_boss_close, int(BattleStage.zoom), _boss_from_behind])
 
 
 # --- helpers ---------------------------------------------------------------
@@ -518,6 +538,7 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 	var lost := _audit_labyrinth(map, walls, gate, start, reachable)
 	if lost.is_empty():
 		_audit_formations(map, walls, start, reachable, "floor %d" % floor_number)
+		_audit_boss_formations(map, walls, gate, reachable, floor_number, "floor %d" % floor_number)
 	return lost
 
 
@@ -631,6 +652,8 @@ func _formation_problem(map: Node2D, walls: TileMapLayer, start: Vector2i, reach
 		if field == null:
 			return "%s cannot stage a fight at %s" % [label, cell]
 		_formations += 1
+		if not BattleStage.fits(field.bodies.size, BattleStage.zoom):
+			_wide_formations += 1
 		var fighters: Array[Vector2i] = field.enemy_cells.duplicate()
 		fighters.append(field.player_cell)
 		for fighter in fighters:
@@ -653,6 +676,102 @@ func _formation_problem(map: Node2D, walls: TileMapLayer, start: Vector2i, reach
 			if walls.get_cell_source_id(field.player_cell + step * i) != -1:
 				return "%s stages a fight at %s across a wall" % [label, cell]
 	return ""
+
+
+## A boss fight can be staged from every cell [param gate] can be challenged
+## from -- every standable cell within two of it, which is further than the
+## interact sensor reaches -- and every formation stands where it claims to: the
+## boss out of its door and on floor, the player walked back no further than
+## [constant GameMap.BOSS_WALK] steps without crossing anything, a clear lane
+## between them, the escort beside the boss with floor all the way, and no two
+## of them drawn over each other. The last is what the solver's body-sized gaps
+## are for, and a 60 px boss standing on the player's head is how they fail.
+func _audit_boss_formations(map: Node2D, walls: TileMapLayer, gate: Node2D, reachable: Dictionary,
+		floor_number: int, label: String) -> void:
+	var game_map := map as GameMap
+	var encounter := Bestiary.boss_encounter(floor_number)
+	if game_map == null or encounter == null:
+		_unstaged.append("%s has no boss to stage" % label)
+		return
+	_boss_doors += 1
+	var bodies: Array[Vector2] = []
+	for i in encounter.enemies.size():
+		bodies.append(FoeFigure.body_of(encounter.enemies[i], i == 0))
+	game_map.refresh_solids()
+	var door: Vector2i = walls.local_to_map(gate.position)
+	for dy in range(-2, 3):
+		for dx in range(-2, 3):
+			var cell := door + Vector2i(dx, dy)
+			if not reachable.has(cell) or not game_map.is_standable(cell):
+				continue
+			var problem := _boss_formation_problem(game_map, walls, door, cell, bodies, reachable)
+			if not problem.is_empty():
+				_unstaged.append("%s %s" % [label, problem])
+				return
+
+
+func _boss_formation_problem(map: GameMap, walls: TileMapLayer, door: Vector2i, cell: Vector2i,
+		bodies: Array[Vector2], reachable: Dictionary) -> String:
+	var field := map.boss_formation(cell, door, bodies)
+	if field == null:
+		return "cannot stage its boss fight from %s" % cell
+	_boss_formations += 1
+	if field.enemy_cells.size() != bodies.size():
+		return "stages %d of its %d enemies from %s" % [field.enemy_cells.size(), bodies.size(), cell]
+	var fighters: Array[Vector2i] = field.enemy_cells.duplicate()
+	fighters.append(field.player_cell)
+	for fighter in fighters:
+		if walls.get_cell_source_id(fighter) != -1 or not reachable.has(fighter) \
+				or not map.is_standable(fighter):
+			return "stages its boss fight from %s with someone off the floor at %s" % [cell, fighter]
+	var walked := _flood_standable_within(map, cell, GameMap.BOSS_WALK)
+	if not walked.has(field.player_cell):
+		return "walks the player from %s to %s, further than %d steps or through something" % [
+				cell, field.player_cell, GameMap.BOSS_WALK]
+	var boss := field.enemy_cells[0]
+	var lane := boss - field.player_cell
+	if lane.x != 0 and lane.y != 0:
+		return "stages its boss fight from %s off the axis" % cell
+	# The way out of the door towards where you challenged it; facing the boss
+	# along it means standing with your back to the door.
+	if lane.sign() == GameMap._axis_of(Vector2(cell - door)):
+		_boss_from_behind += 1
+	for i in range(1, absi(lane.x + lane.y)):
+		if not map.is_standable(field.player_cell + lane.sign() * i):
+			return "stages its boss fight from %s across something" % cell
+	if field.enemy_cells.size() > 1:
+		var aside := field.enemy_cells[1] - boss
+		if aside.x != 0 and aside.y != 0:
+			return "puts the escort off the boss's line from %s" % cell
+		for i in range(1, absi(aside.x + aside.y) + 1):
+			if not map.is_standable(boss + aside.sign() * i):
+				return "puts the escort across something from %s" % cell
+	var rects: Array[Rect2] = [Rect2(field.player_spot - Vector2(8, 16), GameMap.STANDING)]
+	for i in field.enemy_spots.size():
+		rects.append(Rect2(field.enemy_spots[i] - Vector2(bodies[i].x / 2.0, bodies[i].y), bodies[i]))
+	for i in rects.size():
+		for j in range(i + 1, rects.size()):
+			if rects[i].intersects(rects[j]):
+				return "draws two of its fighters over each other from %s" % cell
+	if BattleStage.fits(field.bodies.size, BattleStage.zoom):
+		_boss_close += 1
+	return ""
+
+
+## The standable cells within [param limit] steps of [param from].
+func _flood_standable_within(map: GameMap, from: Vector2i, limit: int) -> Dictionary:
+	var seen := {from: 0}
+	var queue: Array[Vector2i] = [from]
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_front()
+		if seen[cell] >= limit:
+			continue
+		for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var next: Vector2i = cell + offset
+			if not seen.has(next) and map.is_standable(next):
+				seen[next] = seen[cell] + 1
+				queue.append(next)
+	return seen
 
 
 ## The cells a body can walk to from [param from] without passing through
@@ -816,6 +935,9 @@ func _audit_authored(floor_number: int) -> String:
 			hunted = hunted or child is Monster
 		if first_visit and hunted:
 			_audit_formations(map, walls, start, reachable, label)
+		var door := map.get_node_or_null("BossGate") as BossGate
+		if first_visit and door != null and door.floor_number == floor_number:
+			_audit_boss_formations(map, walls, door, reachable, floor_number, label)
 
 		# A map with no way off it is a map whose walls are all there is between
 		# the player and the void, so the outer ring has to hold -- the same check

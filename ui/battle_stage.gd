@@ -8,15 +8,19 @@ extends Node2D
 ## numbers, the shake. A view like the battle screen it replaces: it listens to
 ## [CombatManager] and decides nothing.
 ##
-## SPIKE (M5.5 §6.1): deliberately rough. The menus are still the old screen's.
+## Who stands in for an enemy is the caller's business: a roaming [Monster], or
+## a [FoeFigure] a [BossGate] stepped out of its door. Either answers
+## [code]sprite()[/code] and [code]face()[/code], and that is all this asks.
 
 const ARROW := preload("res://assets/ninja_adventure/Ui/Arrow.png")
 const SMOKE := preload("res://assets/ninja_adventure/FX/Smoke/Smoke/SpriteSheet.png")
 const SMOKE_FRAMES := 6
 const SMOKE_FRAME_TIME := 0.07
-## The pointer hangs this far over the enemy's spot and bobs this much.
-const POINTER_LIFT := 17.0
+## The pointer hangs this far over the top of the enemy's sprite and bobs this much.
+const POINTER_LIFT := 1.0
 const POINTER_BOB := 1.0
+## A number pops this far over the top of whoever it lands on.
+const FLOATER_LIFT := 10.0
 
 const FLOATER_RISE := 10.0
 const FLOATER_TIME := 0.7
@@ -34,17 +38,23 @@ const OUTRO_EASE := 0.45
 ## Over the labyrinth's dark (z 10), so a number never pops behind it.
 const OVER_DARK := 20
 ## The menu and the message line take the bottom of the screen, so the fight is
-## framed this many screen units above centre.
+## framed this many screen units above centre -- half the band they cover.
 const FRAME_LIFT := 12.0
+## What the camera keeps clear over the tallest head, in world units: the
+## pointer, and the bob it hangs with.
+const HEADROOM := 12.0
 ## How far round each fighter the dark lifts, in cells.
 const LIGHT_RADIUS := 4
 ## Anyone else in frame stands back to this, so a frozen boar at the edge of the
 ## fight doesn't read as a second enemy.
 const BYSTANDER_ALPHA := 0.25
 
-## How far the camera closes in. The spike's open question: 1 keeps the UI's
-## pixel scale, 2 frames 160x90 of world.
+## How far the camera closes in on a fight that fits: 2 frames 160x90 of world.
+## A fight that doesn't is drawn at 1, the UI's own scale (see [method fits]).
 static var zoom := 2.0
+## The screen the fighters may cover, in screen units: all of it across, and
+## above the band the menus take.
+const CLOSE_ROOM := Vector2(320, 180.0 - FRAME_LIFT * 2.0)
 
 var field: BattleField
 
@@ -57,6 +67,8 @@ var _shake: Tween = null
 var _bystanders: Array[Sprite2D] = []
 var _pointer: Sprite2D
 var _bob: Tween = null
+## The zoom this fight is framed at: [member zoom], or 1 if it doesn't fit.
+var _zoom := 1.0
 
 
 func _init(staged: BattleField) -> void:
@@ -124,8 +136,8 @@ func _step_into_formation() -> void:
 		player.position = field.player_spot
 	for i in field.enemy_nodes.size():
 		var node := field.enemy_nodes[i]
-		if node is Monster:
-			(node as Monster).face(-axis)
+		if node.has_method(&"face"):
+			node.call(&"face", -axis)
 		if paced:
 			tween.tween_property(node, "position", field.enemy_spots[i], INTRO_TIME)
 		else:
@@ -146,28 +158,43 @@ func _close_in() -> void:
 		_camera.position = field.map.to_local(_player_camera.get_screen_center_position())
 	field.map.add_child(_camera)
 	_camera.make_current()
-	# Lifted in screen units, so the same at either zoom.
-	var target := field.arena.get_center() + Vector2(0, FRAME_LIFT / zoom)
+	_zoom = zoom if fits(field.bodies.size, zoom) else 1.0
+	# The box fits was asked about, centred in the room above the menus: lifted
+	# in screen units, so the same at either zoom.
+	var framed := field.bodies.grow_side(SIDE_TOP, HEADROOM)
+	var target := framed.get_center() + Vector2(0, FRAME_LIFT / _zoom)
 	if CombatManager.step_delay <= 0.0:
 		_camera.position = target
-		_camera.zoom = Vector2.ONE * zoom
+		_camera.zoom = Vector2.ONE * _zoom
 		return
 	var glide := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	glide.tween_property(_camera, "position", target, INTRO_TIME)
-	glide.tween_property(_camera, "zoom", Vector2.ONE * zoom, INTRO_TIME)
+	glide.tween_property(_camera, "zoom", Vector2.ONE * _zoom, INTRO_TIME)
+
+
+## Whether fighters covering [param bodies] of the world, with the pointer's
+## [constant HEADROOM] over them, can be framed at [param at_zoom] without
+## anyone leaving the screen or standing under the menus. Every monster fight
+## three cells apart fits at 2; one stood four apart one above the other does
+## not, nor does a boss a cell taller than you faced up or down the screen.
+static func fits(bodies: Vector2, at_zoom: float) -> bool:
+	var drawn := (bodies + Vector2(0, HEADROOM)) * at_zoom
+	return drawn.x <= CLOSE_ROOM.x and drawn.y <= CLOSE_ROOM.y
 
 
 ## Small bars under each enemy -- the screen's panels are gone, and an enemy's
 ## health has to be read off the field.
 func _build_bars() -> void:
 	for enemy in _nodes:
+		# A boss's bar is as long as it is big, within reason.
+		var width := 32.0 if _width_of(_nodes[enemy]) > 24.0 else 16.0
 		var bar := ProgressBar.new()
 		bar.show_percentage = false
-		bar.custom_minimum_size = Vector2(16, 3)
-		bar.size = Vector2(16, 3)
+		bar.custom_minimum_size = Vector2(width, 3)
+		bar.size = Vector2(width, 3)
 		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(bar)
-		bar.position = field.enemy_spots[field.enemy_nodes.find(_nodes[enemy])] + Vector2(-8, 2)
+		bar.position = field.enemy_spots[field.enemy_nodes.find(_nodes[enemy])] + Vector2(-width / 2.0, 2)
 		_bars[enemy] = bar
 		_refresh_bar(enemy)
 
@@ -232,7 +259,10 @@ func _fall(enemy: Combatant) -> void:
 	var puff := Sprite2D.new()
 	puff.texture = SMOKE
 	puff.hframes = SMOKE_FRAMES
-	puff.position = _spot_of(enemy) + Vector2(0, -4)
+	# A boss goes up in a bigger puff, by a whole number so it stays crisp.
+	var size := maxf(1.0, floorf(_width_of(_nodes.get(enemy)) / 24.0))
+	puff.scale = Vector2(size, size)
+	puff.position = _spot_of(enemy) + Vector2(0, -4 * size)
 	puff.visible = false
 	add_child(puff)
 	var play := puff.create_tween()
@@ -252,7 +282,7 @@ func aim(target: Combatant) -> void:
 	_pointer.visible = node != null
 	if node == null:
 		return
-	var over := node.position + Vector2(0, -POINTER_LIFT)
+	var over := node.position + Vector2(0, -_height_of(node) - POINTER_LIFT)
 	_pointer.position = over
 	if CombatManager.step_delay <= 0.0:
 		return
@@ -324,7 +354,8 @@ func _float_number(hit: CombatReport.Hit) -> void:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
 	label.size = Vector2(32, 8)
-	label.position = _spot_of(hit.target) + Vector2(-16, -26)
+	var over := _nodes.get(hit.target) as Node2D if not hit.target.is_player else field.player
+	label.position = _spot_of(hit.target) + Vector2(-16, -_height_of(over) - FLOATER_LIFT)
 	if CombatManager.step_delay <= 0.0:
 		label.queue_free()
 		return
@@ -347,9 +378,33 @@ func _sprite_of(who: Combatant) -> Node2D:
 	if who.is_player:
 		return field.player.get_node("Sprite2D") as Node2D
 	var node := _nodes.get(who) as Node2D
-	if node is Monster:
-		return (node as Monster).sprite()
+	if node != null and node.has_method(&"sprite"):
+		return node.call(&"sprite") as Node2D
 	return node
+
+
+## How far [param node]'s sprite stands above its feet -- where a pointer or a
+## number goes over it. A 16 px monster's when there is no sprite to ask.
+func _height_of(node: Node2D) -> float:
+	var sprite := _drawn(node)
+	if sprite == null:
+		return 16.0
+	return -(sprite.position.y + sprite.get_rect().position.y * sprite.scale.y)
+
+
+func _width_of(node: Node2D) -> float:
+	var sprite := _drawn(node)
+	return sprite.get_rect().size.x * sprite.scale.x if sprite != null else 16.0
+
+
+func _drawn(node: Node2D) -> Sprite2D:
+	if node == null:
+		return null
+	if node == field.player:
+		return field.player.get_node_or_null("Sprite2D") as Sprite2D
+	if node.has_method(&"sprite"):
+		return node.call(&"sprite") as Sprite2D
+	return node as Sprite2D
 
 
 func _flash(who: Combatant) -> void:
