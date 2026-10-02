@@ -1,13 +1,12 @@
 extends CanvasLayer
-## The battle, drawn.
+## The old battle stage: a fight drawn on a screen of its own, for a fight that
+## was not staged on the map -- a boss, until bosses step out of their doors
+## (plan.md M5.5 §6 step 4). The words and the menu are [BattleHud]'s and the
+## player's vitals the HUD's, for either kind of fight; this draws only the
+## place and the fighters, and decides nothing.
 ##
-## Purely a view, exactly like [code]ui/dialogue_box.gd[/code]: it renders what
-## [CombatManager] announces and answers with [method CombatManager.submit]. It
-## decides nothing -- a skill greyed out here is also refused there, because the
-## runner is the one place a rule can't be talked around.
-##
-## The static frame is in the .tscn; enemy entries, menu rows and damage numbers
-## are built in code because their count is only known once a fight starts.
+## The static frame is in the .tscn; enemy entries and damage numbers are built
+## in code because their count is only known once a fight starts.
 
 ## Colours are [UiPalette]'s -- one health language with the HUD.
 const ARROW := preload("res://assets/ninja_adventure/Ui/Arrow.png")
@@ -31,42 +30,16 @@ const SHAKE_TIME := 0.24
 
 const FLOATER_RISE := 13.0
 const FLOATER_TIME := 0.7
-## How long the result stays up after the last blow.
-const OUTRO_TIME := 1.1
 
-## What the command menu is currently asking for.
-enum Phase { HIDDEN, BUSY, ROOT, SKILLS, ITEMS, TARGET }
-
-## The fixed commands. Skills and Items each get their own submenu.
-enum Command { ATTACK, SKILLS, ITEM, DEFEND, FLEE }
-
-var _phase := Phase.HIDDEN
-var _selected := 0
-## Root commands actually on offer -- Flee is absent from a boss fight.
-var _commands: Array[Command] = []
-var _skill_rows: Array[Skill] = []
-var _item_rows: Array[ItemStack] = []
-var _target_rows: Array[Combatant] = []
-## The text of each menu row, without the cursor. Kept beside the Labels so
-## repainting the selection doesn't have to parse what it drew last time.
-var _rows_text := PackedStringArray()
-## Held between choosing a skill and choosing who it lands on.
-var _staged: Skill = null
-
-var _actor: Combatant = null
 ## The pause that hides the screen after a fight. Held so the next fight can
-## cancel it: a fight that starts inside the pause would otherwise be hidden when
-## it runs out, and the manager would wait forever on a menu nobody can see.
+## cancel it -- see [member BattleHud._outro].
 var _outro: Tween = null
 ## Enemy [Combatant] to the panel drawing it, so a report can find its sprite.
 var _entries: Dictionary[Combatant, Control] = {}
 var _idle_time := 0.0
 var _hero_texture := AtlasTexture.new()
 var _shake: Tween = null
-## Set when the fight is staged on the map: the screen draws only its panels,
-## and the [BattleStage] on the map draws the fight.
-var _on_map := false
-## A field arrived for the fight about to begin.
+## A field arrived for the fight about to begin: the map draws it, not this.
 var _staged_next := false
 
 @onready var _backdrop: ColorRect = $Backdrop
@@ -77,14 +50,6 @@ var _staged_next := false
 @onready var _ground: TextureRect = $Ground
 @onready var _horizon: ColorRect = $Horizon
 @onready var _enemy_row: HBoxContainer = $Enemies
-@onready var _log: Label = $Log/Label
-@onready var _party_name: Label = $Party/Rows/Name
-@onready var _party_hp: ProgressBar = $Party/Rows/Hp
-@onready var _party_poise: ProgressBar = $Party/Rows/Poise
-@onready var _party_statuses: Label = $Party/Rows/Statuses
-@onready var _menu: Control = $Menu
-@onready var _list: VBoxContainer = $Menu/Column/List
-@onready var _hint: Label = $Menu/Column/Hint
 @onready var _floaters: Control = $Floaters
 
 
@@ -95,125 +60,32 @@ func _ready() -> void:
 	_pose_hero(0)
 	EventBus.battle_staged.connect(_on_battle_staged)
 	CombatManager.combat_began.connect(_on_combat_began)
-	CombatManager.command_requested.connect(_on_command_requested)
 	CombatManager.action_resolved.connect(_on_action_resolved)
 	CombatManager.combat_finished.connect(_on_combat_finished)
-
-
-# --- input -----------------------------------------------------------------
-
-func _unhandled_input(event: InputEvent) -> void:
-	if _phase in [Phase.HIDDEN, Phase.BUSY]:
-		return
-
-	if event.is_action_pressed(&"move_up") or event.is_action_pressed(&"ui_up"):
-		get_viewport().set_input_as_handled()
-		_move_selection(-1)
-	elif event.is_action_pressed(&"move_down") or event.is_action_pressed(&"ui_down"):
-		get_viewport().set_input_as_handled()
-		_move_selection(1)
-	elif event.is_action_pressed(&"interact") or event.is_action_pressed(&"ui_accept"):
-		get_viewport().set_input_as_handled()
-		_confirm()
-	elif event.is_action_pressed(&"ui_cancel"):
-		get_viewport().set_input_as_handled()
-		_cancel()
-
-
-func _confirm() -> void:
-	match _phase:
-		Phase.ROOT:
-			_choose_command(_commands[_selected])
-		Phase.SKILLS:
-			var skill := _skill_rows[_selected]
-			if _actor.is_ready(skill):
-				_stage(skill)
-		Phase.ITEMS:
-			# Party of one, and nothing is thrown at an enemy yet, so an item
-			# always lands on the person drinking it.
-			_send(CombatAction.use_item(_item_rows[_selected].item, _actor))
-		Phase.TARGET:
-			_send(CombatAction.use(_staged, _target_rows[_selected]))
-
-
-## Backs out one step. From the root menu there is nowhere to back out to --
-## a fight is not something you can close.
-func _cancel() -> void:
-	match _phase:
-		Phase.SKILLS, Phase.ITEMS:
-			_show_root()
-		Phase.TARGET:
-			if _staged in _skill_rows:
-				_show_skills()
-			else:
-				_show_root()
-
-
-func _choose_command(command: Command) -> void:
-	match command:
-		Command.ATTACK:
-			_stage(SkillLibrary.basic_attack())
-		Command.SKILLS:
-			_show_skills()
-		Command.ITEM:
-			_show_items()
-		Command.DEFEND:
-			_send(CombatAction.defend())
-		Command.FLEE:
-			_send(CombatAction.flee())
-
-
-## Takes a skill as far as it can go on its own: straight out if there is
-## nothing to choose, into targeting if there is.
-func _stage(skill: Skill) -> void:
-	_staged = skill
-	var candidates := CombatManager.living_enemies()
-	if not skill.needs_target() or not skill.is_offensive() or candidates.size() <= 1:
-		_send(CombatAction.use(skill, candidates[0] if not candidates.is_empty() else null))
-		return
-	_show_targets(candidates)
-
-
-func _send(action: CombatAction) -> void:
-	if CombatManager.submit(action):
-		_phase = Phase.BUSY
-		_menu.hide()
+	var hud := get_node_or_null(^"../BattleHud") as BattleHud
+	if hud != null:
+		hud.aimed.connect(_highlight_target)
 
 
 # --- combat signals --------------------------------------------------------
 
-func _on_combat_began(encounter: Encounter, party: Array[Combatant], enemies: Array[Combatant]) -> void:
+func _on_combat_began(encounter: Encounter, _party: Array[Combatant], enemies: Array[Combatant]) -> void:
 	if _outro != null:
 		_outro.kill()
 		_outro = null
-	_set_visible(true)
-	_on_map = _staged_next
+	var on_map := _staged_next
 	_staged_next = false
-	for stage: CanvasItem in [_backdrop, _sky, _sky_glow, _scenery, _ground, _horizon, _hero, _enemy_row]:
-		stage.visible = not _on_map
-	if not _on_map:
-		_paint_backdrop(encounter)
-		_build_enemies(enemies)
-	_log.text = "%s blocks the way." % encounter.label()
-	_refresh_party(party[0])
-	_phase = Phase.BUSY
-	_menu.hide()
+	_set_visible(not on_map)
+	if on_map:
+		return
+	_paint_backdrop(encounter)
+	_build_enemies(enemies)
 
 
-func _on_command_requested(actor: Combatant) -> void:
-	_actor = actor
-	_refresh_party(actor)
-	_show_root()
-
-
-## The log line at once; the blow itself at the far end of the actor's step, so
-## a number, a flash and a falling bar all arrive when the strike does.
+## The blow lands at the far end of the actor's step, so a number, a flash and
+## a falling bar all arrive when the strike does.
 func _on_action_resolved(report: CombatReport) -> void:
-	_log.text = report.text
-	if _on_map:
-		for touched in report.touched():
-			if touched.is_player:
-				_refresh_party(touched)
+	if not visible:
 		return
 	var striker := _stand_of(report.actor)
 	var strikes := report.kind == CombatReport.Kind.SKILL and report.hits.any(
@@ -246,29 +118,26 @@ func _land(report: CombatReport) -> void:
 	if heavy:
 		_shake_screen()
 	for touched in report.touched():
-		if touched.is_player:
-			_refresh_party(touched)
-		else:
+		if not touched.is_player:
 			_refresh_enemy(touched)
 
 
-func _on_combat_finished(result: CombatResult) -> void:
-	_phase = Phase.BUSY
-	_menu.hide()
-	_log.text = result.summary()
+func _on_combat_finished(_result: CombatResult) -> void:
+	_highlight_target(null)
+	if not visible:
+		return
 	# Tests run with no pacing at all; there is nobody to read the result to.
 	if CombatManager.step_delay <= 0.0:
 		_set_visible(false)
 		return
 	_outro = create_tween()
-	_outro.tween_interval(OUTRO_TIME)
+	_outro.tween_interval(BattleHud.OUTRO_TIME)
 	_outro.tween_callback(_set_visible.bind(false))
 
 
-## The fight will be on the map: put a stage there to draw it.
-func _on_battle_staged(field: BattleField) -> void:
+## The fight will be on the map, and [BattleHud] puts a stage there to draw it.
+func _on_battle_staged(_field: BattleField) -> void:
 	_staged_next = true
-	field.map.add_child(BattleStage.new(field))
 
 
 ## The field the fight happens on: the biome's own floor tiled across the lower
@@ -315,148 +184,15 @@ func _glow(sky: Color) -> GradientTexture2D:
 	return texture
 
 
-# --- menus -----------------------------------------------------------------
+# --- battlefield -----------------------------------------------------------
 
-func _show_root() -> void:
-	_phase = Phase.ROOT
-	_staged = null
-	_commands = [Command.ATTACK, Command.SKILLS, Command.ITEM, Command.DEFEND]
-	if CombatManager.current_encounter().can_flee:
-		_commands.append(Command.FLEE)
-
-	var labels := PackedStringArray()
-	var locked := PackedInt32Array()
-	for i in _commands.size():
-		labels.append(_command_label(_commands[i]))
-		# Item stays on the list with an empty bag rather than disappearing:
-		# a verb that comes and goes is a verb the player never learns.
-		if _commands[i] == Command.ITEM and Inventory.usable_stacks(true).is_empty():
-			locked.append(i)
-	_populate(labels, locked)
-	_hint.text = "[E] choose"
-
-
-func _show_skills() -> void:
-	_phase = Phase.SKILLS
-	_skill_rows = _actor.skills.duplicate()
-	if _skill_rows.is_empty():
-		_show_root()
-		return
-
-	var labels := PackedStringArray()
-	var locked := PackedInt32Array()
-	for i in _skill_rows.size():
-		var skill := _skill_rows[i]
-		var left := _actor.cooldown_left(skill)
-		labels.append("%s  (%d)" % [skill.label(), left] if left > 0 else skill.label())
-		if left > 0:
-			locked.append(i)
-	_populate(labels, locked)
-
-
-func _show_items() -> void:
-	_phase = Phase.ITEMS
-	_item_rows = Inventory.usable_stacks(true)
-	if _item_rows.is_empty():
-		_show_root()
-		return
-
-	var labels := PackedStringArray()
-	for stack in _item_rows:
-		labels.append(stack.label())
-	_populate(labels, PackedInt32Array())
-	_hint.text = "[Esc] back"
-
-
-func _show_targets(candidates: Array[Combatant]) -> void:
-	_phase = Phase.TARGET
-	_target_rows = candidates
-	var labels := PackedStringArray()
-	for target in candidates:
-		labels.append("%s  %d/%d" % [target.display_name, target.hp, target.max_hp])
-	_populate(labels, PackedInt32Array())
-	_hint.text = "[Esc] back"
-
-
-## Draws [param labels] as the menu, greying out the [param locked] indices and
-## parking the cursor on the first row that can actually be picked.
-func _populate(labels: PackedStringArray, locked: PackedInt32Array) -> void:
-	for row in _list.get_children():
-		_list.remove_child(row)
-		row.queue_free()
-
-	_selected = -1
-	for i in labels.size():
-		var row := Label.new()
-		row.set_meta(&"locked", i in locked)
-		_list.add_child(row)
-		if _selected < 0 and i not in locked:
-			_selected = i
-
-	_selected = maxi(_selected, 0)
-	_rows_text = labels
-	_paint()
-	_menu.show()
-	# Collapse onto the new rows: the panel is anchored bottom-right and grows up
-	# and left.
-	UiLayout.shrink_wrap(_menu)
-
-
-func _move_selection(step: int) -> void:
-	var count := _list.get_child_count()
-	if count == 0:
-		return
-	for i in range(1, count + 1):
-		var candidate := (_selected + step * i + count * count) % count
-		if not _list.get_child(candidate).get_meta(&"locked", false):
-			_selected = candidate
-			break
-	_paint()
-
-
-func _paint() -> void:
-	for i in _list.get_child_count():
-		var row := _list.get_child(i) as Label
-		var color := UiPalette.TEXT
-		if row.get_meta(&"locked", false):
-			color = UiPalette.LOCKED
-		elif i == _selected:
-			color = UiPalette.TARGETED if _phase == Phase.TARGET else UiPalette.SELECTED
-		row.add_theme_color_override(&"font_color", color)
-		row.text = ("> " if i == _selected else "  ") + _rows_text[i]
-
-	if _phase == Phase.SKILLS and _selected < _skill_rows.size():
-		_hint.text = _skill_rows[_selected].description
-	elif _phase == Phase.ITEMS and _selected < _item_rows.size():
-		_hint.text = _item_rows[_selected].item.description
-	_highlight_target()
-
-
-## Marks the enemy the cursor is on, so targeting reads on the battlefield and
-## not only in the menu.
-func _highlight_target() -> void:
+## Marks the enemy [BattleHud]'s cursor is on, so targeting reads on the
+## battlefield and not only in the menu.
+func _highlight_target(target: Combatant) -> void:
 	for enemy in _entries:
 		var pointer := _entries[enemy].get_node("Pointer") as CanvasItem
-		var aimed := _phase == Phase.TARGET and _selected < _target_rows.size() \
-				and _target_rows[_selected] == enemy
-		pointer.modulate.a = 1.0 if aimed else 0.0
+		pointer.modulate.a = 1.0 if enemy == target and enemy.is_alive() else 0.0
 
-
-func _command_label(command: Command) -> String:
-	match command:
-		Command.ATTACK:
-			return "Attack"
-		Command.SKILLS:
-			return "Sword Skills"
-		Command.ITEM:
-			return "Item"
-		Command.DEFEND:
-			return "Defend"
-		_:
-			return "Flee"
-
-
-# --- battlefield -----------------------------------------------------------
 
 func _build_enemies(enemies: Array[Combatant]) -> void:
 	_entries.clear()
@@ -534,19 +270,6 @@ func _refresh_enemy(enemy: Combatant) -> void:
 		(column.get_node("Pointer") as CanvasItem).modulate.a = 0.0
 
 
-func _refresh_party(player: Combatant) -> void:
-	_party_name.text = "%s   Lv %d" % [player.display_name, player.level]
-	_party_hp.value = player.hp_ratio() * 100.0
-	_party_hp.tooltip_text = "%d / %d" % [player.hp, player.max_hp]
-	UiPalette.paint_bar(_party_hp, UiPalette.hp_color(player.hp_ratio()))
-	_party_poise.value = player.poise_ratio() * 100.0
-	UiPalette.paint_bar(_party_poise, UiPalette.POISE)
-	var tags := player.status_labels()
-	if player.staggered:
-		tags.append("STAGGERED")
-	_party_statuses.text = "%d/%d   %s" % [player.hp, player.max_hp, " ".join(tags)]
-
-
 # --- damage numbers --------------------------------------------------------
 
 func _float_number(hit: CombatReport.Hit) -> void:
@@ -593,11 +316,6 @@ func _anchor_for(who: Combatant) -> Vector2:
 func _set_visible(shown: bool) -> void:
 	visible = shown
 	if not shown:
-		_on_map = false
-		_phase = Phase.HIDDEN
-		_actor = null
-		_staged = null
-		_menu.hide()
 		_entries.clear()
 		for child in _enemy_row.get_children():
 			_enemy_row.remove_child(child)

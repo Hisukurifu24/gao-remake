@@ -727,7 +727,7 @@ feel like enough yet".
   above at once: the place is the map you were standing on, drawn by the art that
   already works; the player is the player; depth is the map's own y-sort.
 
-#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), staging ✅, steps 3–7 to do*
+#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), staging ✅, view ✅, steps 4–7 to do*
 
 **The battle stops being a screen and becomes a moment on the floor.** No fade, no
 backdrop: when a monster reaches you, the two of you step apart into a formation where
@@ -842,6 +842,27 @@ separate* is the reason this is a view job and not a combat rewrite.
      `Combatant` instead of `GameState`, which would mean one vitals plate in the game,
      not two.
    Both still only listen to `CombatManager` and answer with `submit()`.
+   **✅ 2026-10-02.** `ui/battle_hud.tscn` is the message line (bottom-left, a fixed
+   176-unit `HudPanel` that grows up) and the command menu (bottom-right, a
+   `HudPanel` shrink-wrapped to its rows; the hint row only shows when it has
+   something to say, so the root menu is five words tall). All the menu logic moved
+   there out of `combat_screen.gd`, and it hides itself if anything else answers the
+   runner. It also puts the `BattleStage` on the map, and its `aimed(target)` signal
+   is the target cursor for whoever draws the enemies. **One vitals plate**: the
+   HUD's stays up in a fight, grows a poise bar under the HP bar and a status line,
+   and reads the player's `Combatant`. `BattleStage` gained the pointer (the pack's
+   arrow, bobbing a whole unit) and the death: flash, fade, and the pack's
+   `FX/Smoke` puff, owned by the stage so it outlives the monster. Frame lift down
+   from 22 to 12 now the bottom isn't two wood windows. **The old screen is the
+   stage only** -- backdrop, battlers, numbers -- for the fights not staged yet
+   (bosses), at layer 1 under the HUD and `BattleHud`, so the same plates sit on
+   both. Not done here: enemy statuses on the map (step 5's emotes; until then they
+   show in the target list), and the pointer can't be seen on the map yet -- a
+   monster fight is one enemy, so there is never a target to choose until bosses
+   step out (step 4). Fixed on the way: the smoke test's open-block search
+   demanded a ring of floor round a 5x5, which a random floor 2 sometimes lacks, so
+   the monster section skipped itself; and the spike tool's room finder fell back
+   to the map's centre -- often rock -- on seeds with no big room.
 4. **Bosses.** The door is a door; the boss has to stand somewhere. `BossGate._fight()`
    spawns the boss (and escort) as map sprites from `EnemyType.sheet` inside the boss
    room — the door steps aside, the boss steps out — and stages the field from there.
@@ -1191,11 +1212,11 @@ bottom only goes up.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 65-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 125-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 71-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 127-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 84-check combat test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 85-check combat test
 "$GODOT" --headless --path . res://test/quest_test.tscn     # 173-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 

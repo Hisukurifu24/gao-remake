@@ -1,0 +1,54 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/battle_hud.gd" id="1_hud"]
+
+[node name="BattleHud" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="Log" type="PanelContainer" parent="."]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = -5.0
+offset_right = 5.0
+offset_bottom = -4.0
+grow_vertical = 0
+mouse_filter = 2
+theme_type_variation = &"HudPanel"
+
+[node name="Label" type="Label" parent="Log"]
+custom_minimum_size = Vector2(176, 0)
+layout_mode = 2
+text = "A monster blocks the way."
+autowrap_mode = 3
+
+[node name="Menu" type="PanelContainer" parent="."]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -5.0
+offset_top = -5.0
+offset_right = -4.0
+offset_bottom = -4.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_type_variation = &"HudPanel"
+
+[node name="Column" type="VBoxContainer" parent="Menu"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="List" type="VBoxContainer" parent="Menu/Column"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Hint" type="Label" parent="Menu/Column"]
+custom_minimum_size = Vector2(88, 0)
+layout_mode = 2
+theme_type_variation = &"HintLabel"
+text = " "
+autowrap_mode = 3

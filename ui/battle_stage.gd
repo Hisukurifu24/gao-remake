@@ -10,6 +10,14 @@ extends Node2D
 ##
 ## SPIKE (M5.5 §6.1): deliberately rough. The menus are still the old screen's.
 
+const ARROW := preload("res://assets/ninja_adventure/Ui/Arrow.png")
+const SMOKE := preload("res://assets/ninja_adventure/FX/Smoke/Smoke/SpriteSheet.png")
+const SMOKE_FRAMES := 6
+const SMOKE_FRAME_TIME := 0.07
+## The pointer hangs this far over the enemy's spot and bobs this much.
+const POINTER_LIFT := 17.0
+const POINTER_BOB := 1.0
+
 const FLOATER_RISE := 10.0
 const FLOATER_TIME := 0.7
 ## Whoever acts steps this far towards the other side and back.
@@ -25,9 +33,9 @@ const INTRO_TIME := 0.35
 const OUTRO_EASE := 0.45
 ## Over the labyrinth's dark (z 10), so a number never pops behind it.
 const OVER_DARK := 20
-## The panels take the bottom of the screen, so the fight is framed this many
-## screen units above centre -- in the free band between the log and the menus.
-const FRAME_LIFT := 22.0
+## The menu and the message line take the bottom of the screen, so the fight is
+## framed this many screen units above centre.
+const FRAME_LIFT := 12.0
 ## How far round each fighter the dark lifts, in cells.
 const LIGHT_RADIUS := 4
 ## Anyone else in frame stands back to this, so a frozen boar at the edge of the
@@ -47,6 +55,8 @@ var _nodes: Dictionary[Combatant, Node2D] = {}
 var _bars: Dictionary[Combatant, ProgressBar] = {}
 var _shake: Tween = null
 var _bystanders: Array[Sprite2D] = []
+var _pointer: Sprite2D
+var _bob: Tween = null
 
 
 func _init(staged: BattleField) -> void:
@@ -59,6 +69,10 @@ func _ready() -> void:
 	CombatManager.combat_began.connect(_on_combat_began)
 	CombatManager.action_resolved.connect(_on_action_resolved)
 	CombatManager.combat_finished.connect(_on_combat_finished)
+	_pointer = Sprite2D.new()
+	_pointer.texture = ARROW
+	_pointer.visible = false
+	add_child(_pointer)
 
 
 func _on_combat_began(_encounter: Encounter, _party: Array[Combatant],
@@ -202,7 +216,9 @@ func _land(report: CombatReport) -> void:
 				_fall(touched)
 
 
-## A felled monster fades where it stands; it frees itself when the fight returns.
+## A felled monster goes out in the pack's puff of smoke where it stands; the
+## node frees itself when the fight returns. The puff is the stage's, so it
+## outlives the monster.
 func _fall(enemy: Combatant) -> void:
 	var sprite := _sprite_of(enemy)
 	if sprite == null:
@@ -212,7 +228,40 @@ func _fall(enemy: Combatant) -> void:
 		return
 	var fade := sprite.create_tween()
 	fade.tween_interval(FLASH_TIME)
-	fade.tween_property(sprite, "modulate:a", 0.0, 0.3)
+	fade.tween_property(sprite, "modulate:a", 0.0, SMOKE_FRAME_TIME * 2)
+	var puff := Sprite2D.new()
+	puff.texture = SMOKE
+	puff.hframes = SMOKE_FRAMES
+	puff.position = _spot_of(enemy) + Vector2(0, -4)
+	puff.visible = false
+	add_child(puff)
+	var play := puff.create_tween()
+	play.tween_interval(FLASH_TIME)
+	play.tween_callback(puff.show)
+	play.tween_property(puff, "frame", SMOKE_FRAMES - 1, SMOKE_FRAME_TIME * SMOKE_FRAMES).from(0)
+	play.tween_callback(puff.queue_free)
+
+
+## Hangs the pointer over [param target], or takes it away for null -- answering
+## [signal BattleHud.aimed].
+func aim(target: Combatant) -> void:
+	if _bob != null:
+		_bob.kill()
+		_bob = null
+	var node := _nodes.get(target) as Node2D if target != null else null
+	_pointer.visible = node != null
+	if node == null:
+		return
+	var over := node.position + Vector2(0, -POINTER_LIFT)
+	_pointer.position = over
+	if CombatManager.step_delay <= 0.0:
+		return
+	# Stepped, not slid: a whole unit up and back, so it never lands between texels.
+	_bob = _pointer.create_tween().set_loops()
+	_bob.tween_interval(0.3)
+	_bob.tween_callback(_pointer.set_position.bind(over + Vector2(0, -POINTER_BOB)))
+	_bob.tween_interval(0.3)
+	_bob.tween_callback(_pointer.set_position.bind(over))
 
 
 func _on_combat_finished(_result: CombatResult) -> void:
@@ -222,6 +271,7 @@ func _on_combat_finished(_result: CombatResult) -> void:
 	CombatManager.action_resolved.disconnect(_on_action_resolved)
 	CombatManager.combat_finished.disconnect(_on_combat_finished)
 	field.player.pose_row = -1
+	aim(null)
 	var dark := field.map.darkness()
 	if dark != null:
 		dark.light_arena([] as Array[Vector2i])

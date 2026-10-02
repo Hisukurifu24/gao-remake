@@ -343,12 +343,12 @@ func _test_roaming(map: Node2D, player: Player) -> void:
 	# The result stays on screen for a beat after a fight. A second fight started
 	# inside that beat must not be hidden when it runs out: the manager would sit
 	# waiting on a command from a menu nobody can see, holding the input lock.
-	var screen: CanvasLayer = find_child("CombatScreen", true, false)
+	var hud: BattleHud = find_child("BattleHud", true, false)
 	var second := _spawn_monster(map, player.global_position + Vector2(20, 0))
 	second.interact(player)
-	await get_tree().create_timer(screen.OUTRO_TIME + 0.4).timeout
-	_check(CombatManager.is_running() and screen.visible,
-			"a fight started during the last one's outro keeps its screen")
+	await get_tree().create_timer(BattleHud.OUTRO_TIME + 0.4).timeout
+	_check(CombatManager.is_running() and hud.visible,
+			"a fight started during the last one's outro keeps its menu")
 	await _auto_battle()
 
 
@@ -362,14 +362,25 @@ func _spawn_monster(map: Node2D, at: Vector2) -> Monster:
 	return monster
 
 
-## The first rect of [param size] with no wall in it or round it.
+## The first rect of [param size] with no wall in it -- preferring one with no
+## wall round it either, but a generated floor 2 is random per run and some have
+## no room that big, so a block walled in on its sides will do: the painted
+## column only has to stand between the two of them.
 func _open_block(walls: TileMapLayer, size: Vector2i) -> Rect2i:
+	for ring in [1, 0]:
+		var block := _open_block_within(walls, size, ring)
+		if block.size != Vector2i.ZERO:
+			return block
+	return Rect2i()
+
+
+func _open_block_within(walls: TileMapLayer, size: Vector2i, ring: int) -> Rect2i:
 	var used := walls.get_used_rect()
 	for y in range(used.position.y + 1, used.end.y - size.y - 1):
 		for x in range(used.position.x + 1, used.end.x - size.x - 1):
 			var clear := true
-			for dy in range(-1, size.y + 1):
-				for dx in range(-1, size.x + 1):
+			for dy in range(-ring, size.y + ring):
+				for dx in range(-ring, size.x + ring):
 					if walls.get_cell_source_id(Vector2i(x + dx, y + dy)) != -1:
 						clear = false
 						break

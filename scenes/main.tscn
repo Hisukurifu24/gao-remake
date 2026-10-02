@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="2_hud"]
@@ -8,17 +8,20 @@
 [ext_resource type="PackedScene" path="res://ui/quest_tracker.tscn" id="6_tracker"]
 [ext_resource type="PackedScene" path="res://ui/quest_journal.tscn" id="7_journal"]
 [ext_resource type="PackedScene" path="res://ui/map_screen.tscn" id="8_map"]
+[ext_resource type="PackedScene" path="res://ui/battle_hud.tscn" id="9_battle_hud"]
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
 
 [node name="WorldRoot" type="Node2D" parent="."]
 
+[node name="CombatScreen" parent="." instance=ExtResource("4_combat")]
+
 [node name="Hud" parent="." instance=ExtResource("2_hud")]
 
-[node name="QuestTracker" parent="." instance=ExtResource("6_tracker")]
+[node name="BattleHud" parent="." instance=ExtResource("9_battle_hud")]
 
-[node name="CombatScreen" parent="." instance=ExtResource("4_combat")]
+[node name="QuestTracker" parent="." instance=ExtResource("6_tracker")]
 
 [node name="InventoryScreen" parent="." instance=ExtResource("5_inventory")]
 

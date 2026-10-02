@@ -92,25 +92,42 @@ func _fight_at(map: GameMap, player: Player, monster: Monster, walls: TileMapLay
 	await _wait(0.3)
 	await _capture(tag + "d_hit")
 	await _until_command()
-	await _end_fight()
+	# The killing blow, for the puff it goes out in. A miss leaves the fight on,
+	# and _end_fight finishes it.
+	if target.is_alive():
+		target.take_damage(target.hp - 1)
+		_submit(CombatAction.use(SkillLibrary.basic_attack(), target))
+		await _wait(0.4)
+		await _capture(tag + "e_fall")
+		await _until(func() -> bool: return not CombatManager.is_running() \
+				or CombatManager.is_awaiting_command(), 10.0)
+	if CombatManager.is_running():
+		await _end_fight()
+	else:
+		await _wait(1.3)
 
 
-## The middle of the field's biggest open space: a cell with floor five each way.
+## The middle of an open space in the field: a cell with floor four each way
+## across and three up and down -- or, on a floor with no room that big, as much
+## as there is. Never the map's centre: that can be rock, and a player set down
+## in rock is pushed out somewhere no formation starts from.
 func _room_cell(map: GameMap, walls: TileMapLayer, lab: Rect2i, player_at: Vector2) -> Array:
 	var used := walls.get_used_rect()
-	for y in range(used.position.y + 3, used.end.y - 3):
-		for x in range(used.position.x + 3, used.end.x - 3):
-			var cell := Vector2i(x, y)
-			if lab.grow(2).has_point(cell) or Vector2(cell).distance_to(walls.local_to_map(player_at)) < 8.0:
-				continue
-			var open := true
-			for dy in range(-3, 4):
-				for dx in range(-4, 5):
-					if not map.is_standable(cell + Vector2i(dx, dy)):
-						open = false
-			if open:
-				return [cell, Vector2i.RIGHT]
-	return [used.get_center(), Vector2i.RIGHT]
+	for reach: Vector2i in [Vector2i(4, 3), Vector2i(3, 2), Vector2i(2, 2)]:
+		for y in range(used.position.y + reach.y, used.end.y - reach.y):
+			for x in range(used.position.x + reach.x, used.end.x - reach.x):
+				var cell := Vector2i(x, y)
+				if lab.grow(2).has_point(cell) or Vector2(cell).distance_to(walls.local_to_map(player_at)) < 8.0:
+					continue
+				var open := true
+				for dy in range(-reach.y, reach.y + 1):
+					for dx in range(-reach.x, reach.x + 1):
+						if not map.is_standable(cell + Vector2i(dx, dy)):
+							open = false
+				if open:
+					return [cell, Vector2i.RIGHT]
+	push_warning("battle spike: no open room on this floor")
+	return [walls.local_to_map(player_at), Vector2i.RIGHT]
 
 
 ## A cell in the middle of a field corridor: three wide one way, long the other.
@@ -128,7 +145,8 @@ func _corridor_cell(map: GameMap, walls: TileMapLayer, lab: Rect2i) -> Array:
 					narrow = narrow and _run(map, cell + axis * along, side) == 3
 				if narrow and map.is_standable(cell + side) and map.is_standable(cell - side):
 					return [cell, axis]
-	return [used.get_center(), Vector2i.RIGHT]
+	push_warning("battle spike: no field corridor on this floor")
+	return _room_cell(map, walls, lab, walls.map_to_local(used.position))
 
 
 func _run(map: GameMap, cell: Vector2i, axis: Vector2i) -> int:
