@@ -2,9 +2,9 @@ extends Node
 ## Runs a battle. Owns the turn loop, never a pixel of it.
 ##
 ## The same split as [DialogueRunner]: this decides who acts, what it costs and
-## who wins; [code]ui/combat_screen.tscn[/code] listens to the signals below and
-## calls [method submit] back with the player's choice. Nothing here touches a
-## node in the combat screen, which is why [code]test/combat_test.tscn[/code]
+## who wins; [code]ui/battle_hud.tscn[/code] and the [BattleStage] it puts on the
+## map listen to the signals below, and the menu calls [method submit] back with
+## the player's choice. Nothing here touches a node of either, which is why [code]test/combat_test.tscn[/code]
 ## can fight a hundred battles with no UI loaded at all.
 ##
 ## Typical use, from the labyrinth door:

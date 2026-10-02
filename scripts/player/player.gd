@@ -12,8 +12,8 @@ const DIR_COLUMNS := {
 	Vector2i(-1, 0): 2,  # left
 	Vector2i(1, 0): 3,   # right
 }
-## Who you are, drawn: the map walks this sheet and the battle screen stands it
-## on the field, so the two can't drift onto different characters.
+## Who you are, drawn: the map walks this sheet, and a fight on the map strikes
+## with its [constant ATTACK_ROW].
 const SHEET := preload("res://assets/ninja_adventure/Actor/Character/SamuraiBlue/SpriteSheet.png")
 ## The sheet's row of attack poses, one per facing column.
 const ATTACK_ROW := 4

@@ -7,6 +7,18 @@ extends Node
 ## game. Needs a real window, so it can't run with --headless.
 
 const SHOTS := "user://screenshots"
+## The meadow floor the monster fights are shot on. Not 2, whose labyrinth is
+## shot later and should not have been walked into first.
+const FIGHT_FLOOR := 3
+## [floor, the map to fight on (empty: the floor's own), a name for the shots]
+const BOSS_FIGHTS := [
+	[1, "res://scenes/world/field.tscn", "illfang"],
+	[10, "", "nerith"],
+	[25, "", "karvos"],
+	[52, "", "f52_escort"],
+]
+## A generated floor in each biome band, clear of the ones shot elsewhere.
+const BAND_FLOORS := [5, 15, 27, 35, 45, 55, 65, 75, 85, 97]
 
 
 func _ready() -> void:
@@ -164,102 +176,362 @@ func _capture_inventory(main: Node) -> void:
 	await _frames(4)
 
 
-## The battle interface, caught at the three moments worth looking at: the
-## command menu, the skill list, and a resolved swing with numbers in the air.
+## Fights on the map, caught at the moments worth looking at. Every fight is
+## staged where it happens, so the places are the point: a room, a field
+## corridor, a passage in the labyrinth's dark, a boss stepping out of each kind
+## of door, and one monster fight per biome band.
+##
+## The player is armoured out of reach throughout -- one who dies before the
+## menu is asked for leaves nothing to capture and a fight [method _end_fight]
+## cannot end -- and carries a blade blunt enough that a fight lasts as long as
+## its shots need. Level 30 puts every skill in the menu. Defence rather than
+## HP, so the bar in the shots still reads like a real one.
 func _capture_combat() -> void:
-	GameState.level = 12
-	GameState.max_hp = 126
-	GameState.attack = 30
-	GameState.set_hp(90)
-	CombatManager.start(Bestiary.boss_encounter(1))
+	var stats := [GameState.level, GameState.attack, GameState.defense]
+	GameState.level = 30
+	GameState.attack = 2
+	GameState.defense = 100000
+	GameState.set_hp(GameState.total_max_hp())
 
+	await _capture_monster_fights()
+	# Getting to Floor 3 cleared Floor 1, and a cleared door offers the way up.
+	_forget_the_climb()
+	await _capture_boss_fights()
+	await _capture_band_fights()
+
+	_forget_the_climb()
+	GameState.level = stats[0]
+	GameState.attack = stats[1]
+	GameState.defense = stats[2]
+	GameState.set_hp(GameState.total_max_hp())
+
+
+## Trash on a meadow floor: one fight taken through the menus in a room, one in
+## a field corridor, one in a labyrinth passage -- walked to, so the dark has lit
+## the way there -- and one that catches you, for the alarm, its claw, a sword
+## skill's effect, the status bubbles and a heal.
+func _capture_monster_fights() -> void:
+	var map := await _enter(FIGHT_FLOOR)
+	var walls := map.get_node("Walls") as TileMapLayer
+	var lab: Rect2i = map.get_meta(&"labyrinth")
+	var player := map.get_node("Player") as Player
+	var monsters := _monsters_on(map)
+	if monsters.size() < 4:
+		push_warning("screenshot: floor %d has %d monsters, not enough to fight" % [
+				FIGHT_FLOOR, monsters.size()])
+		return
+	var room := _room_cell(map, walls, lab, player.position)
+	var corridor := _corridor_cell(map, walls, lab)
+
+	await _start_fight(player, monsters.pop_back(), walls, room[0], room[1])
 	await _until_command()
 	await _capture("05_combat_menu")
-
 	# Second row down is Sword Skills. Fed as real events rather than through
 	# Input.action_press, which sets the action state without ever reaching
 	# _unhandled_input -- the menu would never see the keypress.
 	await _press(&"move_down")
 	await _press(&"interact")
 	await _capture("06_combat_skills")
-
 	# Back out and two rows further down is Item -- stocked by the inventory
-	# capture above, so there is something on the list.
+	# capture before this, so there is something on the list.
 	await _press(&"ui_cancel")
 	await _press(&"move_down")
 	await _press(&"move_down")
 	await _press(&"interact")
 	await _capture("06b_combat_items")
 	await _press(&"ui_cancel")
-
-	# Let the round play out so there are numbers and a log line on screen.
-	# Caught at the far end of the step: the player mid-swing, the boss flashing.
-	var hero := (get_tree().root.find_child("CombatScreen", true, false) as Node).get_node("Hero") as Control
-	var stance := hero.position
-	_submit(CombatAction.use(SkillLibrary.get_skill(&"slant"),
-			CombatManager.living_enemies()[0]))
-	await _until(func() -> bool: return hero.position.y <= stance.y - 8.0, 2.0)
+	# Caught at the far end of the step, then as the blow lands.
+	_submit(CombatAction.use(SkillLibrary.get_skill(&"slant"), CombatManager.living_enemies()[0]))
+	await _wait(0.14)
 	await _capture("07a_combat_strike")
-	await _wait(0.4)
+	await _wait(0.3)
 	await _capture("07_combat_hit")
+	await _finish("07b_combat_fall")
 
-	# A boss fight can't be fled, so end it the only way it ends. The next
-	# capture waits on the input lock, which combat holds until it is over.
+	await _start_fight(player, monsters.pop_back(), walls, corridor[0], corridor[1])
 	await _until_command()
-	await _end_fight()
+	await _capture("07c_combat_corridor")
+	await _finish()
 
-	# The same screen on another biome. The battle ground is the floor the player
-	# was walking on, so a cave fight is a different picture from a meadow one
-	# and both have to be looked at. Floor 25's boss is far past the player set
-	# up above and may act first, so the player is armoured out of reach for the
-	# length of one shot -- a player who dies before the menu is asked for leaves
-	# nothing to capture and a fight _end_fight cannot end. Defence rather than
-	# HP, so the bar in the shot still reads like a real one.
-	var defense := GameState.defense
-	GameState.defense = 100000
-	GameState.set_hp(GameState.total_max_hp())
-	CombatManager.start(Bestiary.boss_encounter(25))
-	await _until_command()
-	await _capture("07b_combat_cave")
-	await _end_fight()
+	var path := _path_within(walls, walls.local_to_map(player.position),
+			(map.get_meta(&"boss_room") as Rect2i).position, walls.get_used_rect())
+	var mouth: Rect2i = map.get_meta(&"labyrinth_mouth")
+	var inside: Array[int] = []
+	for i in path.size() - 1:
+		if lab.has_point(path[i]) and not mouth.has_point(path[i]):
+			inside.append(i)
+	if inside.is_empty():
+		push_warning("screenshot: no way into floor %d's labyrinth" % FIGHT_FLOOR)
+	else:
+		var stop := inside[inside.size() / 2]
+		GameState.push_input_lock()
+		for i in stop + 1:
+			player.global_position = walls.map_to_local(path[i])
+			await get_tree().physics_frame
+		GameState.pop_input_lock()
+		await _start_fight(player, monsters.pop_back(), walls, path[stop], path[stop + 1] - path[stop])
+		await _until_command()
+		await _capture("07d_combat_passage")
+		await _finish()
 
-	# And the ruins, against the wraith rather than a boss: a small pack battler on
-	# the grass, where the two above are a boss on each ground.
-	CombatManager.start(Bestiary.single_encounter(Bestiary.get_enemy(&"ruin_wraith"),
-			FloorTuning.enemy_level(35), 35))
+	await _start_fight(player, monsters.pop_back(), walls, room[0], room[1],
+			Encounter.Opening.ENEMIES_FIRST)
+	# The opening is announced after the runner's pause before round 1, and the
+	# blow it costs you lands one step_delay after that.
+	await _wait(0.75)
+	await _capture("07e_combat_alarm")
+	await _wait(0.5)
+	await _capture("07f_combat_clawed")
 	await _until_command()
-	await _capture("07c_combat_ruins")
-	await _end_fight()
+	var enemy := CombatManager.living_enemies()[0]
+	enemy.apply_status(load("res://resources/statuses/weakened.tres"))
+	enemy.apply_status(load("res://resources/statuses/poison.tres"))
+	_submit(CombatAction.use(SkillLibrary.get_skill(&"vorpal_strike"), enemy))
+	await _wait(0.2)
+	await _capture("07g_combat_fx")
+	await _until_command()
+	await _wait(0.9)
+	await _capture("07h_combat_bubbles")
+	_submit(CombatAction.use(SkillLibrary.get_skill(&"second_wind"), null))
+	await _wait(0.25)
+	await _capture("07i_combat_heal")
+	await _finish()
 
-	# The swamp's lizardman: a pack battler on the deep grass the forest shares.
-	CombatManager.start(Bestiary.single_encounter(Bestiary.get_enemy(&"lizardman_soldier"),
-			FloorTuning.enemy_level(45), 45))
-	await _until_command()
-	await _capture("07d_combat_swamp")
-	await _end_fight()
 
-	# And the same lizardman on the desert's sand, which it shares with the boars.
-	CombatManager.start(Bestiary.single_encounter(Bestiary.get_enemy(&"lizardman_soldier"),
-			FloorTuning.enemy_level(55), 55))
-	await _until_command()
-	await _capture("07e_combat_desert")
-	await _end_fight()
+## The bosses step out of their doors: every authored one, and a generated boss
+## room with an escort, in the dark. In floor order, since each clears every
+## floor below it and a cleared door offers the way up instead of a fight.
+func _capture_boss_fights() -> void:
+	for fight: Array in BOSS_FIGHTS:
+		var floor_number: int = fight[0]
+		var tag := "08_boss_%s_" % fight[2]
+		var map: GameMap
+		if (fight[1] as String).is_empty():
+			map = await _enter(floor_number)
+		else:
+			for below in range(1, floor_number):
+				GameState.clear_floor(below)
+			SceneRouter.change_map(fight[1], &"default")
+			map = await _arrived(floor_number, fight[1])
+		var walls := map.get_node("Walls") as TileMapLayer
+		var gate := map.get_node("BossGate") as BossGate
+		var player := map.get_node("Player") as Player
+		gate.reveal()
+		await _dismiss()
+		map.refresh_solids()
+		# Challenged from the doorstep: below it if that is floor, else beside it.
+		var door := walls.local_to_map(gate.position)
+		var stand := door + Vector2i.DOWN * 2
+		for offset: Vector2i in [Vector2i(0, 2), Vector2i(0, -2), Vector2i(2, 0), Vector2i(-2, 0),
+				Vector2i(0, 1), Vector2i(1, 1), Vector2i(-1, 1)]:
+			if map.is_standable(door + offset):
+				stand = door + offset
+				break
+		GameState.push_input_lock()
+		player.global_position = walls.map_to_local(stand) + Vector2(0, 4)
+		player.facing = Vector2(door - stand).normalized()
+		await _wait(0.4)
+		GameState.pop_input_lock()
 
-	# The ice's golem, on snow: the palest ground a battler has to stand out on.
-	CombatManager.start(Bestiary.single_encounter(Bestiary.get_enemy(&"stone_golem"),
-			FloorTuning.enemy_level(65), 65))
-	await _until_command()
-	await _capture("07f_combat_ice")
-	await _end_fight()
+		gate.interact(player)
+		await _dismiss()
+		await _wait(0.25)
+		await _capture(tag + "a_stepout")
+		await _until_command()
+		await _wait(0.3)
+		await _capture(tag + "b_menu")
+		var boss := CombatManager.living_enemies()[0]
+		if CombatManager.living_enemies().size() > 1:
+			# Attack, onto the target list: the pointer over the boss.
+			await _press(&"interact")
+			await _wait(0.2)
+			await _capture(tag + "c_target")
+			await _press(&"ui_cancel")
+		_submit(CombatAction.use(SkillLibrary.get_skill(&"slant"), boss))
+		await _wait(0.4)
+		await _capture(tag + "d_hit")
+		await _finish(tag + "e_fall")
+		await _dismiss()
 
-	# The volcanic band's drake, on ash: an orange battler over the band's own lava glow.
-	CombatManager.start(Bestiary.single_encounter(Bestiary.get_enemy(&"ember_drake"),
-			FloorTuning.enemy_level(75), 75))
+
+## One monster fight in a room of each band's generated floor, and the lot on
+## one sheet: the art a fight stands on is the floor's, so every band has to be
+## looked at.
+func _capture_band_fights() -> void:
+	var shots := PackedStringArray()
+	for floor_number: int in BAND_FLOORS:
+		var map := await _enter(floor_number)
+		var walls := map.get_node("Walls") as TileMapLayer
+		var player := map.get_node("Player") as Player
+		var monsters := _monsters_on(map)
+		if monsters.is_empty():
+			push_warning("screenshot: floor %d has no monsters" % floor_number)
+			continue
+		var room := _room_cell(map, walls, map.get_meta(&"labyrinth"), player.position)
+		await _start_fight(player, monsters[0], walls, room[0], room[1])
+		await _until_command()
+		await _wait(0.3)
+		var shot := "09_band_%d_%s" % [floor_number, FloorRegistry.biome_id(floor_number)]
+		await _capture(shot)
+		shots.append(shot)
+		await _finish()
+	_sheet(shots, 3, "09_bands_sheet")
+
+
+## Clears the way up to [param floor_number], goes there, and waits until it can
+## be walked on.
+func _enter(floor_number: int) -> GameMap:
+	for below in range(1, floor_number):
+		GameState.clear_floor(below)
+	SceneRouter.enter_floor(floor_number)
+	return await _arrived(floor_number)
+
+
+## The map once it is [param floor_number]'s -- and [param path]'s, for a floor
+## of several maps -- with the fade over.
+func _arrived(floor_number: int, path := "") -> GameMap:
+	await _until(func() -> bool:
+		var map := SceneRouter.current_map() as GameMap
+		return map != null and map.floor_number == floor_number \
+				and (path.is_empty() or map.scene_file_path == path) \
+				and not GameState.is_input_locked(), 10.0)
+	await _wait(0.3)
+	return SceneRouter.current_map() as GameMap
+
+
+func _monsters_on(map: GameMap) -> Array[Monster]:
+	var monsters: Array[Monster] = []
+	for child in map.get_children():
+		if child is Monster:
+			monsters.append(child)
+	return monsters
+
+
+## Stands the player on [param cell] facing [param toward], brings
+## [param monster] in from that side, and lets it start the fight -- the way a
+## chase ends, or by [param opening] the way an ambush does. Positioned under
+## the lock, so nothing else on the map wanders into the fight first.
+func _start_fight(player: Player, monster: Monster, walls: TileMapLayer, cell: Vector2i,
+		toward: Vector2i, opening := Encounter.Opening.NORMAL) -> void:
+	GameState.push_input_lock()
+	player.global_position = walls.map_to_local(cell) + Vector2(0, 4)
+	player.facing = Vector2(toward)
+	monster.global_position = player.global_position + Vector2(toward) * 12.0
+	await _wait(0.3)
+	GameState.pop_input_lock()
+	monster.call(&"_engage", opening)
+
+
+## Ends the fight on the next command: every escort down, the first enemy
+## struck dead -- caught as [param shot], for the puff it goes out in, if
+## given. A miss leaves the fight on, and [method _end_fight] finishes it.
+func _finish(shot := "") -> void:
 	await _until_command()
-	await _capture("07g_combat_volcanic")
-	await _end_fight()
-	GameState.defense = defense
-	GameState.set_hp(GameState.total_max_hp())
+	var living := CombatManager.living_enemies()
+	if not living.is_empty():
+		for escort in living.slice(1):
+			escort.take_damage(escort.hp)
+		living[0].take_damage(living[0].hp - 1)
+		_submit(CombatAction.use(SkillLibrary.basic_attack(), living[0]))
+		if not shot.is_empty():
+			await _wait(0.4)
+			await _capture(shot)
+	await _until(func() -> bool: return not CombatManager.is_running() \
+			or CombatManager.is_awaiting_command(), 10.0)
+	if CombatManager.is_running():
+		await _end_fight()
+	else:
+		await _wait(1.3)
+
+
+## Puts every floor back the way a new climb finds it -- none cleared, no door
+## found -- for the boss fights, which need their doors uncleared, and the
+## labyrinth shots after the fights, which need them still hidden. A screenshot pass is not a playthrough: this reaches into
+## [GameState]'s own record rather than give the game a way to un-clear a floor.
+func _forget_the_climb() -> void:
+	GameState._cleared_floors.clear()
+	for floor_number in range(1, FloorTuning.TOP_FLOOR + 1):
+		GameState.set_flag(StringName("floor_%d_cleared" % floor_number), false)
+		GameState.set_flag(BossGate.found_flag(floor_number), false)
+
+
+## The middle of an open space in the field: a cell with floor four each way
+## across and three up and down -- or, on a floor with no room that big, as much
+## as there is. Never the map's centre: that can be rock, and a player set down
+## in rock is pushed out somewhere no formation starts from.
+func _room_cell(map: GameMap, walls: TileMapLayer, lab: Rect2i, player_at: Vector2) -> Array:
+	var used := walls.get_used_rect()
+	for reach: Vector2i in [Vector2i(4, 3), Vector2i(3, 2), Vector2i(2, 2)]:
+		for y in range(used.position.y + reach.y, used.end.y - reach.y):
+			for x in range(used.position.x + reach.x, used.end.x - reach.x):
+				var cell := Vector2i(x, y)
+				if lab.grow(2).has_point(cell) or Vector2(cell).distance_to(walls.local_to_map(player_at)) < 8.0:
+					continue
+				var open := true
+				for dy in range(-reach.y, reach.y + 1):
+					for dx in range(-reach.x, reach.x + 1):
+						if not map.is_standable(cell + Vector2i(dx, dy)):
+							open = false
+				if open:
+					return [cell, Vector2i.RIGHT]
+	push_warning("screenshot: no open room on this floor")
+	return [walls.local_to_map(player_at), Vector2i.RIGHT]
+
+
+## A cell in the middle of a field corridor: three wide one way, long the other.
+func _corridor_cell(map: GameMap, walls: TileMapLayer, lab: Rect2i) -> Array:
+	var used := walls.get_used_rect()
+	for y in range(used.position.y + 2, used.end.y - 2):
+		for x in range(used.position.x + 2, used.end.x - 2):
+			var cell := Vector2i(x, y)
+			if lab.grow(2).has_point(cell) or not map.is_standable(cell):
+				continue
+			for axis: Vector2i in [Vector2i.RIGHT, Vector2i.DOWN]:
+				var side := Vector2i(axis.y, axis.x)
+				var narrow := _run(map, cell, axis) >= 12
+				for along in range(-4, 5):
+					narrow = narrow and _run(map, cell + axis * along, side) == 3
+				if narrow and map.is_standable(cell + side) and map.is_standable(cell - side):
+					return [cell, axis]
+	push_warning("screenshot: no field corridor on this floor")
+	return _room_cell(map, walls, lab, walls.map_to_local(used.position))
+
+
+## How many standable cells run through [param cell] along [param axis].
+func _run(map: GameMap, cell: Vector2i, axis: Vector2i) -> int:
+	var count := 1
+	for sign in [1, -1]:
+		var at: Vector2i = cell + axis * sign
+		while map.is_standable(at) and count < 40:
+			count += 1
+			at += axis * sign
+	return count
+
+
+## Reads through whatever box is up.
+func _dismiss() -> void:
+	await _frames(4)
+	for _i in 12:
+		if not DialogueRunner.is_running():
+			return
+		await _wait(0.3)
+		await _press(&"interact")
+
+
+## [param shots] on one sheet at half size, [param columns] across, saved as
+## [param sheet_name]: for looking at a set side by side.
+func _sheet(shots: PackedStringArray, columns: int, sheet_name: String) -> void:
+	var cell := Vector2i(640, 360)
+	var rows := ceili(shots.size() / float(columns))
+	var sheet := Image.create(cell.x * columns, cell.y * maxi(rows, 1), false, Image.FORMAT_RGBA8)
+	for i in shots.size():
+		var shot := Image.load_from_file("%s/%s.png" % [SHOTS, shots[i]])
+		if shot == null:
+			continue
+		shot.convert(Image.FORMAT_RGBA8)
+		shot.resize(cell.x, cell.y, Image.INTERPOLATE_NEAREST)
+		sheet.blit_rect(shot, Rect2i(Vector2i.ZERO, cell), Vector2i((i % columns) * cell.x, (i / columns) * cell.y))
+	sheet.save_png("%s/%s.png" % [SHOTS, sheet_name])
 
 
 ## Waits for the fight to ask for a command, then a beat for the menu to lay out.

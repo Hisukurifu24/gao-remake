@@ -111,7 +111,7 @@ func total_speed() -> int:
 
 # --- Vitals ---
 ## Combat is the only thing that moves HP right now, but the HUD listens to the
-## signal rather than to the combat screen, so out-of-battle damage (traps,
+## signal rather than to the battle view, so out-of-battle damage (traps,
 ## poison on the map) will show up for free.
 
 func set_hp(value: int) -> void:

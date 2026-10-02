@@ -5,8 +5,8 @@ extends Node2D
 ## Added to the map by the combat view when a [BattleField] is staged, and gone
 ## when the fight is: it steps the fighters into formation, eases a camera onto
 ## them, and plays every blow on the real sprites -- the lunge, the flash, the
-## numbers, the shake. A view like the battle screen it replaces: it listens to
-## [CombatManager] and decides nothing.
+## numbers, the shake. A view like every other: it listens to [CombatManager]
+## and decides nothing.
 ##
 ## Who stands in for an enemy is the caller's business: a roaming [Monster], or
 ## a [FoeFigure] a [BossGate] stepped out of its door. Either answers
@@ -58,7 +58,7 @@ const BYSTANDER_ALPHA := 0.25
 
 ## How far the camera closes in on a fight that fits: 2 frames 160x90 of world.
 ## A fight that doesn't is drawn at 1, the UI's own scale (see [method fits]).
-static var zoom := 2.0
+const ZOOM := 2.0
 ## The screen the fighters may cover, in screen units: all of it across, and
 ## above the band the menus take.
 const CLOSE_ROOM := Vector2(320, 180.0 - FRAME_LIFT * 2.0)
@@ -80,7 +80,7 @@ var _shake: Tween = null
 var _bystanders: Array[Sprite2D] = []
 var _pointer: Sprite2D
 var _bob: Tween = null
-## The zoom this fight is framed at: [member zoom], or 1 if it doesn't fit.
+## The zoom this fight is framed at: [constant ZOOM], or 1 if it doesn't fit.
 var _zoom := 1.0
 
 
@@ -173,7 +173,7 @@ func _close_in() -> void:
 		_camera.position = field.map.to_local(_player_camera.get_screen_center_position())
 	field.map.add_child(_camera)
 	_camera.make_current()
-	_zoom = zoom if fits(field.bodies.size, zoom) else 1.0
+	_zoom = ZOOM if fits(field.bodies.size, ZOOM) else 1.0
 	# The box fits was asked about, centred in the room above the menus: lifted
 	# in screen units, so the same at either zoom.
 	var framed := field.bodies.grow_side(SIDE_TOP, HEADROOM)

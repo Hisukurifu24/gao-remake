@@ -33,17 +33,6 @@ enum Opening {
 ## Renames the first enemy. Generated bosses get their name from
 ## [method FloorTuning.boss_name], which the [EnemyType] template can't know.
 @export var boss_name := ""
-@export var backdrop := Color(0.07, 0.08, 0.13)
-## The floor this fight stands on, tiled across the lower half of the screen.
-## Filled in by [Bestiary] from the biome, so the battle draws the ground the
-## player was walking on without [CombatManager] ever learning what a map is.
-@export var ground_texture: Texture2D
-## What stands on the horizon behind the fight -- the biome's tree line or rock
-## face, with its scatter at the foot -- built by [Bestiary] the same way.
-@export var scenery: Texture2D
-## A painted sky to hang behind it all, for a biome that has one (the sky's
-## clouds). Null draws the glow.
-@export var sky_texture: Texture2D
 ## Where this fight happened, for the victory text. 0 for fights outside a floor.
 @export var floor_number := 0
 

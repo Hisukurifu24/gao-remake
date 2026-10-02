@@ -1,9 +1,8 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="2_hud"]
 [ext_resource type="PackedScene" path="res://ui/dialogue_box.tscn" id="3_dialogue"]
-[ext_resource type="PackedScene" path="res://ui/combat_screen.tscn" id="4_combat"]
 [ext_resource type="PackedScene" path="res://ui/inventory_screen.tscn" id="5_inventory"]
 [ext_resource type="PackedScene" path="res://ui/quest_tracker.tscn" id="6_tracker"]
 [ext_resource type="PackedScene" path="res://ui/quest_journal.tscn" id="7_journal"]
@@ -14,8 +13,6 @@
 script = ExtResource("1_main")
 
 [node name="WorldRoot" type="Node2D" parent="."]
-
-[node name="CombatScreen" parent="." instance=ExtResource("4_combat")]
 
 [node name="Hud" parent="." instance=ExtResource("2_hud")]
 

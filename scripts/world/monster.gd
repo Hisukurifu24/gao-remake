@@ -173,7 +173,8 @@ func _engage(opening: Encounter.Opening) -> void:
 
 
 ## Asks the map where the fight can stand and announces it, so the view fights
-## it where you are. Nowhere to stand leaves it to the battle screen.
+## it where you are. Nowhere to stand leaves it unstaged -- the menu over the
+## map, the monster where it was -- which the floor test proves never happens.
 func _stage(encounter: Encounter) -> void:
 	var map := get_parent() as GameMap
 	var player := _player()

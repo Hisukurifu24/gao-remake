@@ -107,7 +107,6 @@ static func single_encounter(type: EnemyType, at_level: int, floor_number := 0) 
 	encounter.enemies = [type]
 	encounter.level = maxi(1, at_level)
 	encounter.floor_number = floor_number
-	_set_stage(encounter, maxi(1, floor_number))
 	return encounter
 
 
@@ -122,7 +121,6 @@ static func random_encounter(floor_number: int, rng: RandomNumberGenerator) -> E
 	encounter.id = StringName("floor_%d_roam" % floor_number)
 	encounter.level = FloorTuning.enemy_level(floor_number)
 	encounter.floor_number = floor_number
-	_set_stage(encounter, floor_number)
 	# One enemy low down, up to three once the player has a party's worth of
 	# skills to spend on them.
 	var count := rng.randi_range(1, clampi(1 + floor_number / 15, 1, 3))
@@ -149,7 +147,6 @@ static func boss_encounter(floor_number: int) -> Encounter:
 	encounter.floor_number = floor_number
 	encounter.is_boss = true
 	encounter.can_flee = false
-	_set_stage(encounter, floor_number)
 	encounter.boss_name = definition.boss_name if not definition.boss_name.is_empty() \
 			else FloorTuning.boss_name(floor_number)
 	encounter.display_name = encounter.boss_name
@@ -208,192 +205,3 @@ static func _escort_for(floor_number: int) -> EnemyType:
 		return null
 	var pool := pool_for_floor(floor_number)
 	return pool[0] if not pool.is_empty() else null
-
-
-## Everything the battle screen draws of the place: backdrop colour, ground,
-## scenery and sky, all from the floor's biome.
-static func _set_stage(encounter: Encounter, floor_number: int) -> void:
-	encounter.backdrop = _backdrop(floor_number)
-	encounter.ground_texture = _ground(floor_number)
-	encounter.scenery = _scenery(floor_number)
-	var biome := FloorRegistry.get_biome(floor_number)
-	encounter.sky_texture = biome.backdrop if biome != null else null
-
-
-## The battle backdrop, tinted by the floor's biome so a cave fight doesn't look
-## like a sky-garden fight.
-static func _backdrop(floor_number: int) -> Color:
-	var biome := FloorRegistry.get_biome(floor_number)
-	var base := Color(0.10, 0.11, 0.17)
-	return base * biome.ambient_tint if biome != null else base
-
-
-## One biome's floor tile, cut out for the battle screen to tile across its
-## ground. Cached per biome: the image copy is cheap but it is not free, and a
-## climb fights hundreds of battles on the same ten floors of art.
-static var _grounds: Dictionary[StringName, Texture2D] = {}
-
-
-## The ground a fight on [param floor_number] stands on, or null for a biome
-## with no tileset behind it -- the screen falls back to a flat backdrop.
-static func _ground(floor_number: int) -> Texture2D:
-	var biome := FloorRegistry.get_biome(floor_number)
-	if biome == null or biome.tile_set == null:
-		return null
-	if _grounds.has(biome.id):
-		return _grounds[biome.id]
-	var tile := _cut_tile(biome.tile_set, biome.floor_tile)
-	_grounds[biome.id] = tile
-	return tile
-
-
-## How wide a scenery band is, in pixels: the screen's width, so one band spans a
-## 320x180 view. A wider window tiles it.
-const SCENERY_WIDTH := 320
-## How many pieces of the biome's scatter stand at the foot of the band.
-const SCENERY_DECOR := 7
-## A rock biome's ridge is up to this many tiles high.
-const SCENERY_RIDGE := 3
-## The eight neighbours, clockwise from north, as offsets and as peering bits.
-const BLOB_DIRECTIONS: Array[Vector2i] = [
-	Vector2i(0, -1), Vector2i(1, -1), Vector2i(1, 0), Vector2i(1, 1),
-	Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1),
-]
-const BLOB_NEIGHBOURS: Array[TileSet.CellNeighbor] = [
-	TileSet.CELL_NEIGHBOR_TOP_SIDE, TileSet.CELL_NEIGHBOR_TOP_RIGHT_CORNER,
-	TileSet.CELL_NEIGHBOR_RIGHT_SIDE, TileSet.CELL_NEIGHBOR_BOTTOM_RIGHT_CORNER,
-	TileSet.CELL_NEIGHBOR_BOTTOM_SIDE, TileSet.CELL_NEIGHBOR_BOTTOM_LEFT_CORNER,
-	TileSet.CELL_NEIGHBOR_LEFT_SIDE, TileSet.CELL_NEIGHBOR_TOP_LEFT_CORNER,
-]
-static var _sceneries: Dictionary[StringName, Texture2D] = {}
-
-
-## The horizon a fight on [param floor_number] happens in front of, or null for a
-## biome with no tileset. Cached per biome, like the ground.
-static func _scenery(floor_number: int) -> Texture2D:
-	var biome := FloorRegistry.get_biome(floor_number)
-	if biome == null or biome.tile_set == null:
-		return null
-	if not _sceneries.has(biome.id):
-		_sceneries[biome.id] = _compose_scenery(biome)
-	return _sceneries[biome.id]
-
-
-## The biome's own walls, as a band to stand on the horizon. A forest is a tree
-## line two deep, staggered like the map's forest edge. Rock is a ridge: columns
-## of the wall mass one to three tiles high, each tile picked for its neighbours
-## exactly as the map's autotiling would pick it, so the band has the biome's own
-## rims and faces wherever its outline turns. A biome with a painted sky (the
-## sky's floating lawns) has no wall worth showing, only its scatter. Then a few
-## pieces of that scatter at the foot. Laid out from the biome id's hash, so a
-## biome always looks the same -- and wrapping round, so a wide window can tile it.
-static func _compose_scenery(biome: BiomeKit) -> Texture2D:
-	var source := biome.tile_set.get_source(0) as TileSetAtlasSource
-	if source == null or source.texture == null:
-		return null
-	var sheet := source.texture.get_image()
-	if sheet == null:
-		return null
-	if sheet.is_compressed():
-		sheet.decompress()
-	sheet.convert(Image.FORMAT_RGBA8)
-	var tile := biome.tile_set.tile_size
-	var columns := SCENERY_WIDTH / tile.x
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(biome.id)
-
-	var rows := 1
-	var band: Array = []  # [atlas coords, pixel position]
-	if biome.wall_style == BiomeKit.WallStyle.TREES and not biome.tree_tiles.is_empty():
-		rows = 3
-		for row in 2:
-			for i in range(-1, columns / 2 + 1):
-				var tree: Vector2i = biome.tree_tiles[rng.randi() % biome.tree_tiles.size()]
-				band.append([tree, Vector2i(i * tile.x * 2 + (tile.x if row == 0 else 0), row * tile.y)])
-	elif biome.backdrop == null and biome.wall_terrain_set >= 0:
-		rows = SCENERY_RIDGE
-		var shapes := _blob_tiles(biome, source)
-		var heights: Array[int] = []
-		while heights.size() < columns:
-			var height := rng.randi_range(1, SCENERY_RIDGE)
-			for _run in rng.randi_range(2, 4):
-				heights.append(height)
-		heights.resize(columns)
-		for x in columns:
-			for y in range(rows - heights[x], rows):
-				var mask := 0
-				for bit in BLOB_DIRECTIONS.size():
-					var next := Vector2i(x, y) + BLOB_DIRECTIONS[bit]
-					# Wraps sideways; open above the ridge and in front of it.
-					if next.y < rows and next.y >= rows - heights[posmod(next.x, columns)]:
-						mask |= 1 << bit
-				var coords: Vector2i = shapes.get(_blob_mask(mask), Vector2i(-1, -1))
-				if coords != Vector2i(-1, -1):
-					band.append([coords, Vector2i(x, y) * tile])
-
-	var image := Image.create_empty(SCENERY_WIDTH, rows * tile.y, false, Image.FORMAT_RGBA8)
-	for piece: Array in band:
-		_stamp(image, sheet, source, piece[0], piece[1])
-	if not biome.decor_tiles.is_empty():
-		for i in SCENERY_DECOR:
-			var decor: Vector2i = biome.decor_tiles[rng.randi() % biome.decor_tiles.size()]
-			var size := source.get_tile_texture_region(decor).size
-			var x := (SCENERY_WIDTH * i) / SCENERY_DECOR + rng.randi_range(0, SCENERY_WIDTH / SCENERY_DECOR - size.x)
-			_stamp(image, sheet, source, decor, Vector2i(x, rows * tile.y - size.y))
-	return ImageTexture.create_from_image(image)
-
-
-## Every wall tile of [param biome]'s blob by its neighbour mask (bits in
-## [constant BLOB_DIRECTIONS] order, corners normalised by [method _blob_mask]).
-static func _blob_tiles(biome: BiomeKit, source: TileSetAtlasSource) -> Dictionary[int, Vector2i]:
-	var shapes: Dictionary[int, Vector2i] = {}
-	for i in source.get_tiles_count():
-		var coords := source.get_tile_id(i)
-		var data := source.get_tile_data(coords, 0)
-		if data.terrain_set != biome.wall_terrain_set or data.terrain != biome.wall_terrain:
-			continue
-		var mask := 0
-		for bit in BLOB_NEIGHBOURS.size():
-			if data.get_terrain_peering_bit(BLOB_NEIGHBOURS[bit]) == biome.wall_terrain:
-				mask |= 1 << bit
-		mask = _blob_mask(mask)
-		if not shapes.has(mask):
-			shapes[mask] = coords
-	return shapes
-
-
-## A corner only counts when both sides beside it are wall -- the blob's rule, and
-## the reason there are 47 tiles rather than 256.
-static func _blob_mask(mask: int) -> int:
-	for corner: int in [1, 3, 5, 7]:
-		var before := (corner + 7) % 8
-		var after := (corner + 1) % 8
-		if mask & (1 << before) == 0 or mask & (1 << after) == 0:
-			mask &= ~(1 << corner)
-	return mask
-
-
-## Blends one atlas tile (of any size) onto [param image] at [param at].
-static func _stamp(image: Image, sheet: Image, source: TileSetAtlasSource, coords: Vector2i,
-		at: Vector2i) -> void:
-	var region := source.get_tile_texture_region(coords)
-	image.blend_rect(sheet, region, at)
-
-
-## The [param slot]-th semantic tile of [param tile_set] as a texture in its own
-## right. An [AtlasTexture] would be the obvious way to name a region, but
-## [TextureRect] cannot tile one -- so the pixels are copied out into a plain
-## [ImageTexture] instead.
-static func _cut_tile(tile_set: TileSet, slot: int) -> Texture2D:
-	var source := tile_set.get_source(0) as TileSetAtlasSource
-	if source == null or source.texture == null:
-		return null
-	var coords := Vector2i(slot, 0)
-	if not source.has_tile(coords):
-		return null
-	var sheet := source.texture.get_image()
-	if sheet == null:
-		return null
-	if sheet.is_compressed():
-		sheet.decompress()
-	return ImageTexture.create_from_image(sheet.get_region(source.get_tile_texture_region(coords)))

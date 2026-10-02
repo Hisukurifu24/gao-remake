@@ -2,7 +2,7 @@ extends CanvasLayer
 ## The bag, drawn.
 ##
 ## Purely a view, exactly like [code]ui/dialogue_box.gd[/code] and
-## [code]ui/combat_screen.gd[/code]: it shows what [Inventory] holds and answers
+## [code]ui/battle_hud.gd[/code]: it shows what [Inventory] holds and answers
 ## with [method Inventory.use] / [method Inventory.equip] / [method
 ## Inventory.move_stack] / [method Inventory.drop_stack]. It decides nothing --
 ## an action greyed out here is also refused there, because the autoload is the
@@ -112,7 +112,7 @@ func close() -> void:
 
 
 ## The bag opens from the overworld and nowhere else: not mid-conversation, not
-## mid-fight (the combat screen has its own Item command), not during a map fade.
+## mid-fight (the battle menu has its own Item command), not during a map fade.
 func _can_open() -> bool:
 	return not GameState.is_input_locked() \
 			and not DialogueRunner.is_running() \

@@ -124,17 +124,6 @@ func _test_content() -> void:
 			mute.append(status.id)
 	_check(mute.is_empty(), "every status shows a bubble (%s)" % mute)
 
-	# The battle draws the place: every band's fights stand on its ground in front
-	# of its scenery -- the tree line, the ridge, or (the sky) its painted clouds.
-	var bare := PackedStringArray()
-	for band in FloorRegistry.BIOME_BANDS:
-		var encounter := Bestiary.boss_encounter(band["through"])
-		var scenery := encounter.scenery
-		if encounter.ground_texture == null or scenery == null or scenery.get_width() < 320 \
-				or (scenery.get_height() < 32 and encounter.sky_texture == null):
-			bare.append(band["biome"])
-	_check(bare.is_empty(), "every band's battle has ground and scenery (%s)" % bare)
-
 
 func _test_scaling() -> void:
 	print("\n-- scaling --")
@@ -499,7 +488,7 @@ func _win_rate(floor_number: int, level: int, trials: int) -> int:
 ## The auto-player.
 ##
 ## Every branch falls back to a plain attack when the runner refuses the move,
-## exactly as the combat screen does -- it leaves the menu up rather than
+## exactly as the battle menu does -- it leaves the menu up rather than
 ## consuming the turn. A policy that shrugs and returns leaves the turn loop
 ## parked forever with nobody to answer it, which is a hung suite, not a
 ## failing one.

@@ -12,8 +12,8 @@ extends Resource
 
 @export var id: StringName = &""
 @export var display_name := ""
-## The front-facing sprite drawn in the combat screen. Pack art arrives small --
-## 16px monsters, ~60px bosses -- and the screen scales it by a whole number.
+## The front-facing sprite, for anything with no [member sheet] to walk: a
+## monster on the map, or a boss's [FoeFigure] stepping out of its door.
 @export var battler: Texture2D
 ## Its walk sheet on the map, [member sheet_frames] columns by rows. A 4x4 sheet
 ## is four directions (columns down, up, left, right) by a walk cycle; an Nx1

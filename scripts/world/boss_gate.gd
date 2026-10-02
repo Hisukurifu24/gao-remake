@@ -149,7 +149,8 @@ func _fight() -> void:
 ## The boss -- and its escort -- step out of the door to fight where you stand:
 ## a figure for each enemy fades in on the threshold as the door fades aside,
 ## the map finds them a formation, and they walk out to it. Nowhere to stand
-## leaves the fight to the old screen, with the door where it was.
+## leaves the fight unstaged, the door where it was and nobody out of it -- which
+## the floor test proves never happens.
 func _step_out(encounter: Encounter) -> void:
 	var map := get_parent() as GameMap
 	var player := get_tree().get_first_node_in_group(&"player") as Player

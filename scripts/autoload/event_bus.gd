@@ -44,8 +44,8 @@ signal inventory_changed()
 ## A fight is about to start where the player stands, and this is where
 ## everyone in it will stand. Emitted by whoever starts the fight, just before
 ## [method CombatManager.start]; the view pairs the field's nodes with the
-## combatants. A fight with no field (a test, nowhere to stand) is drawn on the
-## battle screen instead.
+## combatants. A fight with no field (a test, nowhere to stand) is drawn by
+## nothing but [BattleHud]'s plates.
 signal battle_staged(field: BattleField)
 signal combat_started(encounter_id: StringName)
 signal combat_ended(victory: bool)

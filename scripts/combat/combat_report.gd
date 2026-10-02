@@ -3,7 +3,7 @@ extends RefCounted
 ## What just happened, in a form a view can draw.
 ##
 ## [CombatManager] emits one of these per resolved action (and per status tick)
-## instead of reaching into the combat screen. [member text] is the log line;
+## instead of reaching into the battle view. [member text] is the log line;
 ## [member hits] is what to float over which sprite. A headless test can assert
 ## on both without a single node existing.
 

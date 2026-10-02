@@ -228,7 +228,7 @@ timed or failable quests, no branching quests where a choice picks between two
 endings, and **the tracker shows one quest at a time** rather than every live
 objective.
 
-### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3 ✅, §5 ◐ (battle screen reopened → §6, fight on the map)
+### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3, §5, §6 ✅ (the battle screen is gone: fights happen on the map); §4 next
 
 Playtest feedback on the finished loop, and it lands on the overworld rather than on any
 one system: **the floors work, but exploring them isn't a game yet.** The camera shows the
@@ -727,7 +727,7 @@ feel like enough yet".
   above at once: the place is the map you were standing on, drawn by the art that
   already works; the player is the player; depth is the map's own y-sort.
 
-#### 6. Fight on the map (Chrono Trigger) — *decided 2026-10-01; spike ✅ (go), staging ✅, view ✅, bosses ✅, juice ✅, steps 6–7 to do*
+#### 6. Fight on the map (Chrono Trigger) — ✅ *decided 2026-10-01, done 2026-10-02*
 
 **The battle stops being a screen and becomes a moment on the floor.** No fade, no
 backdrop: when a monster reaches you, the two of you step apart into a formation where
@@ -941,15 +941,33 @@ separate* is the reason this is a view job and not a combat rewrite.
    the ground cut), the combat test's "every band has scenery" check, the old
    `combat_screen.tscn`. Update CLAUDE.md's combat section — its two "The battle draws…"
    bullets describe something that will no longer exist.
+   **✅ 2026-10-02.** All of it gone, ~730 lines: the screen and its scene, the four
+   `Encounter` fields, `Bestiary._set_stage()` and the ground/scenery composers, the
+   combat test's band check, and the three spike tools (their shots are
+   `screenshot.gd`'s now). `BattleStage.zoom` became the constant `ZOOM`, since ×1 was
+   only ever the spike's comparison. **A fight with no field is now `BattleHud`'s plates
+   over the map and nothing else** -- a test's, a tool's -- and in play it can't
+   happen, because the floor test's two sweeps prove a formation everywhere a fight can
+   start. CLAUDE.md's combat section describes the stage instead.
 7. **Tests and the screenshot pass.** The smoke test's combat section stops asserting
    `CombatScreen.visible` and asserts the staging instead: a field was announced, every
    spot is floor, the battle camera was current and the player's is current again, the
    player ends on a cell their body fits, the lock is released. `tools/screenshot.gd`
    frames fights in a room, a corridor, a dark passage, a boss room, and one per band.
+   **✅ 2026-10-02.** The smoke test checks exactly that list for a monster fight and for
+   Illfang (`_check_staging`, 14 checks; the player is also left on the formation's
+   spot). `tools/screenshot.gd`'s combat pass is the spikes folded together, on Floor 3
+   (Floor 2's labyrinth is shot later and must not be walked into first): the menu,
+   skills and items, a slant mid-swing and landing, the fall, a corridor, a dark
+   passage, an ambush (alarm, claw, Vorpal Strike's effect, bubbles, a heal) as
+   `05`–`07i`; Illfang, Nerith, Karvos and floor 52's boss with its escort stepping out
+   (`08_boss_*`); one monster fight per band (`09_band_*`, and `09_bands_sheet.png`).
+   Getting to each boss clears the floors below it, so the pass forgets the climb
+   afterwards (`_forget_the_climb`) for the labyrinth shots that need doors still hidden.
 
-**Knock-on rules to revisit.** `Monster.CALM_SECONDS` was sized against the combat
+**Knock-on rules to revisit.** `Monster.CALM_SECONDS` (2 s) was sized against the combat
 screen's outro *covering the map*; with nothing covering it, the calm may want to be
-shorter. *Fast, skippable combat* (under *Extending it*) gets more valuable, since a fight
+shorter -- but no shorter than `BattleHud.OUTRO_TIME` plus the stage's ease home (1.55 s). *Fast, skippable combat* (under *Extending it*) gets more valuable, since a fight
 is now an interruption of the walk rather than a separate screen — `step_delay` is still
 the hook.
 
@@ -1252,6 +1270,12 @@ not there until you walk into its room. **M** opens a map of what you have seen,
 remembers the passages you walked and marks the door once you have found it; losing the
 fight sends you back to the entrance, but the door stays found.
 
+And a fight happens where you are. A boar that reaches you squares up on the spot, the
+camera closes in on the two of you, a slim menu comes up over the map and the blows land
+on the real sprites — slashes, claws, bubbles over whoever is poisoned. Deep in the
+labyrinth it is a pool of light in the dark. A boss steps out of its door to meet you.
+When it's over the camera eases back and you walk on from where you stood.
+
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
 
@@ -1273,11 +1297,11 @@ bottom only goes up.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 73-check game loop test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 87-check game loop test
 "$GODOT" --headless --path . res://test/floor_test.tscn     # 128-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 88-check combat test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 87-check combat test
 "$GODOT" --headless --path . res://test/quest_test.tscn     # 173-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
@@ -1309,16 +1333,13 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    but no floor waits on them.
 2. **M5.5 — Exploration feel, before any new floor.** Camera zoom, moving monsters and a
    boss room you have to find (§3: labyrinth, door that shows from inside, fog of war and
-   the **M** map) are in, and §5's playtest notes are answered: the labyrinth is several
-   screens of it in the dark, the map is ink on parchment, the battle has a horizon and
-   the player on the field. The map was signed off in playtest; **the battle screen was
-   not**, and the answer is to drop the battle screen and **fight on the map** (§6,
-   Chrono Trigger-style): a spike with a go/no-go gate first, then staging, the
-   world-space view, bosses, the pack's FX, and deleting the old stage. No new art
-   needed. **Then the §4 design pass** on what floors are still
-   missing, and the authored-floor revisit §3 left open (Illfang, Nerith and Karvos all stand at
-   the obvious end of their layouts). Floor 40 should be laid out after §4, for the same
-   reason as before.
+   the **M** map) are in, §5's playtest notes are answered (the labyrinth is several
+   screens of it in the dark, the map is ink on parchment), and the battle screen that
+   failed playtest is gone: **fights happen on the map** (§6, done 2026-10-02 — staging,
+   the world-space view, bosses stepping out of their doors, the pack's FX). **Next, the
+   §4 design pass** on what floors are still missing, and the authored-floor revisit §3
+   left open (Illfang, Nerith and Karvos all stand at the obvious end of their layouts).
+   Floor 40 should be laid out after §4, for the same reason as before.
 3. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
    a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest
    each and an authored boss — Lanternfall took that from a design job to a content job, and

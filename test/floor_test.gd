@@ -38,7 +38,7 @@ var _lab_walks: Array[int] = []
 var _formations := 0
 var _hidden_formations := 0
 var _slid_formations := 0
-## Monster fights too tall for [member BattleStage.zoom], framed at 1 instead.
+## Monster fights too tall for [constant BattleStage.ZOOM], framed at 1 instead.
 var _wide_formations := 0
 var _unstaged: PackedStringArray = PackedStringArray()
 ## Gathered by [method _audit_boss_formations] across every floor's door.
@@ -320,8 +320,8 @@ func _run() -> void:
 			_slid_formations, _wide_formations])
 	# The boss steps out of its door to fight where you challenged it. Swept from
 	# every cell the door can be challenged from, on every floor: a door with
-	# nowhere for its boss to stand drops back to the old screen, on one floor out
-	# of a hundred.
+	# nowhere for its boss to stand is fought with nobody on the map, on one floor
+	# out of a hundred.
 	_check(_unstaged.is_empty() and _boss_doors == FloorTuning.TOP_FLOOR and _boss_formations > 1000,
 			"a boss fight can be staged from every cell of every door (%d doors, %d cells)" % [
 				_boss_doors, _boss_formations])
@@ -329,7 +329,7 @@ func _run() -> void:
 	# it reads fine. It is what the solver settles for when a boss room's near
 	# side has no room, and a count that jumps means the rooms have changed shape.
 	print("       (%d of those close in to x%d, the rest are framed at x1; %d face the boss with their back to its door)" % [
-			_boss_close, int(BattleStage.zoom), _boss_from_behind])
+			_boss_close, int(BattleStage.ZOOM), _boss_from_behind])
 
 
 # --- helpers ---------------------------------------------------------------
@@ -622,8 +622,8 @@ func _audit_labyrinth(map: Node2D, walls: TileMapLayer, gate: Node, start: Vecto
 ## every formation stands where it claims to: on floor in [param reachable], the
 ## player no further from where they stood than a short walk inside the slide
 ## box, the enemies at the end of a clear lane. The in-place version of an
-## unreachable door: a fight with nowhere to stand falls back to the old screen
-## in one corner of one floor out of a hundred, and never where anyone playtests.
+## unreachable door: a fight with nowhere to stand is a menu with nobody on the
+## map, in one corner of one floor out of a hundred, and never where anyone playtests.
 ##
 ## The contact side rotates with the cell, so every axis gets asked first
 ## somewhere; existence doesn't depend on it, since the solver tries all four.
@@ -652,7 +652,7 @@ func _formation_problem(map: Node2D, walls: TileMapLayer, start: Vector2i, reach
 		if field == null:
 			return "%s cannot stage a fight at %s" % [label, cell]
 		_formations += 1
-		if not BattleStage.fits(field.bodies.size, BattleStage.zoom):
+		if not BattleStage.fits(field.bodies.size, BattleStage.ZOOM):
 			_wide_formations += 1
 		var fighters: Array[Vector2i] = field.enemy_cells.duplicate()
 		fighters.append(field.player_cell)
@@ -753,7 +753,7 @@ func _boss_formation_problem(map: GameMap, walls: TileMapLayer, door: Vector2i, 
 		for j in range(i + 1, rects.size()):
 			if rects[i].intersects(rects[j]):
 				return "draws two of its fighters over each other from %s" % cell
-	if BattleStage.fits(field.bodies.size, BattleStage.zoom):
+	if BattleStage.fits(field.bodies.size, BattleStage.ZOOM):
 		_boss_close += 1
 	return ""
 

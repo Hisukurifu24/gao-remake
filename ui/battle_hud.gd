@@ -8,9 +8,10 @@ extends CanvasLayer
 ## decides nothing -- a skill greyed out here is also refused there, because the
 ## runner is the one place a rule can't be talked around.
 ##
-## The fight itself is drawn elsewhere -- on the map by a [BattleStage], which
-## this puts there when a fight is staged, or by the old battle screen for one
-## that isn't -- and the player's vitals are the HUD's own plate, which stays up.
+## The fight itself is drawn on the map by a [BattleStage], which this puts
+## there when a fight is staged -- a fight that isn't (a test, a tool) is these
+## plates over the map and nothing else -- and the player's vitals are the HUD's
+## own plate, which stays up.
 ## What those need from the menu is which enemy the cursor is on: [signal aimed].
 
 ## The cursor moved onto [param target] while choosing who a skill lands on, or

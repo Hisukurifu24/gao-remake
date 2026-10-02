@@ -20,6 +20,10 @@ var _last_speaker := ""
 ## How many figures a [BossGate] stood on the map for the last fight staged, or
 ## -1 for none. A member, not a captured local: lambdas capture by value.
 var _staged_figures := -1
+## The last field announced, and the camera the screen was looking through when
+## that fight asked for a command. Members for the same reason.
+var _field: BattleField = null
+var _fight_camera: Camera2D = null
 
 
 func _ready() -> void:
@@ -42,6 +46,8 @@ func _run() -> void:
 
 	await _idle()
 	_check(EventBus != null and GameState != null and SceneRouter != null, "autoloads are registered")
+	EventBus.battle_staged.connect(_on_battle_staged)
+	CombatManager.command_requested.connect(_on_command_requested)
 
 	# --- boot into the town ---
 	await _until_unlocked()
@@ -133,8 +139,11 @@ func _run() -> void:
 	var monster: Node2D = field.get_node("Monster0")
 	_check(monster.is_available(), "the field has a monster standing on it")
 	var monster_xp := GameState.xp
+	_field = null
+	_fight_camera = null
 	monster.interact(field_player)
 	await _auto_battle()
+	await _check_staging(field as GameMap, field_player as Player, "a monster fight")
 	_check(GameState.xp > monster_xp or GameState.level > 1, "beating a monster pays XP")
 	_check(not is_instance_valid(monster) or monster.is_queued_for_deletion(),
 			"a beaten monster leaves the map")
@@ -152,13 +161,14 @@ func _run() -> void:
 
 	var gate: Node2D = field.get_node("BossGate")
 	_staged_figures = -1
-	EventBus.battle_staged.connect(_on_battle_staged)
+	_field = null
+	_fight_camera = null
 	# Challenged from the doorstep, as it is in play: the boss steps out to where
 	# you stand, and the spawn point is the other side of the map.
 	field_player.global_position = gate.global_position + Vector2(0, 28)
 	gate.interact(field_player)
 	await _auto_battle()
-	EventBus.battle_staged.disconnect(_on_battle_staged)
+	await _check_staging(field as GameMap, field_player as Player, "the boss fight")
 	_check(GameState.is_floor_cleared(1), "beating the boss clears the floor")
 	# The boss stepped out of its door: Illfang and the sentinel stood on the map,
 	# and nothing of them is left on it now.
@@ -487,7 +497,50 @@ func _close_dialogue(timeout_frames := 600) -> void:
 ## the way, then attack until it is over. Attack is always legal, so this can
 ## never park the turn loop waiting for a command it refused.
 func _on_battle_staged(field: BattleField) -> void:
+	_field = field
 	_staged_figures = field.enemy_nodes.filter(func(node: Node2D) -> bool: return node is FoeFigure).size()
+
+
+func _on_command_requested(_actor: Combatant) -> void:
+	_fight_camera = get_viewport().get_camera_2d()
+
+
+## The fight just over was fought on the map and handed it back: a field was
+## announced, every spot on it is floor, the fight was watched through the
+## stage's camera and the player's is current again, and the player is left on
+## the spot the formation gave them, in a place their body fits, free to move.
+## What the old battle screen's visibility used to stand in for.
+func _check_staging(map: GameMap, player: Player, what: String) -> void:
+	var field := _field
+	_check(field != null and field.map == map, "%s is staged on the map" % what)
+	if field == null:
+		return
+	var walls := map.get_node("Walls") as TileMapLayer
+	var cells: Array[Vector2i] = [field.player_cell]
+	cells.append_array(field.enemy_cells)
+	_check(cells.all(func(cell: Vector2i) -> bool: return walls.get_cell_source_id(cell) == -1),
+			"every spot of %s is floor" % what)
+	var own := player.get_node("Camera2D") as Camera2D
+	_check(_fight_camera != null and _fight_camera != own,
+			"%s is watched through the stage's camera" % what)
+	# The camera eases home after the lock is off: the player may already walk.
+	for _i in 120:
+		if get_viewport().get_camera_2d() == own:
+			break
+		await _idle()
+	_check(get_viewport().get_camera_2d() == own, "and the player's camera is current again after")
+	_check(player.position.is_equal_approx(field.player_spot),
+			"the player is left on the spot %s gave them" % what)
+	await _physics()
+	var body := player.get_node("CollisionShape2D") as CollisionShape2D
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = body.shape
+	query.transform = body.global_transform
+	query.collision_mask = 1
+	query.exclude = [player.get_rid()]
+	_check(player.get_world_2d().direct_space_state.intersect_shape(query, 1).is_empty(),
+			"and their body fits where they stand")
+	_check(not GameState.is_input_locked(), "the lock is off once %s is over" % what)
 
 
 func _auto_battle(timeout_frames := 4000) -> void:
