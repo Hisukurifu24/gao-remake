@@ -89,7 +89,7 @@ needs a number to watch, which is a system's worth of tuning for a bag that
 currently holds potions and one coat.
 
 Deliberately deferred: **no currency and no shops** (Argo sells a map for a flag,
-not for money), no crafting despite every monster dropping a material, no
+not for money -- *decided 2026-10-04 as M5.6, Col*), no crafting despite every monster dropping a material, no
 filtering or splitting a stack in the grid, and item effects are heal / cure /
 apply-a-status only — nothing throws a bomb at an enemy yet.
 
@@ -228,7 +228,7 @@ timed or failable quests, no branching quests where a choice picks between two
 endings, and **the tracker shows one quest at a time** rather than every live
 objective.
 
-### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3, §5, §6 ✅ (the battle screen is gone: fights happen on the map); §4 under way (safe zones and trapped chests in; puzzles next)
+### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3, §5, §6 ✅ (the battle screen is gone: fights happen on the map); §4 under way (safe zones, trapped chests and the first three puzzles in; statues and the cracked wall next)
 
 Playtest feedback on the finished loop, and it lands on the overworld rather than on any
 one system: **the floors work, but exploring them isn't a game yet.** The camera shows the
@@ -585,7 +585,7 @@ predictably in the farthest room and often on screen.
   wants a layout change to be worth hiding — a door at the end of a straight road is found
   by walking down it.*
 
-#### 4. "Something's missing" in floor structure — design pass *(decided 2026-10-03: safe zones ✅, trapped chests ✅, puzzles)*
+#### 4. "Something's missing" in floor structure — design pass *(decided 2026-10-03: safe zones ✅, trapped chests ✅, puzzles — first pass ✅)*
 The layouts aren't bad but don't hold attention yet. Decide what the missing thing is
 **after** 1–3 land, because a close camera, moving monsters and a hidden door will change
 the answer. Candidates to weigh:
@@ -646,7 +646,115 @@ whatever §4 adds.
   to make room for "camp". *Not taken:* traps on authored floors (the revisit), a trap
   that hurts (HP is what the alarm's pack is for), multi-enemy alarm fights (the party is
   one — escorts are capped at one for the same reason).
-- [ ] **Puzzles.** Candidates to bring to the user once the chests are in.
+- [ ] **Puzzles.** *First pass landed 2026-10-04: wisp, braziers, sigil vault* (below).
+  *Candidates chosen 2026-10-04*, on the Genshin model the user asked
+  for: a puzzle is a **curiosity you see from a distance** (a glowing thing, an unlit
+  thing, a sealed thing), **small and local**, **paid in a chest**, and ideally **pointing
+  at the next one** — that chain is what keeps you exploring. The pack is built for it:
+  `TilesetDungeon.png` (floor buttons, orbs, pedestals), `TilesetLogic.png` (coloured
+  keys and markers), `FX/Magic/Spirit` (a seelie, near enough). Taken:
+  - [x] **Wisp** (Genshin's seelie). A spirit idles in a field room; walk up and it drifts
+    ahead of you, waiting when you fall behind, to its shrine in a room you haven't been
+    — then a chest. It leads you *through the fog*, so following it is filling in the map,
+    and in the labyrinth's dark it is a moving light. Its path is a BFS over the
+    generator's walkable grid; monsters still chase you while you follow. *Landed: the
+    pack's blue spark (`FX/Particle/Spark.png`) with a faint halo and a trail of motes,
+    idling in a room in the near half of the field from the entrance; it sets off when
+    you come within 30 px, drifts at 58 px/s (you walk at 90), waits once you are 72 px
+    behind and goes on at 48. Its shrine is the dungeon set's stone lantern, in whichever
+    room is the longest walk away, and the path is a cheapest-path over the carved floor
+    that costs more beside a wall, so it drifts down the middle of a corridor. Arriving
+    sets `puzzle_<n>_wisp`; the lantern lights and the sealed chest below it appears, both
+    by listening for the flag. Field only for now — through the labyrinth's dark is the
+    next step for it. Solved, it is gone on the next visit; walked away from half way, it
+    is back where it started.*
+  - [x] **Braziers.** Three or four unlit braziers in a room or along a corridor: light
+    them all with **E** against a timer, or in an order a nearby tablet shows. In the
+    labyrinth a lit brazier stays lit in the `Darkness` (as the camp's `glow` does), so
+    solving one changes the dark map for good. The timer needs a rule for a fight that
+    takes the input lock mid-attempt — pause it, or fail it. *Landed: the pack's tripod
+    brazier with its fire particle, three in three corners of a room with no chest in it
+    and the stele (`TilesetElement`) in the fourth — or four in a room nine wide, the
+    stele beside one. A corner a cell in, because the ring round a room's edge is never
+    decor and the centre lines corridors come in by stay clear. Half are **timed** ("wake
+    all three fires while the first still burns": the flames sink as the time runs down),
+    half **ordered** ("first the north-west fire, then the south-east, and last the
+    north-east"; a fire lit out of turn flares and they all go out). The clock **pauses**
+    while the input lock is held — a monster running you down costs you the fight, not
+    the fires. The burn is the shortest walk round them at walking pace, x1.3, plus 0.6 s
+    a fire; the floor test walks it for real and holds every rite to x1.25 (the tightest
+    is x2.47). Field only, like the wisp; the labyrinth version with its glow waits.*
+  - [ ] **Turning statues** (Liyue's geo cubes, Inazuma's mirrors). **E** turns one 90°;
+    make them all face the altar, or match a mural. The twist that makes it a puzzle:
+    turning one turns its neighbours (Lights Out). Generated by scrambling *backwards*
+    from the solved state, so it is solvable by construction.
+  - [x] **Sigil vault** (the Shrine of Depths and its key sigils). A sealed door in a field
+    room and three sigils hidden round the floor — in another puzzle's chest, behind a
+    gilded one, at the end of a wisp's path. Collect them and it opens. This is the piece
+    that chains the others, and it is flags plus a door that is walls until it isn't.
+    *Landed: a 6x4 room carved out of untouched rock beside a field room — off its north
+    wall where any room has the rock for it, so the door faces you, otherwise any wall —
+    behind two tiles of wall and a 2x2 doorway. The door is a solid node (the dungeon
+    set's panels, a hollow for each sigil that lights the moment its sigil is picked up),
+    not wall: the walls round the vault are joined like any other, and the flood fill
+    reaches the chest either way. The sigils are flags set by chests as they open: under
+    the wisp's chest, the braziers' chest, and one of the floor's own field chests — a
+    gilded one when it has one (76 of 95 vaults), so the third sigil is the gamble.
+    Fewer than two sources and there is no vault. Opened, `puzzle_<n>_vault`.*
+  - [ ] **Cracked wall.** A crack you can see; **E** breaks it into a secret room. A secret
+    rather than a puzzle, but it rewards looking, and the map draws the crack once seen.
+
+  *Not taken:* **push blocks onto plates** (Sokoban) — a block in a corner is an
+  unsolvable puzzle, and a solid block can wall off a corridor, which breaks the one thing
+  the flood fill relies on. Only in a sealed side room, with a reset and generated by
+  reverse pulls, and only if the rest turns out too easy.
+
+  *Rules that apply to all of them:*
+  - **Puzzles draw from their own seeded stream** (`hash(world_seed, n, "puzzles")`), never
+    the floor's. Asking the floor's rng for anything new reshuffles every generated floor
+    and every number measured on them (the 64-tile shortest walk, the 61/48/58 trap split,
+    the monster placements the balance assumes).
+  - **Every puzzle is proved solvable by the floor test**, the way `_audit_labyrinth`
+    proves the door findable: reachable pieces, a solvable state, a reachable reward. An
+    unsolvable puzzle on floor 73 is the dead end playtest never finds.
+  - **Solved is a flag** (`puzzle_<floor>_<id>`), like an opened chest.
+  - **Rewards are a third chest tier** — *sealed*: never trapped, the floor's best loot. Plain
+    is found, gilded is gambled, sealed is earned. (What "best loot" is waits on the
+    economy, which is being designed next — there is no currency yet.)
+  - Field rooms first: they are what has least reason to be walked into today.
+  - Suggested first pass: wisp + braziers + sigil vault (follow, solve, collect — and the
+    first two feed the third); statues next; the cracked wall wherever it is cheap.
+
+  *First pass, as built (2026-10-04).* `FloorPuzzles` (`scripts/world/floor_puzzles.gd`)
+  plans on the finished layout before it is dressed (and carves the vault), then places
+  the pieces once the floor's chests are on it. Its stream is `hash("<seed>:puzzles")`;
+  `FloorGenerator.with_puzzles = false` gives the floor without them, and the floor test
+  proves it is the same floor — same chests, same contents, same door, every monster
+  where it was or a cell off it (a piece steps one off its cell rather than dropping it,
+  since the floor's monster count is its boss's balance). Measured on the floor test's
+  seed and unchanged by any of it: the 64-tile shortest walk and the 61/48/58 trap split.
+  **Sealed chests** are the pack's big chest with its reds turned blue, never trapped,
+  hidden (not drawn, not solid, not offered) until their puzzle's flag is set, holding
+  `SEALED_LOOT` — the best of the current small roster until there is more gear, and
+  Col once M5.6 lands. The map marks an unsolved puzzle with a violet glint (the wisp,
+  the braziers' tablet, the sealed door) and a sealed chest in blue; the legend gained
+  "puzzle" and "someone" became "folk" to keep it on one row.
+  Checked by the floor test on every generated floor (wisps on 94 of 97, rites on 96 —
+  46 timed, 50 ordered — vaults on 95): the wisp's path is floor step by step from where
+  it idles to its shrine; every piece and chest has a cell beside it a body can walk to
+  with every piece solid; an ordered rite's order is a permutation the tablet names; a
+  timed one burns long enough; the vault cannot be walked into shut, can be open, and
+  every sigil it wants is in exactly one chest you can reach without it. The smoke test
+  solves all three on a real floor 2 (a seed whose floor 2 has all three and a timed rite):
+  the wisp leading, waiting and lighting its shrine; the braziers failing out of order and
+  out of time, holding their clock through the input lock, and paying out; the door shut
+  one sigil short and open with the last. `tools/screenshot.gd` frames them on floors 2
+  and 37 (`05_puzzle_*`).
+  *My calls, open to change:* the door's look (the dungeon set's panels read a little like
+  a crate in the forest); the burn margin; three braziers more often than four; sealed loot
+  is gear only. *Not yet:* puzzles in the labyrinth (the wisp as a moving light in the
+  dark, braziers that glow once lit), turning statues, the cracked wall, puzzles on
+  authored floors.
 
 #### 5. Playtest notes (2026-10-01) — after §3 landed
 Three things from playing the finished §3. None is a bug; all three are "works, doesn't
@@ -1025,6 +1133,66 @@ a place, not tactics); a party (formation has room for it — spots are a list �
 party is one); pulling nearby monsters into a fight they could see (tempting, and it
 would make the labyrinth's monsters much more dangerous; weigh after it plays).
 
+### M5.6 — Economy: Col *(decided 2026-10-04)*
+The climb has nothing to earn and nothing to lose. M3 left out currency and shops on
+purpose; materials have one buyer (Nezha's whetstones), Argo "sells" a map for a flag,
+and losing costs a walk: a monster knocks you to 35% HP where you stand
+(`Monster._knock_out`), a boss sends you to the entrance on 35%
+(`BossGate.DEFEAT_HP_RATIO`). In a death game that is the wrong way round. **Col**, SAO's
+currency, fixes both ends — and the puzzles' *sealed* chests need something worth paying
+out. The user chose, when asked:
+
+*Sources* — Col from monsters, linear in their level as XP is (an exponential income
+against linear payouts stalls the climb for the reason the XP curve is linear); selling
+materials, so a hide is worth picking up; Col in chests and as a quest reward; the most
+in sealed puzzle chests.
+
+*Sinks* (taken):
+- [ ] **Smith enhancement (+N)**, SAO's sharpening: Col plus materials, and it can fail.
+  The deep sink, and the materials' second use beside Nezha's whetstones. Where the
+  bonus lives matters: an enhanced sword must still reach combat through
+  `GameState.total_*()` and nowhere else.
+- [ ] **Argo sells information.** Col for a floor's hidden boss door — `BossGate.reveal()`
+  is already public for exactly this. Pricing it is the design question: it should save
+  the walk on a floor you're tired of, not skip the labyrinth on every floor.
+- [ ] **Shops, and a merchant at the campfire.** Shops in the authored hubs (Floor 1's
+  town, Ashlow, the Lanternfall camp); a travelling merchant in the labyrinth's safe zone
+  on *some* generated floors, which gives the camp a second reason to exist without
+  waiting for M6's town hubs.
+
+*Prices are fixed; stock climbs.* An item costs the same on every floor; higher floors
+*unlock* better items and consumables rather than charging more for the same ones. A
+potion heals a percentage, so a Small Potion stays useful and gets cheap as income grows
+— the progression is in what is on the shelf, not in the price tag. Stock is gated by
+floor, so it reads `FloorTuning` / cleared floors, never a shop's own table of levels.
+
+*Losing* (taken):
+- [ ] **Your Col drops where you fall.** Lose a fight and the Col you carry is left on
+  that spot, marked on the **M** map; walk back to it to pick it up. Lose again first and
+  it is gone. Items and gear are never dropped. A boss defeat drops it at the door, which
+  is the walk back the floor already makes you take.
+- [ ] **Death Game mode** — optional permadeath, chosen at new game: lose a fight, lose
+  the save. The most SAO thing the game can do, and it **needs M7's save/load first**.
+
+*Not taken:* durability and repair (faithful, and a chore); losing a percentage of carried
+Col (flatter than dropping it); banking Col in towns.
+
+*Shape, so it lands like the other systems:*
+- **Two signals, one direction each**, as items: `EventBus.col_granted` is the world
+  paying, the purse is its only listener, and `col_changed` is the purse replying. Nothing
+  else emits `col_changed`.
+- **Spending is all-or-nothing**, as `Inventory.remove()`: not enough Col refuses the
+  whole purchase.
+- **Dialogue gets `GIVE_COL` / `TAKE_COL` effects and a `MIN_COL` condition**, so quest
+  rewards pay Col for free (rewards are `DialogueEffect`s) and a shop line can say
+  "(Requires 500 col)" — `DialogueChoice.locked_hint`'s own doc comment already does.
+- **`CombatResult` carries the Col**, granted before it arrives, like XP and loot.
+- **A balance check, measured like the combat one:** a player on the curve, killing
+  `FloorTuning.monster_count(n)` monsters a floor, can afford what each floor's shop
+  unlocks — and the item-id sweep covers every shop's stock.
+- **The dropped Col is state the M7 save must keep** (where, how much, which map), beside
+  `world_seed` and the fog.
+
 ### M6 — World depth & floor content
 The 100-floor architecture is in (see *Floors of Aincrad* below); this is the pass that
 makes those floors worth climbing. **Deliberately placed after M4** — you cannot size a
@@ -1176,6 +1344,8 @@ And what the tests learned from it:
 - [ ] Serialize GameState/Inventory/QuestLog to `user://` save files. **`world_seed` must
   be in the save** — without it every generated floor reshuffles on load.
 - [ ] Main menu, pause menu, settings.
+- [ ] **Death Game mode** (M5.6): permadeath chosen at new game -- lose a fight, lose the
+  save. Lands with the save, since there is nothing to delete before it.
 - [ ] SFX/music, screen shake, hit-stop, transitions; controller support.
 
 ---
@@ -1394,19 +1564,26 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    failed playtest is gone: **fights happen on the map** (§6, done 2026-10-02 — staging,
    the world-space view, bosses stepping out of their doors, the pack's FX). **§4 is
    decided and under way**: safe zones are in every labyrinth and gilded chests are a
-   gamble; puzzles next (candidates to choose from), then the authored-floor revisit §3 left open
+   gamble; puzzles' first pass is in (wisp, braziers, sigil vault -- 2026-10-04), with
+   turning statues and the cracked wall still to come, then the authored-floor revisit §3 left open
    (Illfang, Nerith and Karvos all stand at the obvious end of their layouts).
    Floor 40 should be laid out after §4, for the same reason as before.
-3. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
+3. **M5.6 — Col.** Decided 2026-10-04: Col from monsters, materials, chests and quests;
+   spent on smith enhancement, Argo's boss-door information and shops (with a merchant
+   at some campfires); fixed prices, stock unlocked by floor; your Col drops where you
+   fall. The sealed puzzle chest's reward waits on it, so it may want to land before or
+   alongside the puzzles.
+4. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
    a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest
    each and an authored boss — Lanternfall took that from a design job to a content job, and
    the suite checks everything a hand-built floor tends to get wrong. Forty opens the swamp
    band; Ashlow was a loop and Lanternfall a chain, so it wants a third shape.
-4. **M7 save/load is the one thing getting more expensive with every milestone.**
+5. **M7 save/load is the one thing getting more expensive with every milestone.**
    `QuestLog` just added a third autoload's worth of state to serialise
    (`_active`/`_completed`/`_order`/`_tracked`), on top of `GameState` and
    `Inventory`. `world_seed` **must** be in the save or every generated floor
-   reshuffles on load.
+   reshuffles on load. M5.6 adds the purse and the dropped Col, and Death Game mode
+   is built on it.
 
 **Cheapest combat-feel wins**, if the fights start to feel flat: the
 stagger *bonus turn* (poise already costs the victim a turn; granting the attacker one is

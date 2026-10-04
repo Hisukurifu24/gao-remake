@@ -11,7 +11,7 @@ extends Control
 ## As a Control it draws one glyph, for the legend; [method paint] is the same
 ## drawing for [MapView], which places many.
 
-enum Kind { YOU, DOOR, EXIT, CHEST, PERSON, QUEST, CAMP }
+enum Kind { YOU, DOOR, EXIT, CHEST, PERSON, QUEST, CAMP, PUZZLE }
 
 const PIXEL := 0.5
 
@@ -70,6 +70,16 @@ const CAMP := [
 	"+.+.+.+",
 	".+++++.",
 ]
+## A glint: something here to work out.
+const PUZZLE := [
+	"...#...",
+	"...#...",
+	"..###..",
+	"#######",
+	"..###..",
+	"...#...",
+	"...#...",
+]
 const QUEST := [
 	"###",
 	"###",
@@ -112,6 +122,7 @@ static func table(glyph: Kind) -> Array:
 		Kind.PERSON: return PERSON
 		Kind.QUEST: return QUEST
 		Kind.CAMP: return CAMP
+		Kind.PUZZLE: return PUZZLE
 	return YOU
 
 

@@ -58,7 +58,7 @@ script = ExtResource("2_view")
 [node name="Legend" type="HBoxContainer" parent="Sheet/Column"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = 4
 
 [node name="You" type="HBoxContainer" parent="Sheet/Column/Legend"]
 layout_mode = 2
@@ -145,6 +145,23 @@ layout_mode = 2
 theme_type_variation = &"InkLabel"
 text = "camp"
 
+[node name="Puzzle" type="HBoxContainer" parent="Sheet/Column/Legend"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Key" type="Control" parent="Sheet/Column/Legend/Puzzle"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("3_glyph")
+kind = 7
+
+[node name="Label" type="Label" parent="Sheet/Column/Legend/Puzzle"]
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = "puzzle"
+
 [node name="Person" type="HBoxContainer" parent="Sheet/Column/Legend"]
 layout_mode = 2
 mouse_filter = 2
@@ -160,7 +177,7 @@ kind = 4
 [node name="Label" type="Label" parent="Sheet/Column/Legend/Person"]
 layout_mode = 2
 theme_type_variation = &"InkLabel"
-text = "someone"
+text = "folk"
 
 [node name="Quest" type="HBoxContainer" parent="Sheet/Column/Legend"]
 layout_mode = 2

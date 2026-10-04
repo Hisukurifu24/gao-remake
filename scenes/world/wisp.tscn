@@ -1,0 +1,50 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/wisp.gd" id="1_wisp"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/FX/Particle/Spark.png" id="2_spark"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/FX/Magic/Circle/SpriteSheetWhite.png" id="3_circle"]
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_glow"]
+blend_mode = 1
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_halo"]
+atlas = ExtResource("3_circle")
+region = Rect2(0, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mote"]
+atlas = ExtResource("2_spark")
+region = Rect2(0, 0, 10, 8)
+
+[sub_resource type="Gradient" id="Gradient_fade"]
+colors = PackedColorArray(0.75, 0.95, 1, 0.9, 0.75, 0.95, 1, 0)
+
+[node name="Wisp" type="Node2D"]
+script = ExtResource("1_wisp")
+
+[node name="Body" type="Node2D" parent="."]
+position = Vector2(0, -12)
+
+[node name="Halo" type="Sprite2D" parent="Body"]
+modulate = Color(0.6, 0.9, 1, 0.3)
+texture = SubResource("AtlasTexture_halo")
+
+[node name="Trail" type="CPUParticles2D" parent="Body"]
+material = SubResource("CanvasItemMaterial_glow")
+amount = 6
+lifetime = 0.9
+texture = SubResource("AtlasTexture_mote")
+emission_shape = 1
+emission_sphere_radius = 3.0
+direction = Vector2(0, -1)
+spread = 60.0
+gravity = Vector2(0, -8)
+initial_velocity_min = 2.0
+initial_velocity_max = 6.0
+scale_amount_min = 0.5
+scale_amount_max = 0.5
+color_ramp = SubResource("Gradient_fade")
+
+[node name="Spark" type="Sprite2D" parent="Body"]
+texture = ExtResource("2_spark")
+hframes = 7
+frame = 4

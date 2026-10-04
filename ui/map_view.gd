@@ -3,8 +3,8 @@ extends Control
 ## One map, as far as the player has explored it, drawn in ink on parchment: the
 ## floor you have walked, the passages you have only glimpsed, the rock round
 ## them, the names of places, and a symbol for you, the boss door once found, the
-## ways out, unopened chests, the people you have come across and whoever your tracked
-## quest wants you to see.
+## ways out, unopened chests, the people you have come across, puzzles not yet
+## solved and whoever your tracked quest wants you to see.
 ##
 ## Purely a view. [GameState] says which cells have been seen and walked, the map
 ## says what is in them, [QuestLog] says what the tracked quest is after; this only
@@ -181,9 +181,13 @@ func _draw_markers(walls: TileMapLayer, seen: Dictionary) -> void:
 		elif node is Campfire:
 			_mark(at, MapGlyph.Kind.CAMP, UiPalette.MAP_CAMP)
 		elif node is Chest:
-			if (node as Chest).is_available():
-				_mark(at, MapGlyph.Kind.CHEST,
-						UiPalette.MAP_GILDED if (node as Chest).gilded else UiPalette.MAP_CHEST)
+			var chest := node as Chest
+			if chest.is_available():
+				_mark(at, MapGlyph.Kind.CHEST, UiPalette.MAP_SEALED if chest.sealed
+						else UiPalette.MAP_GILDED if chest.gilded else UiPalette.MAP_CHEST)
+		elif node is Wisp or (node is SealedDoor and (node as SealedDoor).is_available()) \
+				or (node is Tablet and _rite_unsolved()):
+			_mark(at, MapGlyph.Kind.PUZZLE, UiPalette.MAP_PUZZLE)
 	# Over everything else, so a crowded square can't bury them.
 	var lift := Vector2(0, -(MapGlyph.measure(MapGlyph.Kind.PERSON).y
 			+ MapGlyph.measure(MapGlyph.Kind.QUEST).y) / 2.0)
@@ -224,6 +228,13 @@ func _quest_targets() -> Array[Node]:
 		elif child is BossGate and clear_floor:
 			targets.append(child)
 	return targets
+
+
+## Whether the map's braziers are still waiting -- the tablet beside them is where
+## the map marks them, once, rather than a glint on every fire.
+func _rite_unsolved() -> bool:
+	var rite := _map.get_node_or_null("BrazierRite") as BrazierRite
+	return rite != null and not rite.is_solved()
 
 
 func _any_seen(rect: Rect2i, seen: Dictionary) -> bool:

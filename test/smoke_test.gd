@@ -209,6 +209,7 @@ func _run() -> void:
 	await _test_safe_zone(floor_two, floor_two_player as Player)
 	await _test_traps(floor_two, floor_two_player as Player)
 	await _test_roaming(floor_two, floor_two_player as Player)
+	await _test_puzzles(world_root)
 
 
 ## The hidden door on a real generated floor: not there until you walk into its
@@ -395,6 +396,171 @@ func _test_traps(map: Node2D, player: Player) -> void:
 	alarm.queue_free()
 	teleport.queue_free()
 	await _physics(2)
+
+
+## The three puzzles, solved on a real floor 2: the wisp leads, waits for you and
+## lights its shrine; the braziers go out in the wrong order and when the fire
+## runs down, hold their clock through the input lock, and pay out when all are
+## lit; the vault stays shut until the last sigil is in hand. Each chest appears
+## only once its puzzle is solved.
+##
+## The world seed is random per run and a floor may lack a puzzle (the floor test
+## counts how many do), so this picks a seed whose floor 2 has all three, with a
+## timed rite, and goes back up to it.
+func _test_puzzles(world_root: Node2D) -> void:
+	var picked := 0
+	for candidate in range(1, 400):
+		GameState.new_world_seed(candidate)
+		var probe := FloorRegistry.build_floor(2)
+		var rite := probe.get_node_or_null("BrazierRite") as BrazierRite
+		var whole := probe.get_node_or_null("Wisp") != null and probe.get_node_or_null("SealedDoor") != null \
+				and rite != null and rite.mode == BrazierRite.Mode.TIMED
+		probe.free()
+		if whole:
+			picked = candidate
+			break
+	_check(picked > 0, "some world seed's floor 2 has a wisp, a timed rite and a vault")
+	if picked == 0:
+		return
+	for flag: StringName in [&"puzzle_2_wisp", &"puzzle_2_braziers", &"puzzle_2_vault"]:
+		GameState.set_flag(flag, false)
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	var map := world_root.get_child(0) as GameMap
+	var player := map.get_node("Player") as Player
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	await _physics(2)
+
+	# --- the wisp ---
+	var wisp := map.get_node("Wisp") as Wisp
+	var shrine := map.get_node("WispShrine") as WispShrine
+	var wisp_chest := map.get_node("ChestWisp") as Chest
+	_check(not wisp_chest.is_available() and not wisp_chest.visible and not shrine.is_lit(),
+			"the wisp's chest is not there until the wisp is home")
+	player.global_position = wisp.global_position + Vector2(0, 16)
+	await _physics(2)
+	var setting_off := wisp.global_position
+	for _i in 60:
+		player.global_position = wisp.global_position + Vector2(0, 16)
+		await _physics()
+	_check(wisp.state == Wisp.State.LEADING and wisp.global_position.distance_to(setting_off) > 20.0,
+			"walking up to the wisp sets it off, and it leads")
+	player.global_position = wisp.global_position + Vector2(0, Wisp.WAIT + 40.0)
+	await _physics(3)
+	var waiting_at := wisp.global_position
+	await _physics(30)
+	_check(wisp.state == Wisp.State.WAITING and wisp.global_position == waiting_at,
+			"it waits for you when you fall behind")
+	# The walk itself is long and the floor test proves it; skip to the last stretch.
+	wisp.position = wisp.path[wisp.path.size() - 3]
+	wisp.set(&"_next", wisp.path.size() - 2)
+	for _i in 120:
+		if not is_instance_valid(wisp) or DialogueRunner.is_running():
+			break
+		player.global_position = wisp.global_position + Vector2(0, 16)
+		await _physics()
+	await _idle(2)
+	_check(GameState.has_flag(&"puzzle_2_wisp") and DialogueRunner.is_running(),
+			"at the shrine it sinks in, and says so")
+	await _close_dialogue()
+	await _idle(2)
+	_check(shrine.is_lit() and wisp_chest.is_available() and wisp_chest.visible,
+			"the shrine lights and its chest appears")
+	_check(_open_sealed(wisp_chest, player), "the wisp's chest opens, a sigil under its loot")
+	await _close_dialogue()
+	await _idle(2)
+
+	# --- the braziers ---
+	var rite := map.get_node("BrazierRite") as BrazierRite
+	var rite_chest := map.get_node("ChestRite") as Chest
+	var fires := rite.braziers
+	var tablet := map.get_node("Tablet") as Tablet
+	_check(tablet.lines.size() > 0 and tablet.lines[0].contains("while the first still burns"),
+			"the tablet says the fires are against the clock")
+	_check(not rite_chest.is_available(), "the braziers' chest is not there until they are lit")
+	# Out of order first, as an ordered rite: they all go out.
+	rite.mode = BrazierRite.Mode.ORDERED
+	rite.order.clear()
+	for i in fires.size():
+		rite.order.append(fires.size() - 1 - i)
+	fires[0].interact(player)
+	await _physics(40)
+	_check(DialogueRunner.is_running() and fires.all(func(b: Brazier) -> bool: return not b.lit),
+			"lit out of order, the fires gutter out and the stone says why")
+	await _close_dialogue()
+	await _idle(2)
+	rite.mode = BrazierRite.Mode.TIMED
+	var burn := rite.burn
+	rite.burn = 0.3
+	fires[0].interact(player)
+	GameState.push_input_lock()
+	await _physics(40)
+	_check(fires[0].lit, "a timed rite's clock stops while the input lock is held")
+	GameState.pop_input_lock()
+	await _physics(40)
+	_check(DialogueRunner.is_running() and not fires[0].lit, "and the fire goes out once the time is up")
+	await _close_dialogue()
+	await _idle(2)
+	rite.burn = burn
+	for brazier in fires:
+		brazier.interact(player)
+		await _physics(2)
+	_check(GameState.has_flag(&"puzzle_2_braziers") and DialogueRunner.is_running(),
+			"lighting every fire in time solves the rite")
+	await _close_dialogue()
+	await _idle(2)
+	_check(rite_chest.is_available() and rite_chest.visible, "and its chest appears")
+	_check(_open_sealed(rite_chest, player), "the braziers' chest opens, a sigil under its loot")
+	await _close_dialogue()
+	await _idle(2)
+
+	# --- the vault ---
+	var seal := map.get_node("SealedDoor") as SealedDoor
+	var vault_chest := map.get_node("ChestVault") as Chest
+	seal.interact(player)
+	await _idle(2)
+	_check(not seal.is_opened() and seal.held() == seal.sigils.size() - 1,
+			"the sealed door stays shut one sigil short (%d of %d)" % [seal.held(), seal.sigils.size()])
+	await _close_dialogue()
+	await _idle(2)
+	var last: Chest = null
+	for child in map.get_children():
+		if child is Chest and (child as Chest).sigil_flag in seal.sigils \
+				and not GameState.has_flag((child as Chest).sigil_flag):
+			last = child
+	_check(last != null and not last.sealed, "the last sigil is under one of the floor's own chests")
+	if last == null:
+		return
+	last.trap = Chest.Trap.NONE  # traps have a test of their own
+	last.interact(player)
+	await _close_dialogue()
+	await _idle(2)
+	seal.interact(player)
+	await _close_dialogue()
+	var shut := true
+	for _i in 120:
+		await _physics()
+		shut = false
+		for shape in seal.get_node("Solid").get_children():
+			shut = shut or not (shape as CollisionShape2D).disabled
+		if not shut:
+			break
+	_check(seal.is_opened() and not shut and not seal.is_available(),
+			"with every sigil the door opens for good")
+	_check(_open_sealed(vault_chest, player, false), "and the vault's chest is there to open")
+	await _close_dialogue()
+	await _idle(2)
+
+
+## Opens a sealed chest and says whether it paid out -- its item into the bag
+## and, if it hides one, its sigil.
+func _open_sealed(chest: Chest, player: Player, with_sigil := true) -> bool:
+	var before := Inventory.count(chest.item_id)
+	chest.interact(player)
+	var paid := Inventory.count(chest.item_id) == before + 1
+	return paid and chest.sealed and (not with_sigil or GameState.has_flag(chest.sigil_flag))
 
 
 func _trapped_chest(map: Node2D, walls: TileMapLayer, cell: Vector2i, trap: Chest.Trap,

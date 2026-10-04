@@ -13,6 +13,7 @@ const KEYS := {
 	&"Exit/Key": UiPalette.MAP_EXIT,
 	&"Chest/Key": UiPalette.MAP_CHEST,
 	&"Camp/Key": UiPalette.MAP_CAMP,
+	&"Puzzle/Key": UiPalette.MAP_PUZZLE,
 	&"Person/Key": UiPalette.MAP_PERSON,
 	&"Quest/Key": UiPalette.MAP_QUEST,
 }

@@ -14,6 +14,11 @@ extends Interactable
 ## is the one that may be trapped. That is the whole tell: a gilded chest is not
 ## always a trap, but a trap is always a gilded chest. The trap springs as the lid
 ## opens, after the item is in the bag -- the loot is the bait, not the price.
+##
+## A [member sealed] chest is the third kind: a puzzle's reward, never trapped,
+## holding the floor's best. Plain is found, gilded is gambled, sealed is earned.
+## Most stay [member hidden_until] their puzzle is solved -- not drawn, not solid,
+## not offered -- and then appear where the puzzle said they would.
 
 enum Trap { NONE, ALARM, TELEPORT }
 
@@ -22,6 +27,11 @@ const ALARM_PACK := 3
 const ALARM_RANGE := 3
 const MONSTER_SCENE := preload("res://scenes/world/monster.tscn")
 const GILDED_TEXTURE := preload("res://assets/ninja_adventure/Items/Treasure/BigTreasureChest.png")
+## How long a sealed chest takes to appear once its puzzle is solved.
+const APPEAR_TIME := 0.6
+
+## The big chest turned from red to the sealed tier's blue, made once.
+static var _sealed_texture: Texture2D = null
 
 ## What is inside, by [ItemLibrary] id.
 @export var item_id: StringName = &"small_potion"
@@ -35,16 +45,25 @@ const GILDED_TEXTURE := preload("res://assets/ninja_adventure/Items/Treasure/Big
 @export var trap_target := Vector2.ZERO
 ## The floor whose monsters an ALARM brings.
 @export var floor_number := 0
+## A puzzle's reward: drawn as the sealed tier, never trapped.
+@export var sealed := false
+## Hidden until this flag is set -- the puzzle's solved flag. Empty for always there.
+@export var hidden_until: StringName = &""
+## Set as the chest opens, beside its item: one of a vault's sigils.
+@export var sigil_flag: StringName = &""
 
 @onready var _sprite: Sprite2D = $Sprite2D
 
 
 func _ready() -> void:
-	if gilded:
-		_sprite.texture = GILDED_TEXTURE
+	if gilded or sealed:
+		_sprite.texture = _sealed_look() if sealed else GILDED_TEXTURE
 		_sprite.offset = Vector2(0, -7)
 	if is_opened():
 		_show_opened()
+	if is_hidden():
+		_set_present(false)
+		EventBus.flag_changed.connect(_on_flag_changed)
 
 
 func interact(by: Node) -> void:
@@ -67,17 +86,18 @@ func interact(by: Node) -> void:
 
 	_open()
 	EventBus.item_granted.emit(item_id, amount)
+	var found := "You found %s." % _found_text(item)
+	if sigil_flag != &"":
+		found += " Under it lies a sigil, warm to the touch."
 	match trap:
 		Trap.ALARM:
-			_say("You found %s." % _found_text(item),
-					"The lid clicks. An alarm shrieks through the floor, and something answers it.")
+			_say(found, "The lid clicks. An alarm shrieks through the floor, and something answers it.")
 			_sound_alarm(by as Node2D)
 		Trap.TELEPORT:
-			_say("You found %s." % _found_text(item),
-					"The lid clicks. The floor flares white under your feet --")
+			_say(found, "The lid clicks. The floor flares white under your feet --")
 			await _teleport(by as Node2D)
 		_:
-			_say("You found %s." % _found_text(item))
+			_say(found)
 
 
 func is_opened() -> bool:
@@ -85,13 +105,51 @@ func is_opened() -> bool:
 
 
 func is_available() -> bool:
-	return not is_opened()
+	return not is_opened() and not is_hidden()
+
+
+## Whether the puzzle this chest pays out for is still unsolved.
+func is_hidden() -> bool:
+	return hidden_until != &"" and not GameState.has_flag(hidden_until)
 
 
 func _open() -> void:
 	if opened_flag != &"":
 		GameState.set_flag(opened_flag)
+	if sigil_flag != &"":
+		GameState.set_flag(sigil_flag)
 	_show_opened()
+
+
+func _on_flag_changed(flag: StringName, _value: Variant) -> void:
+	if flag != hidden_until or is_hidden():
+		return
+	EventBus.flag_changed.disconnect(_on_flag_changed)
+	_set_present(true)
+	modulate.a = 0.0
+	create_tween().tween_property(self, ^"modulate:a", 1.0, APPEAR_TIME)
+
+
+## Drawn and solid, or neither.
+func _set_present(present: bool) -> void:
+	visible = present
+	for shape in $Solid.get_children():
+		(shape as CollisionShape2D).set_deferred(&"disabled", not present)
+
+
+## The gilded chest's art with its reds turned to blues: one drawing, three tiers.
+static func _sealed_look() -> Texture2D:
+	if _sealed_texture == null:
+		var image := GILDED_TEXTURE.get_image()
+		image.convert(Image.FORMAT_RGBA8)
+		for y in image.get_height():
+			for x in image.get_width():
+				var pixel := image.get_pixel(x, y)
+				if pixel.a > 0.0 and pixel.s > 0.3:
+					pixel.h = fposmod(pixel.h + 0.55, 1.0)
+					image.set_pixel(x, y, pixel)
+		_sealed_texture = ImageTexture.create_from_image(image)
+	return _sealed_texture
 
 
 func _found_text(item: Item) -> String:

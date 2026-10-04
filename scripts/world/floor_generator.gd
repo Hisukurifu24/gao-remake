@@ -84,6 +84,11 @@ const CHEST_GEAR_CHANCE := 0.3
 const GILDED_CHANCE := 0.35
 const GILDED_TRAP_CHANCE := 0.65
 
+## Whether floors get their puzzles ([FloorPuzzles]). Off only for the floor test,
+## which proves a floor without them is the same floor: they draw on a stream of
+## their own and must never move anything the floor's rng put down.
+static var with_puzzles := true
+
 var _rng := RandomNumberGenerator.new()
 var _definition: FloorDefinition
 var _biome: BiomeKit
@@ -165,12 +170,20 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	var must_reach: Array[Vector2i] = chest_cells.duplicate()
 	must_reach.append(gate_cell)
 	_ensure_reachable(_center(entry), must_reach)
+	# Before dressing: the vault is carved out of the rock, and its walls join like any.
+	var puzzles: FloorPuzzles = null
+	if with_puzzles and lab.has_maze():
+		puzzles = FloorPuzzles.new(_definition.floor_number, generation_seed, _biome,
+				_ground, _walls, _open, field)
+		puzzles.plan(rooms, entry, chest_cells, field_chests)
 	MapDresser.dress(map, _biome, _ground, _walls, generation_seed)
 
 	_add_spawns(map, _center(entry))
 	for index in chest_cells.size():
 		_add_chest(map, chest_cells[index], index, index < field_chests, deep)
 	_add_monsters(map, rooms, entry, boss_room, lab)
+	if puzzles != null:
+		puzzles.place(map)
 	_add_boss_gate(map, gate_cell, lab.boss_room)
 	if lab.camp_room.has_area():
 		_add_campfire(map, lab.camp_room)

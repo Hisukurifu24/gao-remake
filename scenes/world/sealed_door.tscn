@@ -1,0 +1,50 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/sealed_door.gd" id="1_door"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Backgrounds/Tilesets/TilesetDungeon.png" id="2_tex"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_slab"]
+atlas = ExtResource("2_tex")
+region = Rect2(48, 16, 16, 16)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_area"]
+radius = 22.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_solid"]
+size = Vector2(32, 32)
+
+[node name="SealedDoor" type="Area2D"]
+collision_layer = 8
+collision_mask = 0
+monitoring = false
+script = ExtResource("1_door")
+prompt_verb = "Examine"
+display_name = "the sealed door"
+
+[node name="Stone" type="Node2D" parent="."]
+
+[node name="SlabNW" type="Sprite2D" parent="Stone"]
+position = Vector2(-8, -8)
+texture = SubResource("AtlasTexture_slab")
+
+[node name="SlabNE" type="Sprite2D" parent="Stone"]
+position = Vector2(8, -8)
+texture = SubResource("AtlasTexture_slab")
+
+[node name="SlabSW" type="Sprite2D" parent="Stone"]
+position = Vector2(-8, 8)
+texture = SubResource("AtlasTexture_slab")
+
+[node name="SlabSE" type="Sprite2D" parent="Stone"]
+position = Vector2(8, 8)
+texture = SubResource("AtlasTexture_slab")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_area")
+
+[node name="Solid" type="StaticBody2D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Solid"]
+shape = SubResource("RectangleShape2D_solid")

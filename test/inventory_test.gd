@@ -102,7 +102,7 @@ func _test_content() -> void:
 	_check(orphans.is_empty(), "every enemy's loot names a real item (%s)" % orphans)
 
 	var chest_orphans := PackedStringArray()
-	for id in FloorGenerator.CHEST_CONSUMABLES + FloorGenerator.CHEST_GEAR:
+	for id in FloorGenerator.CHEST_CONSUMABLES + FloorGenerator.CHEST_GEAR + FloorPuzzles.SEALED_LOOT:
 		if not ItemLibrary.exists(id):
 			chest_orphans.append(String(id))
 	_check(chest_orphans.is_empty(), "every generated-chest item exists (%s)" % chest_orphans)

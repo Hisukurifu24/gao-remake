@@ -48,6 +48,14 @@ var _boss_formations := 0
 var _boss_doors := 0
 var _boss_from_behind := 0
 var _boss_close := 0
+## Gathered by [method _audit_puzzles] across every generated floor.
+var _wisps := 0
+var _shortest_wisp := 1 << 30
+var _rites: Dictionary[int, int] = {}
+## The tightest a timed rite's burn is against walking its shortest way round.
+var _tightest_burn := INF
+var _vaults := 0
+var _gilded_sigils := 0
 
 
 func _ready() -> void:
@@ -306,6 +314,35 @@ func _run() -> void:
 	_check(plain > 0 and alarms > 0 and teleports > 0,
 			"gilded chests are sometimes safe, sometimes alarms, sometimes teleports (%d / %d / %d)" % [
 				plain, alarms, teleports])
+	# Puzzles: solvable wherever they are (in the audit above), and on nearly every
+	# floor -- a puzzle that only turns up on a third of them is a rumour.
+	var timed: int = _rites.get(BrazierRite.Mode.TIMED, 0)
+	var ordered: int = _rites.get(BrazierRite.Mode.ORDERED, 0)
+	_check(_wisps * 10 >= generated * 9 and _shortest_wisp >= 12,
+			"a wisp leads somewhere on %d of %d floors (shortest lead: %d cells)" % [
+				_wisps, generated, _shortest_wisp])
+	_check((timed + ordered) * 10 >= generated * 9 and timed > 0 and ordered > 0,
+			"braziers wait on %d of %d floors (%d timed, %d ordered)" % [
+				timed + ordered, generated, timed, ordered])
+	_check(_tightest_burn >= 1.25,
+			"a timed rite always burns long enough to walk round (tightest: %.2fx the walk)" % _tightest_burn)
+	_check(_vaults * 4 >= generated * 3 and _gilded_sigils > 0,
+			"a sealed vault stands on %d of %d floors (a sigil under a gilded chest on %d)" % [
+				_vaults, generated, _gilded_sigils])
+	# Puzzles draw on a stream of their own: the floor without them is the same
+	# floor -- the same chests, the same monsters, the same door.
+	var moved: PackedStringArray = PackedStringArray()
+	for sample: int in [2, 23, 37, 58, 76, 99]:
+		var with := FloorGenerator.generate(FloorRegistry.get_floor(sample), FloorRegistry.seed_for(sample))
+		FloorGenerator.with_puzzles = false
+		var without := FloorGenerator.generate(FloorRegistry.get_floor(sample), FloorRegistry.seed_for(sample))
+		FloorGenerator.with_puzzles = true
+		if _floor_contents(with) != _floor_contents(without) or not _monsters_stay(with, without):
+			moved.append(str(sample))
+		with.free()
+		without.free()
+	_check(moved.is_empty(), "a floor's puzzles move nothing its own seed put down%s" % (
+			"" if moved.is_empty() else " -- they do on " + ", ".join(moved)))
 
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
@@ -561,6 +598,14 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 			return "floor %d has a hole in its outer wall" % floor_number
 	var lost := _audit_labyrinth(map, walls, gate, start, reachable)
 	if lost.is_empty():
+		lost = _audit_puzzles(map as GameMap, walls, start, reachable, floor_number)
+	if lost.is_empty():
+		# With the vault open: a monster can follow you into it, so a fight has to
+		# be stageable in there too -- and outside, an open doorway is only more room.
+		var seal := map.get_node_or_null("SealedDoor")
+		if seal != null:
+			for shape in seal.get_node("Solid").get_children():
+				(shape as CollisionShape2D).disabled = true
 		_audit_formations(map, walls, start, reachable, "floor %d" % floor_number)
 		_audit_boss_formations(map, walls, gate, reachable, floor_number, "floor %d" % floor_number)
 	return lost
@@ -658,6 +703,197 @@ func _audit_labyrinth(map: Node2D, walls: TileMapLayer, gate: Node, start: Vecto
 	if to_door < farthest * 9 / 10:
 		_lab_not_farthest += 1
 	return ""
+
+
+## Every puzzle on the floor can be solved and pays out where it can be reached --
+## the way [method _audit_labyrinth] proves the door findable. An unsolvable
+## puzzle on floor 73 is the dead end playtest never finds.
+##
+## Walked with every piece solid, the sealed chests included (the state after
+## they appear, and the stricter one): each piece must have a cell beside it a body
+## can walk to from the spawn, or it cannot be used.
+func _audit_puzzles(map: GameMap, walls: TileMapLayer, start: Vector2i, reachable: Dictionary,
+		floor_number: int) -> String:
+	var label := "floor %d" % floor_number
+	map.refresh_solids()
+	var walkable := _flood_standable(map, start)
+	var by_sigil: Dictionary[StringName, Chest] = {}
+	for child in map.get_children():
+		var chest := child as Chest
+		if chest == null:
+			continue
+		if chest.sealed and (chest.gilded or chest.trap != Chest.Trap.NONE):
+			return "%s's %s is sealed and gilded or trapped" % [label, chest.name]
+		if chest.sigil_flag != &"":
+			if by_sigil.has(chest.sigil_flag):
+				return "%s hides sigil %s in two chests" % [label, chest.sigil_flag]
+			by_sigil[chest.sigil_flag] = chest
+
+	# The wisp: a way to its shrine over floor, step by step, through the field, and
+	# the chest it pays out beside the shrine, hidden until it arrives.
+	var wisp := map.get_node_or_null("Wisp") as Wisp
+	if wisp != null:
+		var shrine := map.get_node_or_null("WispShrine") as WispShrine
+		var chest := map.get_node_or_null("ChestWisp") as Chest
+		if shrine == null or chest == null:
+			return "%s has a wisp with no shrine or no chest" % label
+		var path := wisp.path
+		if path.size() < 2 or path[0] != wisp.position or path[path.size() - 1] != shrine.position:
+			return "%s's wisp does not lead from where it idles to its shrine" % label
+		for i in path.size():
+			var cell := walls.local_to_map(path[i])
+			if walls.get_cell_source_id(cell) != -1 or not reachable.has(cell):
+				return "%s's wisp floats through rock at %s" % [label, cell]
+			if i > 0 and absf(path[i].x - path[i - 1].x) + absf(path[i].y - path[i - 1].y) != TILE:
+				return "%s's wisp jumps between %s and %s" % [label, path[i - 1], path[i]]
+		if not walkable.has(walls.local_to_map(wisp.position)):
+			return "%s's wisp idles where you cannot walk up to it" % label
+		if chest.hidden_until != wisp.solved_flag or shrine.solved_flag != wisp.solved_flag \
+				or walls.local_to_map(chest.position) != walls.local_to_map(shrine.position) + Vector2i.DOWN:
+			return "%s's wisp chest is not hidden by its shrine until it arrives" % label
+		for piece: Node2D in [shrine, chest]:
+			if not _approachable(walls, piece, walkable):
+				return "%s's %s cannot be walked up to" % [label, piece.name]
+		_wisps += 1
+		_shortest_wisp = mini(_shortest_wisp, path.size())
+
+	# The braziers: each can be walked up to; ordered, the order names each once;
+	# timed, the fire burns longer than walking the shortest way round them takes.
+	var rite := map.get_node_or_null("BrazierRite") as BrazierRite
+	if rite != null:
+		var chest := map.get_node_or_null("ChestRite") as Chest
+		var tablet := map.get_node_or_null("Tablet") as Tablet
+		var count := rite.braziers.size()
+		if chest == null or tablet == null or tablet.lines.is_empty() or count < 3 or count > 4:
+			return "%s has a rite of %d braziers with no chest or no tablet" % [label, count]
+		if chest.hidden_until != rite.solved_flag:
+			return "%s's brazier chest is not hidden until the rite is done" % label
+		var approaches: Array = []
+		for i in count:
+			var brazier := rite.braziers[i]
+			if brazier.index != i or not _approachable(walls, brazier, walkable):
+				return "%s's %s cannot be walked up to" % [label, brazier.name]
+			approaches.append(_beside(walls, brazier, walkable))
+		for piece: Node2D in [chest, tablet]:
+			if not _approachable(walls, piece, walkable):
+				return "%s's %s cannot be walked up to" % [label, piece.name]
+		if rite.mode == BrazierRite.Mode.ORDERED:
+			var sorted := rite.order.duplicate()
+			sorted.sort()
+			var expected: Array[int] = []
+			for i in count:
+				expected.append(i)
+			if sorted != expected:
+				return "%s's rite asks for the order %s" % [label, rite.order]
+			if tablet.lines[0].count(" the ") < count:
+				return "%s's tablet does not name every fire: %s" % [label, tablet.lines[0]]
+		else:
+			var seconds := _shortest_round(map, approaches) / FloorPuzzles.WALK_TILES_PER_SECOND
+			_tightest_burn = minf(_tightest_burn, rite.burn / maxf(seconds, 0.01))
+			if rite.burn < seconds * 1.25:
+				return "%s's fires burn %.1fs, and walking round them takes %.1fs" % [label, rite.burn, seconds]
+		_rites[rite.mode] = _rites.get(rite.mode, 0) + 1
+
+	# The vault: shut, the door is the only way to its chest; open, the chest can be
+	# walked up to; and every sigil the door wants is in a chest you can reach
+	# without it -- under a puzzle's reward, or the floor's own loot.
+	var seal := map.get_node_or_null("SealedDoor") as SealedDoor
+	if seal != null:
+		var vault: Rect2i = map.get_meta(&"vault", Rect2i())
+		var chest := map.get_node_or_null("ChestVault") as Chest
+		if chest == null or not vault.has_point(walls.local_to_map(chest.position)) or chest.hidden_until != &"":
+			return "%s's vault has no chest in it" % label
+		if seal.sigils.size() < 2:
+			return "%s's vault wants %d sigils" % [label, seal.sigils.size()]
+		for sigil in seal.sigils:
+			var holder: Chest = by_sigil.get(sigil)
+			if holder == null:
+				return "%s's vault wants sigil %s, which no chest holds" % [label, sigil]
+			if vault.has_point(walls.local_to_map(holder.position)) or not _approachable(walls, holder, walkable):
+				return "%s's sigil %s is somewhere you cannot reach with the vault shut" % [label, sigil]
+			if holder.hidden_until != &"" and not (holder.hidden_until in [
+					wisp.solved_flag if wisp else &"-", rite.solved_flag if rite else &"-"]):
+				return "%s's sigil %s waits on a puzzle the floor does not have" % [label, sigil]
+			if holder.gilded:
+				_gilded_sigils += 1
+		if by_sigil.size() != seal.sigils.size():
+			return "%s hides %d sigils for a door that wants %d" % [label, by_sigil.size(), seal.sigils.size()]
+		if not _approachable(walls, seal, walkable):
+			return "%s's sealed door cannot be walked up to" % label
+		if _approachable(walls, chest, walkable):
+			return "%s's vault can be walked into with its door shut" % label
+		for shape in seal.get_node("Solid").get_children():
+			(shape as CollisionShape2D).disabled = true
+		map.refresh_solids()
+		var opened := _flood_standable(map, start)
+		for shape in seal.get_node("Solid").get_children():
+			(shape as CollisionShape2D).disabled = false
+		if not _approachable(walls, chest, opened):
+			return "%s's vault chest cannot be reached with the door open" % label
+		_vaults += 1
+	elif not by_sigil.is_empty():
+		return "%s hides sigils for a vault it does not have" % label
+	return ""
+
+
+## The walkable cells beside [param piece]'s cell, from which it can be used.
+func _beside(walls: TileMapLayer, piece: Node2D, walkable: Dictionary) -> Array[Vector2i]:
+	var cell := walls.local_to_map(piece.position - Vector2(0, 1))
+	var near: Array[Vector2i] = []
+	for step: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		if walkable.has(cell + step):
+			near.append(cell + step)
+	if piece is SealedDoor:
+		# Two cells square: beside any of them.
+		var door: Rect2i = piece.get_parent().get_meta(&"vault_door", Rect2i())
+		for y in range(door.position.y - 1, door.end.y + 1):
+			for x in range(door.position.x - 1, door.end.x + 1):
+				if walkable.has(Vector2i(x, y)) and not door.has_point(Vector2i(x, y)):
+					near.append(Vector2i(x, y))
+	return near
+
+
+func _approachable(walls: TileMapLayer, piece: Node2D, walkable: Dictionary) -> bool:
+	return not _beside(walls, piece, walkable).is_empty()
+
+
+## The fewest steps that visit one cell beside each brazier, in any order, walking
+## round whatever stands in the room.
+func _shortest_round(map: GameMap, approaches: Array) -> int:
+	var count := approaches.size()
+	var steps: Array = []
+	for i in count:
+		var row: Array[int] = []
+		for j in count:
+			row.append(_steps_between(map, approaches[i], approaches[j]))
+		steps.append(row)
+	var best := 1 << 30
+	for order in FloorPuzzles._orders(count):
+		var total := 0
+		for k in range(1, count):
+			total += steps[order[k - 1]][order[k]]
+		best = mini(best, total)
+	return best
+
+
+func _steps_between(map: GameMap, from: Array[Vector2i], to: Array[Vector2i]) -> int:
+	var seen := {}
+	var queue: Array[Vector2i] = []
+	for cell in from:
+		seen[cell] = 0
+		queue.append(cell)
+	var head := 0
+	while head < queue.size():
+		var cell := queue[head]
+		head += 1
+		if cell in to:
+			return seen[cell]
+		for offset: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var next := cell + offset
+			if not seen.has(next) and map.is_standable(next):
+				seen[next] = seen[cell] + 1
+				queue.append(next)
+	return 1 << 20
 
 
 ## A fight can be staged on every cell a body can walk to from [param start], and
@@ -1075,6 +1311,33 @@ func _flood_within(walls: TileMapLayer, from: Vector2i, bounds: Rect2i) -> Dicti
 			seen[next] = true
 			queue.append(next)
 	return seen
+
+
+## What a floor's own rng put on it: its chests and what is in them, its monsters,
+## its door. Where the monsters stand is [method _monsters_stay]'s.
+func _floor_contents(map: Node2D) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for child in map.get_children():
+		if child is Chest and not (child as Chest).sealed:
+			var chest := child as Chest
+			parts.append("%s %s %s x%d %s %d" % [chest.name, chest.position, chest.item_id,
+					chest.amount, chest.gilded, chest.trap])
+		elif child is Monster:
+			parts.append("%s %s" % [child.name, (child as Monster).enemy.id])
+		elif child is BossGate:
+			parts.append("door %s" % (child as Node2D).position)
+	return "\n".join(parts)
+
+
+## Every monster on [param with] stands where it does on [param without], or a cell
+## off it -- a puzzle piece steps a monster off the cell it would stand in.
+func _monsters_stay(with: Node2D, without: Node2D) -> bool:
+	for child in without.get_children():
+		if child is Monster:
+			var twin := with.get_node_or_null(NodePath(child.name)) as Node2D
+			if twin == null or twin.position.distance_to((child as Node2D).position) > TILE + 0.5:
+				return false
+	return true
 
 
 ## Cheap structural hash of a generated map, for comparing two generations.

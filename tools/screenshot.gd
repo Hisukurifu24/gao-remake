@@ -69,6 +69,8 @@ func _ready() -> void:
 	for floor_number in [2, 24, 95]:
 		await _capture_labyrinth(main, floor_number)
 	await _capture_trap(main)
+	for floor_number in [2, 37]:
+		await _capture_puzzles(main, floor_number)
 
 	for floor_number in [2, 10, 15, 24, 25, 37, 45, 55, 65, 75, 87, 100]:
 		await _capture_floor(floor_number)
@@ -705,6 +707,85 @@ func _capture_trap(main: Node) -> void:
 			child.queue_free()
 	await _frames(2)
 	GameState.pop_input_lock()
+
+
+## A generated floor's puzzles, on the first floor at or above [param from_floor]
+## that has all three: the wisp waiting, its shrine lit with the chest beside it,
+## the braziers half lit and the tablet read, the sealed door, the map with the
+## floor explored, and the vault open.
+func _capture_puzzles(main: Node, from_floor: int) -> void:
+	var floor_number := from_floor
+	while floor_number < from_floor + 8:
+		var probe := FloorRegistry.build_floor(floor_number)
+		var whole := probe.get_node_or_null("Wisp") != null and probe.get_node_or_null("BrazierRite") != null \
+				and probe.get_node_or_null("SealedDoor") != null
+		probe.free()
+		if whole and not FloorRegistry.get_floor(floor_number).is_authored():
+			break
+		floor_number += 1
+	var map := await _enter(floor_number)
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	var player := map.get_node("Player") as Player
+	var tag := "05_puzzle_%d" % floor_number
+
+	var wisp := map.get_node("Wisp") as Wisp
+	player.global_position = wisp.global_position + Vector2(-40, 18)
+	player.facing = Vector2.RIGHT
+	await _wait(0.6)
+	await _capture(tag + "_a_wisp")
+
+	var shrine := map.get_node("WispShrine") as Node2D
+	GameState.set_flag(StringName("puzzle_%d_wisp" % floor_number))
+	wisp.queue_free()
+	player.global_position = shrine.global_position + Vector2(-28, 20)
+	await _wait(0.8)
+	await _capture(tag + "_b_shrine")
+
+	var rite := map.get_node("BrazierRite") as BrazierRite
+	var tablet := map.get_node("Tablet") as Node2D
+	rite.braziers[0].set_lit(true)
+	rite.braziers[1].set_lit(true)
+	player.global_position = tablet.global_position + Vector2(0, 18)
+	player.facing = Vector2.UP
+	await _wait(0.4)
+	await _capture(tag + "_c_braziers")
+	tablet.call(&"interact", player)
+	await _typed(main)
+	await _capture(tag + "_d_tablet")
+	while DialogueRunner.is_running():
+		DialogueRunner.advance()
+		await _typed(main)
+
+	var seal := map.get_node("SealedDoor") as SealedDoor
+	var door: Rect2i = map.get_meta(&"vault_door")
+	var vault: Rect2i = map.get_meta(&"vault")
+	var outward := Vector2(door.get_center() - vault.get_center()).normalized()
+	player.global_position = seal.global_position + outward * 34.0
+	player.facing = Vector2i(-outward.round()) as Vector2
+	GameState.set_flag(seal.sigils[0])
+	await _wait(0.4)
+	await _capture(tag + "_e_sealed")
+
+	var walls := map.get_node("Walls") as TileMapLayer
+	var everything: Array[Vector2i] = []
+	for cell in walls.get_used_rect().size.x * walls.get_used_rect().size.y:
+		everything.append(walls.get_used_rect().position
+				+ Vector2i(cell % walls.get_used_rect().size.x, cell / walls.get_used_rect().size.x))
+	GameState.explore(map.map_id, everything)
+	await _capture_map(main, tag + "_f_map")
+
+	for sigil in seal.sigils:
+		GameState.set_flag(sigil)
+	seal.interact(player)
+	while DialogueRunner.is_running():
+		DialogueRunner.advance()
+		await _typed(main)
+	# Into the doorway, so the camera takes in the vault behind it.
+	player.global_position = seal.global_position - outward * 8.0
+	await _wait(0.8)
+	await _capture(tag + "_g_open")
 
 
 ## The shortest walk between two cells, staying inside [param bounds].
