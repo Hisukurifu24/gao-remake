@@ -10,7 +10,9 @@ extends RefCounted
 ## - four [b]statues[/b] stand round an altar in a third, looking away from it:
 ##   turning one turns its neighbours, and all four must face in;
 ## - a [b]sigil vault[/b] -- a sealed door off a room, opened by the sigils the
-##   others hold and one more in an ordinary chest. It is what chains them.
+##   others hold and one more in an ordinary chest. It is what chains them;
+## - a [b]cracked wall[/b] in a room's north wall, with a hollow behind it that is
+##   solid rock until you break in. A secret, not a puzzle: it pays whoever looks.
 ##
 ## Two passes, because the generator has two moments that matter: [method plan]
 ## runs on the finished layout before it is dressed, and carves the vault, so the
@@ -27,6 +29,9 @@ const TILE := 16
 ## The vault's room, in tiles, lying across the door's way (turned for a door in
 ## a side wall). Room for a chest at the back and a fight in front of it.
 const VAULT_ROOM := Vector2i(6, 4)
+## A cracked wall's hollow: smaller, since it is a cave rather than a room, and
+## has to fit in the rock behind a north wall -- but room to fight in all the same.
+const HOLLOW := Vector2i(4, 3)
 ## Two tiles of wall round it, what every biome can draw, and a doorway through
 ## the wall as wide.
 const VAULT_WALL := 2
@@ -56,6 +61,9 @@ const TABLET_SCENE := preload("res://scenes/world/tablet.tscn")
 const STATUE_SCENE := preload("res://scenes/world/statue.tscn")
 const ALTAR_SCENE := preload("res://scenes/world/statue_altar.tscn")
 const SEAL_SCENE := preload("res://scenes/world/sealed_door.tscn")
+const CRACK_SCENE := preload("res://scenes/world/cracked_wall.tscn")
+## Biomes whose wall cannot crack: the sky's is open air.
+const UNCRACKABLE: Array[StringName] = [&"sky"]
 
 const STEPS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 
@@ -85,6 +93,13 @@ var statue_chest := Vector2i(-1, -1)
 var vault := Rect2i()
 var vault_door := Rect2i()
 var vault_chest := Vector2i(-1, -1)
+## The cracked wall's doorway and hollow, in tiles -- rock until it is broken --
+## and the chest in the hollow.
+var crack_door := Rect2i()
+## Which way the doorway goes from the room.
+var crack_side := Vector2i.UP
+var crack_hollow := Rect2i()
+var crack_chest := Vector2i(-1, -1)
 
 var _rng := RandomNumberGenerator.new()
 var _biome: BiomeKit
@@ -130,6 +145,8 @@ func plan(rooms: Array[Rect2i], entry: Rect2i, chest_cells: Array[Vector2i],
 			+ (1 if has_statues() else 0) + (1 if field_chests > 0 else 0)
 	if sources >= 2:
 		_plan_vault(candidates)
+	if not _biome.id in UNCRACKABLE:
+		_plan_crack(candidates)
 
 
 func has_wisp() -> bool:
@@ -154,6 +171,10 @@ static func ring_targets() -> Array[int]:
 
 func has_vault() -> bool:
 	return vault.has_area()
+
+
+func has_crack() -> bool:
+	return crack_hollow.has_area()
 
 
 ## The flag a puzzle sets once solved, as an opened chest sets its own.
@@ -431,38 +452,95 @@ func _scramble_statues() -> void:
 ## in it -- and inside the field, so the labyrinth's wall and the map's are never
 ## cut.
 func _plan_vault(candidates: Array[Rect2i]) -> void:
-	var rooms := candidates.duplicate()
-	# The rooms with nothing else in them first, then the rest; a seeded start
-	# within each, so it is not always the first room the generator placed.
-	var shift := _rng.randi() % rooms.size()
-	var ordered: Array[Rect2i] = []
-	for busy in [false, true]:
-		for i in rooms.size():
-			var room: Rect2i = rooms[(i + shift) % rooms.size()]
-			var used := room == wisp_room or room.has_point(shrine_cell) or room == rite_room \
-					or room == statue_room
-			if used == busy:
-				ordered.append(room)
+	var ordered := _quiet_first(candidates)
 	for side in STEPS:
 		for room in ordered:
-			var along := room.size.x if side.y != 0 else room.size.y
-			var offsets: Array[int] = []
-			for offset in range(1, along - 2):
-				offsets.append(offset)
-			# Nearest the middle of the wall first.
-			offsets.sort_custom(func(a: int, b: int) -> bool:
-				return absi(2 * a + 2 - along) < absi(2 * b + 2 - along))
-			for offset in offsets:
-				if _try_vault(room, side, offset):
+			for offset in _wall_offsets(room, side):
+				var pocket := _pocket(room, side, offset, VAULT_ROOM)
+				if not pocket.is_empty():
+					_carve_vault(pocket)
 					return
 
 
-func _try_vault(room: Rect2i, side: Vector2i, offset: int) -> bool:
+## The rooms with nothing else in them first, then the rest; a seeded start
+## within each, so it is not always the first room the generator placed.
+func _quiet_first(candidates: Array[Rect2i]) -> Array[Rect2i]:
+	var shift := _rng.randi() % candidates.size()
+	var ordered: Array[Rect2i] = []
+	for busy in [false, true]:
+		for i in candidates.size():
+			var room: Rect2i = candidates[(i + shift) % candidates.size()]
+			var used := room == wisp_room or room.has_point(shrine_cell) or room == rite_room \
+					or room == statue_room or room.grow(VAULT_WALL).intersects(vault_door)
+			if used == busy:
+				ordered.append(room)
+	return ordered
+
+
+## Where along [param room]'s [param side] wall a two-wide doorway may go,
+## nearest the middle of the wall first.
+func _wall_offsets(room: Rect2i, side: Vector2i) -> Array[int]:
+	var along := room.size.x if side.y != 0 else room.size.y
+	var offsets: Array[int] = []
+	for offset in range(1, along - 2):
+		offsets.append(offset)
+	offsets.sort_custom(func(a: int, b: int) -> bool:
+		return absi(2 * a + 2 - along) < absi(2 * b + 2 - along))
+	return offsets
+
+
+func _carve_vault(pocket: Array) -> void:
+	vault_door = pocket[0]
+	vault = pocket[1]
+	vault_chest = pocket[2]
+	for rect: Rect2i in [vault, vault_door]:
+		for y in range(rect.position.y, rect.end.y):
+			for x in range(rect.position.x, rect.end.x):
+				var cell := Vector2i(x, y)
+				_walls.erase_cell(cell)
+				_ground.set_cell(cell, FloorGenerator.SOURCE_ID, Vector2i(_biome.floor_tile, 0))
+	_claim(pocket)
+
+
+## A hollow behind a crack in a room's wall: the north wall where any room has
+## the rock for it, so the crack faces you as you walk up, then the sides. Never
+## the south, where the crack would be on the rock's top, under your feet.
+## Left as rock: [CrackedWall] carves it when it breaks.
+func _plan_crack(candidates: Array[Rect2i]) -> void:
+	var ordered := _quiet_first(candidates)
+	for side: Vector2i in [Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]:
+		for room in ordered:
+			for offset in _wall_offsets(room, side):
+				var pocket := _pocket(room, side, offset, HOLLOW)
+				if not pocket.is_empty():
+					crack_side = side
+					crack_door = pocket[0]
+					crack_hollow = pocket[1]
+					crack_chest = pocket[2]
+					_claim(pocket)
+					return
+
+
+## Keeps the rock round a pocket for it, and the cells in front of its doorway.
+func _claim(pocket: Array) -> void:
+	var rock := (pocket[1] as Rect2i).grow(VAULT_WALL)
+	for y in range(rock.position.y, rock.end.y):
+		for x in range(rock.position.x, rock.end.x):
+			_taken[Vector2i(x, y)] = true
+	for cell: Vector2i in pocket[3]:
+		_taken[cell] = true
+
+
+## A pocket of [param size] in untouched rock off [param room]'s [param side] wall,
+## [param offset] cells along it, behind a two-wide doorway through the wall:
+## [code][doorway, room, chest cell, cells in front][/code], or empty where the
+## rock is cut or claimed, or would take the field's own wall.
+func _pocket(room: Rect2i, side: Vector2i, offset: int, size: Vector2i) -> Array:
 	var door: Rect2i
 	var inside: Rect2i
 	var chest: Vector2i
-	var w := VAULT_ROOM.x
-	var h := VAULT_ROOM.y
+	var w := size.x
+	var h := size.y
 	match side:
 		Vector2i.UP:
 			door = Rect2i(room.position.x + offset, room.position.y - VAULT_WALL, 2, VAULT_WALL)
@@ -482,13 +560,14 @@ func _try_vault(room: Rect2i, side: Vector2i, offset: int) -> bool:
 			chest = Vector2i(inside.end.x - 1, door.position.y)
 	var rock := inside.grow(VAULT_WALL)
 	if not _field.encloses(rock):
-		return false
+		return []
 	for y in range(rock.position.y, rock.end.y):
 		for x in range(rock.position.x, rock.end.x):
 			var cell := Vector2i(x, y)
 			if _open.has(cell) or _taken.has(cell) or _walls.get_cell_source_id(cell) == -1:
-				return false
+				return []
 	# The room's own cells in front of the door: open, or it is a door into a wall.
+	var fronts: Array[Vector2i] = []
 	for along in 2:
 		var front: Vector2i
 		match side:
@@ -497,20 +576,9 @@ func _try_vault(room: Rect2i, side: Vector2i, offset: int) -> bool:
 			Vector2i.LEFT: front = Vector2i(room.position.x, door.position.y + along)
 			_: front = Vector2i(room.end.x - 1, door.position.y + along)
 		if not _open.has(front) or _taken.has(front):
-			return false
-	vault = inside
-	vault_door = door
-	vault_chest = chest
-	for rect: Rect2i in [inside, door]:
-		for y in range(rect.position.y, rect.end.y):
-			for x in range(rect.position.x, rect.end.x):
-				var cell := Vector2i(x, y)
-				_walls.erase_cell(cell)
-				_ground.set_cell(cell, FloorGenerator.SOURCE_ID, Vector2i(_biome.floor_tile, 0))
-	for y in range(rock.position.y, rock.end.y):
-		for x in range(rock.position.x, rock.end.x):
-			_taken[Vector2i(x, y)] = true
-	return true
+			return []
+		fronts.append(front)
+	return [door, inside, chest, fronts]
 
 
 # --- putting it down ------------------------------------------------------------
@@ -602,6 +670,26 @@ func place(map: Node2D) -> void:
 		_add_sealed_chest(map, "ChestVault", vault_chest, &"")
 		map.set_meta(&"vault", vault)
 		map.set_meta(&"vault_door", vault_door)
+	if has_crack():
+		_add_sealed_chest(map, "ChestCrack", crack_chest, flag("crack"))
+		var crack := CRACK_SCENE.instantiate() as CrackedWall
+		crack.name = "CrackedWall"
+		crack.door = crack_door
+		crack.hollow = crack_hollow
+		crack.opened_flag = flag("crack")
+		crack.side = crack_side
+		crack.in_trees = _biome.wall_style == BiomeKit.WallStyle.TREES
+		crack.position = CrackedWall.face_of(crack_door, crack_side)
+		map.add_child(crack)
+		if crack.in_trees:
+			# The trees on the doorway make way for the boulder.
+			var clear := {}
+			for y in range(crack_door.position.y, crack_door.end.y):
+				for x in range(crack_door.position.x, crack_door.end.x):
+					clear[Vector2i(x, y)] = true
+			var rng := RandomNumberGenerator.new()
+			rng.seed = _rng.randi()
+			MapDresser.step_trees_back(map, _biome, _walls, clear, rng)
 	_clear_monsters(map)
 
 

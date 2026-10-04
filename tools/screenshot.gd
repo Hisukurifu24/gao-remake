@@ -3,6 +3,7 @@ extends Node
 ##
 ##     "$GODOT" --path . res://tools/screenshot.tscn
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --puzzles   # that pass only
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --cracks    # the cracked walls only
 ##
 ## Dev aid for checking how a change actually looks without sitting through the
 ## game. Needs a real window, so it can't run with --headless.
@@ -22,6 +23,14 @@ const BOSS_FIGHTS := [
 const BAND_FLOORS := [5, 15, 27, 35, 45, 55, 65, 75, 85, 97]
 
 
+## The cracked wall in every way a wall is drawn -- trees, cliffs (green, sandstone,
+## the desert's and the volcanic band's), masonry -- as [floor to start looking
+## from, whether it should be in a side wall]: on the dark bands a crack in a side
+## wall lies on black rock, and is drawn pale.
+const CRACK_SHOTS: Array = [[2, false], [24, false], [21, true], [37, false], [55, false],
+		[65, false], [75, false], [71, true], [95, false], [91, true]]
+
+
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(SHOTS)
 	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
@@ -30,6 +39,12 @@ func _ready() -> void:
 	while GameState.is_input_locked():
 		await get_tree().process_frame
 	await _frames(2)
+	if "--cracks" in OS.get_cmdline_user_args():
+		for shot: Array in CRACK_SHOTS:
+			await _capture_crack(main, shot[0], shot[1])
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
 	if "--puzzles" in OS.get_cmdline_user_args():
 		for floor_number in [2, 37]:
 			await _capture_puzzles(main, floor_number)
@@ -78,6 +93,8 @@ func _ready() -> void:
 	await _capture_trap(main)
 	for floor_number in [2, 37]:
 		await _capture_puzzles(main, floor_number)
+	for shot: Array in CRACK_SHOTS:
+		await _capture_crack(main, shot[0], shot[1])
 
 	for floor_number in [2, 10, 15, 24, 25, 37, 45, 55, 65, 75, 87, 100]:
 		await _capture_floor(floor_number)
@@ -812,6 +829,46 @@ func _capture_puzzles(main: Node, from_floor: int) -> void:
 	player.global_position = seal.global_position - outward * 8.0
 	await _wait(0.8)
 	await _capture(tag + "_g_open")
+
+
+## A cracked wall on the first floor at or above [param from_floor] that has one
+## -- in a side wall, with [param in_side] -- before and after it breaks: the
+## crack (or the boulder, in a forest) with the grit at its foot, then the hollow
+## open and its chest there.
+func _capture_crack(main: Node, from_floor: int, in_side: bool) -> void:
+	var floor_number := from_floor
+	while floor_number < from_floor + 8:
+		var probe := FloorRegistry.build_floor(floor_number)
+		var crack := probe.get_node_or_null("CrackedWall") as CrackedWall
+		var has := crack != null and (crack.side != Vector2i.UP) == in_side
+		probe.free()
+		if has:
+			break
+		floor_number += 1
+	if floor_number == from_floor + 8:
+		print("no cracked wall%s from floor %d on" % [" in a side wall" if in_side else "", from_floor])
+		return
+	GameState.set_flag(StringName("puzzle_%d_crack" % floor_number), false)
+	var map := await _enter(floor_number)
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	var player := map.get_node("Player") as Player
+	var crack := map.get_node("CrackedWall") as CrackedWall
+	var tag := "05_crack_%d%s" % [floor_number, "_side" if crack.side != Vector2i.UP else ""]
+	player.global_position = crack.global_position - Vector2(crack.side) * 30.0 + Vector2(10, 0)
+	player.facing = Vector2(crack.side)
+	await _wait(0.8)
+	await _capture(tag + "_a_shut")
+	crack.interact(player)
+	await _wait(0.4)
+	await _capture(tag + "_b_breaking")
+	while DialogueRunner.is_running():
+		DialogueRunner.advance()
+		await _typed(main)
+	player.global_position = crack.global_position + Vector2(crack.side) * 8.0
+	await _wait(1.0)
+	await _capture(tag + "_c_open")
 
 
 ## The shortest walk between two cells, staying inside [param bounds].

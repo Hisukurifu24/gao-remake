@@ -228,7 +228,7 @@ timed or failable quests, no branching quests where a choice picks between two
 endings, and **the tracker shows one quest at a time** rather than every live
 objective.
 
-### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3, §5, §6 ✅ (the battle screen is gone: fights happen on the map); §4 under way (safe zones, trapped chests and four puzzles in; the cracked wall next)
+### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3, §5, §6 ✅ (the battle screen is gone: fights happen on the map); §4's chosen set in (safe zones, trapped chests, four puzzles and the cracked wall; the authored-floor revisit next)
 
 Playtest feedback on the finished loop, and it lands on the overworld rather than on any
 one system: **the floors work, but exploring them isn't a game yet.** The camera shows the
@@ -585,7 +585,7 @@ predictably in the farthest room and often on screen.
   wants a layout change to be worth hiding — a door at the end of a straight road is found
   by walking down it.*
 
-#### 4. "Something's missing" in floor structure — design pass *(decided 2026-10-03: safe zones ✅, trapped chests ✅, puzzles — first pass ✅, statues ✅)*
+#### 4. "Something's missing" in floor structure — design pass *(decided 2026-10-03: safe zones ✅, trapped chests ✅, puzzles ✅ — wisp, braziers, vault, statues, cracked wall)*
 The layouts aren't bad but don't hold attention yet. Decide what the missing thing is
 **after** 1–3 land, because a close camera, moving monsters and a hidden door will change
 the answer. Candidates to weigh:
@@ -646,8 +646,8 @@ whatever §4 adds.
   to make room for "camp". *Not taken:* traps on authored floors (the revisit), a trap
   that hurts (HP is what the alarm's pack is for), multi-enemy alarm fights (the party is
   one — escorts are capped at one for the same reason).
-- [ ] **Puzzles.** *First pass landed 2026-10-04: wisp, braziers, sigil vault* (below);
-  *turning statues the same day.*
+- [x] **Puzzles.** *First pass landed 2026-10-04: wisp, braziers, sigil vault* (below);
+  *turning statues and the cracked wall the same day.*
   *Candidates chosen 2026-10-04*, on the Genshin model the user asked
   for: a puzzle is a **curiosity you see from a distance** (a glowing thing, an unlit
   thing, a sealed thing), **small and local**, **paid in a chest**, and ideally **pointing
@@ -717,8 +717,17 @@ whatever §4 adds.
     the wisp's chest, the braziers' chest, and one of the floor's own field chests — a
     gilded one when it has one (76 of 95 vaults), so the third sigil is the gamble.
     Fewer than two sources and there is no vault. Opened, `puzzle_<n>_vault`.*
-  - [ ] **Cracked wall.** A crack you can see; **E** breaks it into a secret room. A secret
+  - [x] **Cracked wall.** A crack you can see; **E** breaks it into a secret room. A secret
     rather than a puzzle, but it rewards looking, and the map draws the crack once seen.
+    *Landed: a 4x3 hollow in untouched rock behind a room's wall, two tiles in, and it is
+    **solid rock until it breaks** — not carved and plugged, so nothing gives it away:
+    not the camera seeing over the walls, not a gap in a forest. The tell is the crack:
+    a split drawn across the two cells of wall facing the room with grit fallen at its
+    foot, pale on rock too dark for a dark split to show; in a forest, a cracked grey
+    boulder wedged in the treeline. **E** breaks it with a puff of smoke, carves the
+    doorway and the hollow, and re-dresses round them; a sealed chest appears inside.
+    North walls first, so the crack faces you; then the sides. On 84 of 97 floors — all
+    but the sky's, whose wall is open air.*
 
   *Not taken:* **push blocks onto plates** (Sokoban) — a block in a corner is an
   unsolvable puzzle, and a solid block can wall off a corridor, which breaks the one thing
@@ -740,7 +749,7 @@ whatever §4 adds.
   - Field rooms first: they are what has least reason to be walked into today.
   - Suggested first pass: wisp + braziers + sigil vault (follow, solve, collect — and the
     first two feed the third); statues next; the cracked wall wherever it is cheap.
-    *(Statues are in; the cracked wall is what is left.)*
+    *(All five are in.)*
 
   *First pass, as built (2026-10-04).* `FloorPuzzles` (`scripts/world/floor_puzzles.gd`)
   plans on the finished layout before it is dressed (and carves the vault), then places
@@ -770,7 +779,7 @@ whatever §4 adds.
   *My calls, open to change:* the door's look (the dungeon set's panels read a little like
   a crate in the forest); the burn margin; three braziers more often than four; sealed loot
   is gear only. *Not yet:* puzzles in the labyrinth (the wisp as a moving light in the
-  dark, braziers that glow once lit), the cracked wall, puzzles on authored floors.
+  dark, braziers that glow once lit), puzzles on authored floors.
 
   *Turning statues, as built (2026-10-04).* `FloorPuzzles._plan_statues` after the rite,
   on the same stream; `StatueRing` (a `Node`, like `BrazierRite`) owns the rule and the
@@ -788,6 +797,41 @@ whatever §4 adds.
   green, so unlit it can pass for a fifth statue (the pack's red orb is the other
   candidate); a solved ring stays solved rather than being re-scrambled; no mural mode
   -- "face the altar" already gives every statue its own answer.
+
+  *Cracked wall, as built (2026-10-04).* `FloorPuzzles._plan_crack` runs last, on the
+  same stream, and looks for a pocket the way the vault does (`_pocket`, which both now
+  share): untouched rock inside the field, two tiles of it round the hollow, the room's
+  own floor in front of the doorway. Unlike the vault it **carves nothing** — the doorway
+  and hollow stay wall, are dressed as wall, and the chest in there is `hidden_until`
+  `puzzle_<n>_crack`. `CrackedWall` (`scripts/world/cracked_wall.gd`) is the crack:
+  an `Interactable` on the wall's face cells, drawing its split and grit from two pixel
+  tables turned for whichever wall it is in, and choosing the split's colour by the median
+  luminance of the tile pixels under it (0.10 on a cave's or the volcanic band's black top
+  seen side-on, 0.37 and up on any face, so a threshold of 0.25 never wavers). Breaking it
+  calls `MapDresser.open_cells()`, the first thing that dresses a map *after* it was
+  dressed: the cells become plain floor by nearest match, the blob ring round them is
+  re-picked by nearest match (the blob is a complete 47, so every cell finds its exact
+  tile and nothing past the ring changes), and a forest's trees step back
+  (`step_trees_back`, also what clears the doorway for the boulder at build time, with
+  no crown left hanging over it). Broken is a flag; a map built after re-breaks itself
+  in `_ready`, by the same call. `GameMap.reshaped()` drops the cover cache and looks
+  again from where you stand, since you see further without taking a step. The map
+  marks an unbroken crack with the puzzle glint once its cell has been seen.
+  Checked by the floor test on every generated floor: shut, the doorway and the hollow
+  are rock and the crack faces floor you can walk to; broken the way the game breaks it,
+  the hollow is open only at its doorway, its chest can be walked up to, every wall tile
+  still matches its neighbours (or every forest edge has a tree on it), every ground cell
+  draws the right edge — and the formation sweep then runs on the broken floor, so a
+  fight can be staged inside the hollow too. 84 of 97 floors, 46 of them in a north wall,
+  36 in a forest. The smoke test breaks one on a real floor 2 with **E**, walks in, opens
+  the chest and comes back to find it still broken. `tools/screenshot.gd -- --cracks`
+  frames one per wall style, before, breaking and open, and a side-wall crack on each of
+  the three dark bands (`05_crack_*`).
+  *My calls, open to change:* the hollow is 4x3 (a 6x4 one, the vault's, fitted 21 floors
+  in 97 behind a north wall); side walls are allowed, where the crack lies on the rock's
+  top rather than its face and reads less well; never south walls (it would be under your
+  feet, on the rock's top); not in the sky; the chest holds sealed loot and no sigil, so
+  the vault never depends on spotting a secret; the grit stays after it breaks.
 
 #### 5. Playtest notes (2026-10-01) — after §3 landed
 Three things from playing the finished §3. None is a bug; all three are "works, doesn't
@@ -1535,6 +1579,14 @@ stays in the dark, and the map marks it. And not every chest is what it seems: t
 red ones always hold gear, and most of them are trapped — an alarm that brings the
 floor's monsters down on you, or a flash of light and a dead end deep in the maze.
 
+And the field rooms have something in them now. A wisp waits near the stairs and leads
+you through the fog to its shrine; braziers want lighting before the first goes out, or
+in the order a tablet gives; four statues round an altar turn their neighbours with them;
+a sealed door wants the sigils the others pay out. Each is paid in a blue chest that was
+not there before. And somewhere on most floors a wall is cracked, with grit at its foot
+— or, in the woods, a split boulder sits in the treeline. Press **E** on it and there is
+a hollow behind it that was solid rock a moment ago.
+
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
 
@@ -1556,8 +1608,8 @@ bottom only goes up.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 126-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 135-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 132-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 136-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 87-check combat test
@@ -1596,10 +1648,11 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    screens of it in the dark, the map is ink on parchment), and the battle screen that
    failed playtest is gone: **fights happen on the map** (§6, done 2026-10-02 — staging,
    the world-space view, bosses stepping out of their doors, the pack's FX). **§4 is
-   decided and under way**: safe zones are in every labyrinth and gilded chests are a
-   gamble; puzzles' first pass is in (wisp, braziers, sigil vault -- 2026-10-04), with
-   turning statues the same day, the cracked wall still to come, then the authored-floor revisit §3 left open
-   (Illfang, Nerith and Karvos all stand at the obvious end of their layouts).
+   decided and its chosen set is in**: safe zones are in every labyrinth, gilded chests
+   are a gamble, and the puzzles are all built (wisp, braziers, sigil vault, turning
+   statues, cracked wall -- 2026-10-04). Next is the authored-floor revisit §3 left open
+   (Illfang, Nerith and Karvos all stand at the obvious end of their layouts), which
+   can now use any of that.
    Floor 40 should be laid out after §4, for the same reason as before.
 3. **M5.6 — Col.** Decided 2026-10-04: Col from monsters, materials, chests and quests;
    spent on smith enhancement, Argo's boss-door information and shops (with a merchant

@@ -398,16 +398,17 @@ func _test_traps(map: Node2D, player: Player) -> void:
 	await _physics(2)
 
 
-## The four puzzles, solved on a real floor 2: the wisp leads, waits for you and
+## The four puzzles and the cracked wall, on a real floor 2: the wisp leads, waits for you and
 ## lights its shrine; the braziers go out in the wrong order and when the fire
 ## runs down, hold their clock through the input lock, and pay out when all are
 ## lit; a statue turns its neighbours with it, and the ring wakes the altar once
 ## all four face it; the vault stays shut until the last sigil is in hand. Each
-## chest appears only once its puzzle is solved.
+## chest appears only once its puzzle is solved. The cracked wall is rock until
+## E breaks it, and broken when you come back.
 ##
 ## The world seed is random per run and a floor may lack a puzzle (the floor test
-## counts how many do), so this picks a seed whose floor 2 has all four, with a
-## timed rite, and goes back up to it.
+## counts how many do), so this picks a seed whose floor 2 has all four and a
+## cracked wall, with a timed rite, and goes back up to it.
 func _test_puzzles(world_root: Node2D) -> void:
 	var picked := 0
 	for candidate in range(1, 400):
@@ -416,16 +417,17 @@ func _test_puzzles(world_root: Node2D) -> void:
 		var rite := probe.get_node_or_null("BrazierRite") as BrazierRite
 		var whole := probe.get_node_or_null("Wisp") != null and probe.get_node_or_null("SealedDoor") != null \
 				and probe.get_node_or_null("StatueRing") != null \
+				and probe.get_node_or_null("CrackedWall") != null \
 				and rite != null and rite.mode == BrazierRite.Mode.TIMED
 		probe.free()
 		if whole:
 			picked = candidate
 			break
-	_check(picked > 0, "some world seed's floor 2 has a wisp, a timed rite, statues and a vault")
+	_check(picked > 0, "some world seed's floor 2 has a wisp, a timed rite, statues, a vault and a crack")
 	if picked == 0:
 		return
 	for flag: StringName in [&"puzzle_2_wisp", &"puzzle_2_braziers", &"puzzle_2_statues",
-			&"puzzle_2_vault"]:
+			&"puzzle_2_vault", &"puzzle_2_crack"]:
 		GameState.set_flag(flag, false)
 	await SceneRouter.enter_floor(2, &"default")
 	await _until_unlocked()
@@ -594,6 +596,50 @@ func _test_puzzles(world_root: Node2D) -> void:
 	_check(_open_sealed(vault_chest, player, false), "and the vault's chest is there to open")
 	await _close_dialogue()
 	await _idle(2)
+
+	# --- the cracked wall ---
+	var crack := map.get_node("CrackedWall") as CrackedWall
+	var crack_chest := map.get_node("ChestCrack") as Chest
+	var walls := map.get_node("Walls") as TileMapLayer
+	var face := walls.local_to_map(crack.position)
+	_check(walls.get_cell_source_id(face) != -1 and walls.get_cell_source_id(crack.hollow.position) != -1
+			and not crack_chest.is_available() and not crack_chest.visible,
+			"behind the cracked wall is rock, and the chest in it is not there")
+	var toward := StringName({Vector2i.UP: "move_up", Vector2i.LEFT: "move_left",
+			Vector2i.RIGHT: "move_right"}[crack.side])
+	player.global_position = walls.map_to_local(face - crack.side)
+	# Leaning on the wall turns you to it; and the box that just closed leaves E
+	# deaf for a moment.
+	await _hold(toward, 3)
+	await get_tree().create_timer(Player.INTERACT_GRACE + 0.05).timeout
+	await _tap(&"interact")
+	await _idle(2)
+	_check(GameState.has_flag(&"puzzle_2_crack") and DialogueRunner.is_running(),
+			"E on the crack breaks the wall, and says so")
+	await _close_dialogue()
+	await _until_unlocked()
+	var carved := true
+	for rect: Rect2i in [crack.door, crack.hollow]:
+		for y in range(rect.position.y, rect.end.y):
+			for x in range(rect.position.x, rect.end.x):
+				carved = carved and walls.get_cell_source_id(Vector2i(x, y)) == -1
+	_check(carved and not crack.is_available() and crack_chest.is_available() and crack_chest.visible,
+			"the doorway and the hollow are open, and the chest is there")
+	# Walked into for real: the wall's collision has to have gone too.
+	await _hold(toward, 24)
+	_check(crack.door.grow(1).intersects(Rect2i(walls.local_to_map(player.position), Vector2i.ONE))
+			and walls.local_to_map(player.position) != face - crack.side,
+			"and you can walk in through it")
+	_check(_open_sealed(crack_chest, player, false), "the hollow's chest opens")
+	await _close_dialogue()
+	await _idle(2)
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	var again := world_root.get_child(0) as GameMap
+	var again_crack := again.get_node("CrackedWall") as CrackedWall
+	_check(again != map and not again_crack.is_available()
+			and (again.get_node("Walls") as TileMapLayer).get_cell_source_id(face) == -1,
+			"and it is still broken when you come back")
 
 
 ## Opens a sealed chest and says whether it paid out -- its item into the bag

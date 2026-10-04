@@ -4,7 +4,8 @@ extends Control
 ## floor you have walked, the passages you have only glimpsed, the rock round
 ## them, the names of places, and a symbol for you, the boss door once found, the
 ## ways out, unopened chests, the people you have come across, puzzles not yet
-## solved and whoever your tracked quest wants you to see.
+## solved (a cracked wall among them, once you have seen the crack) and whoever
+## your tracked quest wants you to see.
 ##
 ## Purely a view. [GameState] says which cells have been seen and walked, the map
 ## says what is in them, [QuestLog] says what the tracked quest is after; this only
@@ -186,6 +187,7 @@ func _draw_markers(walls: TileMapLayer, seen: Dictionary) -> void:
 				_mark(at, MapGlyph.Kind.CHEST, UiPalette.MAP_SEALED if chest.sealed
 						else UiPalette.MAP_GILDED if chest.gilded else UiPalette.MAP_CHEST)
 		elif node is Wisp or (node is SealedDoor and (node as SealedDoor).is_available()) \
+				or (node is CrackedWall and (node as CrackedWall).is_available()) \
 				or (node is Tablet and _rite_unsolved()) \
 				or (node is StatueAltar and (node as StatueAltar).is_available()):
 			_mark(at, MapGlyph.Kind.PUZZLE, UiPalette.MAP_PUZZLE)

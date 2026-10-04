@@ -59,6 +59,10 @@ var _fewest_ring_turns := 1 << 30
 var _most_ring_turns := 0
 var _vaults := 0
 var _gilded_sigils := 0
+var _cracks := 0
+var _cracks_in_trees := 0
+## Cracked walls in a room's north wall, facing you; the rest are in a side wall.
+var _cracks_facing := 0
 
 
 func _ready() -> void:
@@ -254,7 +258,9 @@ func _run() -> void:
 		_check((props == null or not props.collision_enabled) and decor != null and not decor.collision_enabled,
 				"on %s no dressing layer collides" % label)
 		if trees and props != null:
-			var bare := _bare_forest_edges(dressed.get_node("Walls") as TileMapLayer, props, sample_biome)
+			# Bar the cracked boulder's own doorway, which the boulder stands on.
+			var bare := _bare_forest_edges(dressed.get_node("Walls") as TileMapLayer, props, sample_biome,
+					_crack_door(dressed))
 			_check(bare == 0, "every edge of %s's forest has a tree standing on it (%d bare)" % [label, bare])
 		var ground_layer := dressed.get_node("Ground") as TileMapLayer
 		var off := _ground_mismatches(ground_layer, sample_biome)
@@ -335,6 +341,10 @@ func _run() -> void:
 	_check(_vaults * 4 >= generated * 3 and _gilded_sigils > 0,
 			"a sealed vault stands on %d of %d floors (a sigil under a gilded chest on %d)" % [
 				_vaults, generated, _gilded_sigils])
+	_check(_cracks * 4 >= generated * 3 and _cracks_in_trees > 0,
+			"a cracked wall hides a hollow on %d of %d floors (%d of them in a forest)" % [
+				_cracks, generated, _cracks_in_trees])
+	print("       (%d of them in a north wall, facing you; the rest in a side wall)" % _cracks_facing)
 	# Puzzles draw on a stream of their own: the floor without them is the same
 	# floor -- the same chests, the same monsters, the same door.
 	var moved: PackedStringArray = PackedStringArray()
@@ -562,8 +572,12 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 	if not reachable.has(walls.local_to_map(gate.position)):
 		return "floor %d boss gate is unreachable" % floor_number
 
+	var crack := map.get_node_or_null("CrackedWall") as CrackedWall
 	for child in map.get_children():
 		if not child.name.begins_with("Chest"):
+			continue
+		# Behind a cracked wall is rock until it breaks: _audit_puzzles breaks it.
+		if crack != null and (child as Chest).hidden_until == crack.opened_flag:
 			continue
 		if not reachable.has(walls.local_to_map((child as Node2D).position)):
 			return "floor %d has an unreachable chest" % floor_number
@@ -612,6 +626,9 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 		if seal != null:
 			for shape in seal.get_node("Solid").get_children():
 				(shape as CollisionShape2D).disabled = true
+		# And with the cracked wall broken, which the puzzle audit has done: its
+		# hollow is floor now, and somewhere a fight can follow you into.
+		reachable = _flood(walls, start)
 		_audit_formations(map, walls, start, reachable, "floor %d" % floor_number)
 		_audit_boss_formations(map, walls, gate, reachable, floor_number, "floor %d" % floor_number)
 	return lost
@@ -877,6 +894,52 @@ func _audit_puzzles(map: GameMap, walls: TileMapLayer, start: Vector2i, reachabl
 		_vaults += 1
 	elif not by_sigil.is_empty():
 		return "%s hides sigils for a vault it does not have" % label
+
+	# The cracked wall: a secret until it breaks -- the hollow is rock, its chest is
+	# hidden, the crack faces floor you can walk to -- and broken the way the game
+	# breaks it, the hollow opens onto that room and nothing else, its chest can be
+	# walked up to, and the rock, the forest and the ground round it are dressed as
+	# if it had been carved from the start.
+	var crack := map.get_node_or_null("CrackedWall") as CrackedWall
+	if crack != null:
+		var hollow := crack.hollow
+		var chest := map.get_node_or_null("ChestCrack") as Chest
+		if chest == null or not chest.sealed or chest.hidden_until != crack.opened_flag \
+				or not hollow.has_point(walls.local_to_map(chest.position)):
+			return "%s's cracked wall has no chest hidden behind it" % label
+		for rect: Rect2i in [crack.door, hollow]:
+			for y in range(rect.position.y, rect.end.y):
+				for x in range(rect.position.x, rect.end.x):
+					if walls.get_cell_source_id(Vector2i(x, y)) == -1:
+						return "%s's cracked wall is open at %s before it is broken" % [label, Vector2i(x, y)]
+		var face := walls.local_to_map(crack.position)
+		if not crack.door.has_point(face) or not walkable.has(face - crack.side):
+			return "%s's crack does not face floor you can walk to" % label
+		crack.break_open()
+		map.refresh_solids()
+		var broken := _flood_standable(map, start)
+		if not _approachable(walls, chest, broken):
+			return "%s's hollow chest cannot be reached once the wall breaks" % label
+		for cell in _ring(hollow.grow(1)):
+			if walls.get_cell_source_id(cell) == -1 and not crack.door.has_point(cell):
+				return "%s's hollow is open at %s, not only at its crack" % [label, cell]
+		var biome := FloorRegistry.get_biome(floor_number)
+		var props := map.get_node_or_null(MapDresser.PROPS) as TileMapLayer
+		if biome.wall_style == BiomeKit.WallStyle.TREES:
+			var bare := _bare_forest_edges(walls, props, biome)
+			if bare > 0:
+				return "%s's forest is bare in %d places round its broken wall" % [label, bare]
+			_cracks_in_trees += 1
+		else:
+			var wrong := _mismatched_wall_tiles(walls, biome.wall_terrain_set)
+			if wrong > 0:
+				return "%s's broken wall leaves %d wall tiles not matching their neighbours" % [label, wrong]
+		var off := _ground_mismatches(map.get_node("Ground") as TileMapLayer, biome)
+		if off > 0:
+			return "%s's broken wall leaves %d ground cells drawing the wrong edge" % [label, off]
+		_cracks += 1
+		if crack.side == Vector2i.UP:
+			_cracks_facing += 1
 
 	# And the pieces stand in nobody's way: with every one of them solid, the floor's
 	# own chests, its fire and its door can still be walked up to.
@@ -1411,10 +1474,17 @@ func _check(condition: bool, description: String) -> void:
 		_failures.append(description)
 
 
+## The doorway an unbroken cracked wall stands in, or an empty rect.
+func _crack_door(map: Node2D) -> Rect2i:
+	var crack := map.get_node_or_null("CrackedWall") as CrackedWall
+	return crack.door if crack != null and crack.is_available() else Rect2i()
+
+
 ## Wall-mass cells beside open ground that no tree or bush stands over. A bare one
 ## shows the flat floor under the canopy: the forest's version of a mis-paired
 ## blob tile, and just as invisible to every other check.
-func _bare_forest_edges(walls: TileMapLayer, props: TileMapLayer, biome: BiomeKit) -> int:
+func _bare_forest_edges(walls: TileMapLayer, props: TileMapLayer, biome: BiomeKit,
+		standing_on := Rect2i()) -> int:
 	var covered := {}
 	var source := props.tile_set.get_source(0) as TileSetAtlasSource
 	for cell in props.get_used_cells():
@@ -1426,7 +1496,8 @@ func _bare_forest_edges(walls: TileMapLayer, props: TileMapLayer, biome: BiomeKi
 	var bare := 0
 	var wall_atlas := Vector2i(biome.wall_tile, 0)
 	for cell in walls.get_used_cells():
-		if walls.get_cell_atlas_coords(cell) != wall_atlas or covered.has(cell):
+		if walls.get_cell_atlas_coords(cell) != wall_atlas or covered.has(cell) \
+				or standing_on.has_point(cell):
 			continue
 		for side: Vector2i in SIDES.values():
 			if walls.get_cell_source_id(cell + side) == -1:

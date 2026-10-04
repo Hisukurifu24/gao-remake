@@ -140,18 +140,35 @@ static func plant_trees(props: TileMapLayer, biome: BiomeKit, walls: TileMapLaye
 	for cell: Vector2i in cells:
 		if posmod(cell.x + cell.y, 2) == 0 and mass.has(cell + Vector2i.RIGHT):
 			_plant(props, biome, cell, covered, rng)
-	# Whatever the lattice missed: a tree if there is room beside it, else a bush,
-	# so no edge of the mass is ever left showing bare floor.
+	_fill_bare(props, biome, cells, mass, covered, rng)
+
+
+## Whatever the lattice missed: a tree if there is room beside it, else a bush,
+## so no edge of the mass is ever left showing bare floor. A tree whose crown
+## would hang over a cell of [param keep] is a bush instead.
+static func _fill_bare(props: TileMapLayer, biome: BiomeKit, cells: Array, mass: Dictionary,
+		covered: Dictionary, rng: RandomNumberGenerator, keep := {}) -> void:
 	for cell: Vector2i in cells:
 		if covered.has(cell):
 			continue
-		if mass.has(cell + Vector2i.RIGHT):
+		if mass.has(cell + Vector2i.RIGHT) and not _overhangs(cell, keep):
 			_plant(props, biome, cell, covered, rng)
-		elif mass.has(cell + Vector2i.LEFT):
+		elif mass.has(cell + Vector2i.LEFT) and not _overhangs(cell + Vector2i.LEFT, keep):
 			_plant(props, biome, cell + Vector2i.LEFT, covered, rng)
 		else:
 			props.set_cell(cell, SOURCE_ID, Vector2i(biome.obstacle_tile, 0))
 			covered[cell] = true
+
+
+static func _overhangs(anchor: Vector2i, keep: Dictionary) -> bool:
+	if keep.is_empty():
+		return false
+	var rect := footprint(anchor, Vector2i(2, 2))
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			if keep.has(Vector2i(x, y)):
+				return true
+	return false
 
 
 static func _plant(props: TileMapLayer, biome: BiomeKit, cell: Vector2i, covered: Dictionary,
@@ -170,6 +187,102 @@ static func _wall_mass(biome: BiomeKit, walls: TileMapLayer) -> Dictionary:
 		if walls.get_cell_atlas_coords(cell) == wall_atlas:
 			mass[cell] = true
 	return mass
+
+
+# --- reshaping a dressed map ---------------------------------------------------
+
+## Opens [param cells] in a map that has already been dressed -- a cracked wall
+## broken while you watch -- and dresses round them as [method dress] would have
+## had they been carved from the start: plain floor in them, the wall mass beside
+## them drawing its new edges, a forest's trees stepping back from them. Nothing
+## further off than the cells' own neighbours changes.
+##
+## Only for ground that was solid rock: no water, decor or path beside it, which
+## is what a cracked wall's planner guarantees.
+static func open_cells(map: Node2D, biome: BiomeKit, ground: TileMapLayer, walls: TileMapLayer,
+		cells: Array[Vector2i]) -> void:
+	var opened := {}
+	for cell in cells:
+		opened[cell] = true
+		walls.erase_cell(cell)
+	var near := _around(opened, 1)
+	if biome.ground_terrain_set >= 0:
+		# Grass is always drawn plain -- the pack draws every edge inside the dirt's
+		# own cells -- so the new floor is plain grass and no path beside it changes.
+		var dirt := {}
+		for cell: Vector2i in near:
+			var data := ground.get_cell_tile_data(cell)
+			if data != null and data.terrain_set == biome.ground_terrain_set \
+					and data.terrain == biome.ground_dirt:
+				dirt[cell] = true
+		var matcher := TerrainMatcher.new(biome.tile_set, biome.ground_terrain_set, biome.ground_dirt)
+		for cell: Vector2i in _sorted(opened.keys()):
+			var tile := matcher.pick(cell, dirt, biome.ground_grass)
+			ground.set_cell(cell, SOURCE_ID, tile if tile.x >= 0 else Vector2i(biome.floor_tile, 0))
+	else:
+		for cell: Vector2i in opened:
+			ground.set_cell(cell, SOURCE_ID, Vector2i(biome.floor_tile, 0))
+	if biome.wall_style == BiomeKit.WallStyle.TREES:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(_sorted(opened.keys())[0])
+		step_trees_back(map, biome, walls, opened, rng)
+	elif biome.wall_terrain_set >= 0:
+		# Nearest match, not Godot's solver: the blob is a complete 47, so every
+		# cell finds its exact tile, and nothing beyond the ring is touched.
+		var mass := {}
+		for cell: Vector2i in _around(opened, 2):
+			var data := walls.get_cell_tile_data(cell)
+			if data != null and data.terrain_set == biome.wall_terrain_set \
+					and data.terrain == biome.wall_terrain:
+				mass[cell] = true
+		var matcher := TerrainMatcher.new(biome.tile_set, biome.wall_terrain_set, biome.wall_terrain)
+		for cell: Vector2i in _sorted(near.keys()):
+			if mass.has(cell):
+				var tile := matcher.pick(cell, mass, biome.wall_terrain)
+				if tile.x >= 0:
+					walls.set_cell(cell, SOURCE_ID, tile)
+
+
+## Takes away every tree or bush standing on a cell of [param clear], and covers
+## whatever of the forest's edge that leaves bare -- never [param clear] itself,
+## which is either floor now or kept for something else to stand on.
+static func step_trees_back(map: Node2D, biome: BiomeKit, walls: TileMapLayer, clear: Dictionary,
+		rng: RandomNumberGenerator) -> void:
+	var props := map.get_node_or_null(PROPS) as TileMapLayer
+	if props == null:
+		return
+	var source := props.tile_set.get_source(SOURCE_ID) as TileSetAtlasSource
+	var covered := {}
+	for anchor in props.get_used_cells():
+		var rect := footprint(anchor, source.get_tile_size_in_atlas(props.get_cell_atlas_coords(anchor)))
+		var hits := false
+		for y in range(rect.position.y, rect.end.y):
+			for x in range(rect.position.x, rect.end.x):
+				hits = hits or clear.has(Vector2i(x, y))
+		if hits:
+			props.erase_cell(anchor)
+			continue
+		for y in range(rect.position.y, rect.end.y):
+			for x in range(rect.position.x, rect.end.x):
+				covered[Vector2i(x, y)] = true
+	var mass := _wall_mass(biome, walls)
+	for cell: Vector2i in clear:
+		mass.erase(cell)
+	var bare: Array = []
+	for cell: Vector2i in _sorted(_around(clear, 1).keys()):
+		if mass.has(cell) and not covered.has(cell):
+			bare.append(cell)
+	_fill_bare(props, biome, bare, mass, covered, rng, clear)
+
+
+## Every cell within [param reach] of one of [param cells], those included.
+static func _around(cells: Dictionary, reach: int) -> Dictionary:
+	var near := {}
+	for cell: Vector2i in cells:
+		for y in range(-reach, reach + 1):
+			for x in range(-reach, reach + 1):
+				near[cell + Vector2i(x, y)] = true
+	return near
 
 
 # --- ground and water --------------------------------------------------------

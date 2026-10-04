@@ -151,6 +151,16 @@ func is_safe_cell(cell: Vector2i) -> bool:
 	return false
 
 
+## Called when the map's walls change while it is being played -- a cracked wall
+## broken open. The props may have moved, and the player sees further from where
+## they stand without having taken a step.
+func reshaped() -> void:
+	_covered.clear()
+	_covered_built = false
+	if _seen_from.x != 1 << 30:
+		_seen_from = Vector2i(-(1 << 30), 0)
+
+
 ## The dark over the labyrinth, or null on a map without one.
 func darkness() -> Darkness:
 	return _darkness
