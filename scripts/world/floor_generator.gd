@@ -29,6 +29,13 @@ const LAB_PITCH := LAB_PASSAGE + LAB_WALL
 ## The boss room, in maze cells -- 10x6 tiles, the size of a field room. Turned
 ## on its side half the time.
 const BOSS_BLOCK := Vector2i(3, 2)
+## The safe zone, in maze cells -- 6x6 tiles. Four cells the maze already joins
+## to each other, opened into one room, so it adds no loop.
+const CAMP_BLOCK := Vector2i(2, 2)
+## How far along the way to the door the safe zone may stand, as a share of it:
+## somewhere in the middle, so it is a rest on the way rather than at either end.
+const CAMP_FROM := 0.3
+const CAMP_TO := 0.7
 ## A third of the floor's monsters stand in the labyrinth: being chased into a
 ## dead end is what makes it a labyrinth rather than a long corridor. A third, not
 ## a quarter, since it grew to be the bigger half of the floor.
@@ -56,6 +63,7 @@ const CHEST_SCENE := preload("res://scenes/world/chest.tscn")
 const BOSS_GATE_SCENE := preload("res://scenes/world/boss_gate.tscn")
 const STAIRS_SCENE := preload("res://scenes/world/floor_stairs.tscn")
 const MONSTER_SCENE := preload("res://scenes/world/monster.tscn")
+const CAMPFIRE_SCENE := preload("res://scenes/world/campfire.tscn")
 
 ## What a floor cache can hold. Consumables are the staple -- they are what makes
 ## walking off the main line worth the monsters in the way. Gear is the rarer
@@ -70,6 +78,11 @@ const CHEST_GEAR: Array[StringName] = [
 ]
 ## How often a chest holds gear rather than supplies.
 const CHEST_GEAR_CHANCE := 0.3
+## How often a chest in the field is the big red one, which always holds gear and
+## is trapped more often than not. The labyrinth's dead-end chest never is: the
+## dead end is the price already.
+const GILDED_CHANCE := 0.35
+const GILDED_TRAP_CHANCE := 0.65
 
 var _rng := RandomNumberGenerator.new()
 var _definition: FloorDefinition
@@ -137,8 +150,16 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	var lab_chest := lab.dead_ends.size() > 0 and _definition.chest_count > 1
 	var chest_cells := _pick_chest_cells(rooms, entry, boss_room,
 			_definition.chest_count - (1 if lab_chest else 0))
+	var field_chests := chest_cells.size()
+	# Where a teleport trap sends you: a dead end deep in the labyrinth, never the
+	# one with the chest in it.
+	var deep: Array[Vector2i] = []
+	for dead_end in lab.dead_ends:
+		deep.append(_cell_rect(lab, dead_end).end - Vector2i.ONE)
 	if lab_chest:
-		chest_cells.append(_cell_rect(lab, lab.dead_ends[_rng.randi() % lab.dead_ends.size()]).position)
+		var pick := _rng.randi() % lab.dead_ends.size()
+		chest_cells.append(_cell_rect(lab, lab.dead_ends[pick]).position)
+		deep.remove_at(pick)
 	_scatter_decor(rooms, entry, boss_room)
 
 	var must_reach: Array[Vector2i] = chest_cells.duplicate()
@@ -148,16 +169,23 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 
 	_add_spawns(map, _center(entry))
 	for index in chest_cells.size():
-		_add_chest(map, chest_cells[index], index)
+		_add_chest(map, chest_cells[index], index, index < field_chests, deep)
 	_add_monsters(map, rooms, entry, boss_room, lab)
 	_add_boss_gate(map, gate_cell, lab.boss_room)
+	if lab.camp_room.has_area():
+		_add_campfire(map, lab.camp_room)
 	if _definition.floor_number > 1:
 		_add_stairs(map, _center(entry) + Vector2i(-2, 0))
 
 	if lab.has_maze():
 		# Inside the labyrinth you see only what is in line of sight.
 		map.set(&"dark_area", lab.rect)
-		map.set(&"landmarks", {"The Labyrinth": lab.rect} as Dictionary[String, Rect2i])
+		var places: Dictionary[String, Rect2i] = {"The Labyrinth": lab.rect}
+		if lab.camp_room.has_area():
+			places["Safe Zone"] = lab.camp_room
+			map.set(&"safe_zones", [lab.camp_room] as Array[Rect2i])
+			map.set_meta(&"safe_zone", lab.camp_room)
+		map.set(&"landmarks", places)
 		# What the tests (and nothing in the game) need to find the labyrinth again.
 		map.set_meta(&"labyrinth", lab.rect)
 		map.set_meta(&"labyrinth_mouth", lab.mouth)
@@ -314,6 +342,9 @@ func _farthest_room(rooms: Array[Rect2i], from: Vector2i) -> Rect2i:
 ## room means having solved the maze. It is placed before the maze is grown, among
 ## the positions in the *far third* from the mouth, so it is not always the far
 ## corner; the maze makes the walk long wherever it lands.
+##
+## Partway along the one way to the door there is a safe zone (see
+## [method _place_camp]), so the walk always passes through it.
 func _carve_labyrinth(lab: Labyrinth) -> void:
 	var cells := lab.cells
 	match lab.side:
@@ -337,14 +368,17 @@ func _carve_labyrinth(lab: Labyrinth) -> void:
 		var block := _place_block(cells, lab.start, block_size)
 		var links := _grow_maze(cells, lab.start, block)
 		var steps := _steps_to(links, lab.start, block)
-		var branchy := _dead_ends(links, lab.start, block).size() >= MIN_DEAD_ENDS
-		# Branchy beats long: a long maze with no wrong turns is a corridor.
-		var score := steps + (1000 if branchy else 0)
+		var camp := _place_camp(links, lab.start, block, cells)
+		var branchy := _dead_ends(links, lab.start, block, camp).size() >= MIN_DEAD_ENDS
+		# A safe zone beats branchy beats long: a long maze with no wrong turns
+		# is a corridor, and one with nowhere to rest is a war of attrition.
+		var score := steps + (1000 if branchy else 0) + (2000 if camp.has_area() else 0)
 		if score > best_score:
 			best_score = score
 			lab.block = block
 			lab.links = links
-		if branchy and steps >= wanted:
+			lab.camp = camp
+		if branchy and steps >= wanted and camp.has_area():
 			break
 
 	for y in cells.y:
@@ -357,11 +391,15 @@ func _carve_labyrinth(lab: Labyrinth) -> void:
 				# Each passage once, from its top-left end.
 				if other.x > cell.x or other.y > cell.y or lab.block.has_point(other):
 					_carve(_gap_rect(lab, cell, other), _biome.floor_tile)
-	lab.dead_ends = _dead_ends(lab.links, lab.start, lab.block)
+	lab.dead_ends = _dead_ends(lab.links, lab.start, lab.block, lab.camp)
 	var corner := _cell_rect(lab, lab.block.position)
 	lab.boss_room = Rect2i(corner.position,
 			lab.block.size * LAB_PITCH - Vector2i(LAB_WALL, LAB_WALL))
 	_carve(lab.boss_room, _biome.special_tile)
+	if lab.camp.has_area():
+		lab.camp_room = Rect2i(_cell_rect(lab, lab.camp.position).position,
+				lab.camp.size * LAB_PITCH - Vector2i(LAB_WALL, LAB_WALL))
+		_carve(lab.camp_room, _biome.floor_tile)
 
 
 ## A growing tree: mostly carry on from the newest cell, sometimes branch off an
@@ -412,17 +450,85 @@ func _steps_to(links: Dictionary[Vector2i, Array], start: Vector2i, block: Rect2
 	return 0
 
 
-## The cells with one way in and no way on, in reading order. The mouth's cell
-## and the boss room don't count: one has the field behind it, the other is the
-## point.
-func _dead_ends(links: Dictionary[Vector2i, Array], start: Vector2i, block: Rect2i) -> Array[Vector2i]:
+## The cells with one way in and no way on, in reading order. The mouth's cell,
+## the boss room and the safe zone don't count: one has the field behind it, the
+## other is the point, and the last is one room once it is opened up.
+func _dead_ends(links: Dictionary[Vector2i, Array], start: Vector2i, block: Rect2i,
+		camp: Rect2i) -> Array[Vector2i]:
 	var ends: Array[Vector2i] = []
 	for cell: Vector2i in links:
-		if cell != start and not block.has_point(cell) and links[cell].size() == 1:
+		if cell != start and not block.has_point(cell) and not camp.has_point(cell) \
+				and links[cell].size() == 1:
 			ends.append(cell)
 	ends.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		return a.y < b.y or (a.y == b.y and a.x < b.x))
 	return ends
+
+
+## Where the safe zone goes, in cells: a [constant CAMP_BLOCK] the one way from
+## [param start] to the boss room walks through, nearest the middle of it. Only
+## blocks whose four cells the maze already joins to each other qualify -- three
+## links inside the block -- since opening any other into one room would join two
+## branches of the tree and the maze would stop being perfect. Empty if no block
+## on the way qualifies; [method _carve_labyrinth] grows another maze.
+##
+## Takes nothing from the rng: the maze decides it.
+func _place_camp(links: Dictionary[Vector2i, Array], start: Vector2i, block: Rect2i,
+		cells: Vector2i) -> Rect2i:
+	var path := _path_to(links, start, block)
+	var lowest := ceili(path.size() * CAMP_FROM)
+	var highest := floori(path.size() * CAMP_TO)
+	var middle := path.size() / 2.0
+	var best := Rect2i()
+	var best_off := INF
+	for i in range(lowest, highest + 1):
+		if i >= path.size() or absf(i - middle) >= best_off:
+			continue
+		for corner: Vector2i in [Vector2i(0, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(-1, -1)]:
+			var camp := Rect2i(path[i] + corner, CAMP_BLOCK)
+			if not Rect2i(Vector2i.ZERO, cells).encloses(camp) or camp.has_point(start):
+				continue
+			# Never beside the boss room: its doorway must not open into the camp.
+			if camp.grow(1).intersects(block) or _links_inside(links, camp) != 3:
+				continue
+			best = camp
+			best_off = absf(i - middle)
+			break
+	return best
+
+
+## The cells from [param start] up to (not into) [param block], in walking order.
+func _path_to(links: Dictionary[Vector2i, Array], start: Vector2i, block: Rect2i) -> Array[Vector2i]:
+	var parent: Dictionary[Vector2i, Vector2i] = {start: start}
+	var queue: Array[Vector2i] = [start]
+	var head := 0
+	var last := start
+	while head < queue.size():
+		var cell := queue[head]
+		head += 1
+		if block.has_point(cell):
+			last = parent[cell]
+			break
+		for next: Vector2i in links.get(cell, []):
+			if not parent.has(next):
+				parent[next] = cell
+				queue.append(next)
+	var path: Array[Vector2i] = [last]
+	while path[0] != start:
+		path.push_front(parent[path[0]])
+	return path
+
+
+## How many links join the cells of [param rect] to each other.
+func _links_inside(links: Dictionary[Vector2i, Array], rect: Rect2i) -> int:
+	var count := 0
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			var cell := Vector2i(x, y)
+			for next: Vector2i in links.get(cell, []):
+				if rect.has_point(next) and (next.x > cell.x or next.y > cell.y):
+					count += 1
+	return count
 
 
 ## Where the boss room goes: a seeded pick among the positions in the far third
@@ -583,13 +689,27 @@ func _add_spawns(map: Node2D, entry: Vector2i) -> void:
 		holder.add_child(marker)
 
 
-func _add_chest(map: Node2D, cell: Vector2i, index: int) -> void:
+## [param may_gild] for a chest in the field; [param deep] is where a teleport
+## trap may send you, in cells -- empty for none, and the trap is an alarm.
+func _add_chest(map: Node2D, cell: Vector2i, index: int, may_gild: bool,
+		deep: Array[Vector2i]) -> void:
 	var chest := CHEST_SCENE.instantiate()
 	chest.name = "Chest%d" % index
 	chest.position = _world(cell)
+	chest.set(&"floor_number", _definition.floor_number)
 	# Drawn from the floor's own seeded rng, so floor 37's second chest holds the
 	# same thing every time it is generated -- same rule as everything else here.
-	if _rng.randf() < CHEST_GEAR_CHANCE:
+	if may_gild and _rng.randf() < GILDED_CHANCE:
+		chest.set(&"gilded", true)
+		chest.set(&"item_id", CHEST_GEAR[_rng.randi() % CHEST_GEAR.size()])
+		chest.set(&"amount", 1)
+		if _rng.randf() < GILDED_TRAP_CHANCE:
+			if not deep.is_empty() and _rng.randf() < 0.5:
+				chest.set(&"trap", Chest.Trap.TELEPORT)
+				chest.set(&"trap_target", _world(deep[_rng.randi() % deep.size()]))
+			else:
+				chest.set(&"trap", Chest.Trap.ALARM)
+	elif _rng.randf() < CHEST_GEAR_CHANCE:
 		chest.set(&"item_id", CHEST_GEAR[_rng.randi() % CHEST_GEAR.size()])
 		chest.set(&"amount", 1)
 	else:
@@ -619,7 +739,7 @@ func _add_monsters(map: Node2D, rooms: Array[Rect2i], entry: Rect2i, boss_room: 
 	var passages: Array[Rect2i] = []
 	if lab.has_maze():
 		for cell: Vector2i in lab.links:
-			if cell != lab.start and not lab.block.has_point(cell):
+			if cell != lab.start and not lab.block.has_point(cell) and not lab.camp.has_point(cell):
 				passages.append(_cell_rect(lab, cell))
 		passages.sort_custom(func(a: Rect2i, b: Rect2i) -> bool:
 			return a.position.y < b.position.y or (a.position.y == b.position.y and a.position.x < b.position.x))
@@ -662,6 +782,16 @@ func _add_boss_gate(map: Node2D, cell: Vector2i, hidden_in: Rect2i) -> void:
 	if hidden_in.has_area():
 		gate.set(&"reveal_area", Rect2(hidden_in.position * TILE, hidden_in.size * TILE))
 	map.add_child(gate)
+
+
+## The fire at the heart of the safe zone, on the room's middle -- where the
+## pillar between its four cells stood.
+func _add_campfire(map: Node2D, room: Rect2i) -> void:
+	var fire := CAMPFIRE_SCENE.instantiate()
+	fire.name = "Campfire"
+	fire.position = Vector2((room.position.x + room.size.x / 2) * TILE,
+			(room.position.y + room.size.y / 2 + 1) * TILE)
+	map.add_child(fire)
 
 
 func _add_stairs(map: Node2D, cell: Vector2i) -> void:
@@ -711,6 +841,9 @@ class Labyrinth:
 	## The boss room in cells, and in tiles.
 	var block := Rect2i()
 	var boss_room := Rect2i()
+	## The safe zone in cells, and in tiles. Empty when no maze grown had room for one.
+	var camp := Rect2i()
+	var camp_room := Rect2i()
 	## cell -> the cells it is joined to.
 	var links: Dictionary[Vector2i, Array] = {}
 	var dead_ends: Array[Vector2i] = []

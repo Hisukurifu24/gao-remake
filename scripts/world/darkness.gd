@@ -17,6 +17,9 @@ const SHADE := Color(0.02, 0.02, 0.05)
 const UNSEEN := 0.97
 ## Seen before, out of sight now: the map you remember, not the one in front of you.
 const REMEMBERED := 0.62
+## A remembered room with a fire in it: the one light in the maze you can see
+## from anywhere you can see it from at all.
+const GLOWING := 0.3
 ## Alpha per second. Fast enough that the light keeps up with a walking player.
 const FADE_RATE := 5.0
 
@@ -37,6 +40,8 @@ var _width := 0
 ## Lit whatever line of sight says, while a fight is staged here: a maze fight is
 ## a pool of light in the black -- what the fighters can see. Empty for none.
 var _arena: Array[Vector2i] = []
+## Cells lit by something of their own -- a safe zone's fire -- once seen.
+var _glowing: Dictionary[Vector2i, bool] = {}
 var _last_lit: Array[Vector2i] = []
 var _last_explored: Dictionary = {}
 
@@ -91,8 +96,12 @@ func light(lit: Array[Vector2i], explored: Dictionary, snap := false) -> void:
 		for x in area.size.x:
 			var index := _index(Vector2i(x, y))
 			var alpha := 0.0
+			var cell := area.position + Vector2i(x, y)
 			if not now.has(index):
-				alpha = REMEMBERED if explored.has(area.position + Vector2i(x, y)) else UNSEEN
+				if not explored.has(cell):
+					alpha = UNSEEN
+				else:
+					alpha = GLOWING if _glowing.has(cell) else REMEMBERED
 			if snap:
 				_set_now(index, alpha)
 			elif _target[index] != alpha or _current[index] != alpha:
@@ -100,6 +109,13 @@ func light(lit: Array[Vector2i], explored: Dictionary, snap := false) -> void:
 				_moving[index] = true
 	if snap:
 		_texture.update(_image)
+
+
+## Keeps [param cells] half-lit once seen, rather than dimmed to memory.
+func glow(cells: Rect2i) -> void:
+	for y in range(cells.position.y, cells.end.y):
+		for x in range(cells.position.x, cells.end.x):
+			_glowing[Vector2i(x, y)] = true
 
 
 ## Lights [param cells] for the length of a fight; an empty list puts it out.

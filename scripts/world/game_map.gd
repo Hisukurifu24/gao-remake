@@ -45,6 +45,11 @@ const BOSS_WALK := 6
 @export var region := ""
 ## Named places, written on the map screen once any of their cells is seen.
 @export var landmarks: Dictionary[String, Rect2i] = {}
+## Rooms monsters don't enter, in cells: they won't step in, and a player inside
+## one is not noticed, chased or engaged. A generated floor's labyrinth has one,
+## round a [Campfire]. Pressing [b]interact[/b] on a monster from inside still
+## starts a fight -- the zone keeps them out, not you in.
+@export var safe_zones: Array[Rect2i] = []
 
 var _player: Player = null
 var _walls: TileMapLayer = null
@@ -77,6 +82,8 @@ func _ready() -> void:
 		_darkness = Darkness.new()
 		_darkness.name = "Darkness"
 		_darkness.setup(dark_area, _walls.tile_set.tile_size, _walls.get_used_rect())
+		for zone in safe_zones:
+			_darkness.glow(zone)
 		add_child(_darkness)
 	set_physics_process(tracks)
 	set_process(_darkness != null)
@@ -91,7 +98,10 @@ func _physics_process(_delta: float) -> void:
 	if cell == _seen_from:
 		return
 	var first := _seen_from.x == 1 << 30
+	var was_safe := is_safe_cell(_seen_from)
 	_seen_from = cell
+	if is_safe_cell(cell) and not was_safe:
+		_entered_safe_zone()
 	var lit := FogOfWar.visible_from(cell, FogOfWar.RADIUS, blocks_sight)
 	GameState.explore(map_id, lit)
 	var near: Array[Vector2i] = []
@@ -113,6 +123,32 @@ func _process(_delta: float) -> void:
 		if monster:
 			monster.modulate.a = _darkness.light_at(
 					_walls.local_to_map(_walls.to_local(monster.global_position)))
+
+
+## The first time on a floor, say what the room is. After that the fire says it.
+func _entered_safe_zone() -> void:
+	var flag := StringName("safe_zone_%s" % map_id)
+	if GameState.has_flag(flag):
+		return
+	GameState.set_flag(flag)
+	EventBus.message_requested.emit("", PackedStringArray([
+		"The air is calm here. A safe zone -- no monster will follow you in.",
+	]))
+
+
+## Whether [param point] (map-local) is inside a safe zone.
+func is_safe(point: Vector2) -> bool:
+	if safe_zones.is_empty():
+		return false
+	_resolve_layers()
+	return _walls != null and is_safe_cell(_walls.local_to_map(_walls.to_local(to_global(point))))
+
+
+func is_safe_cell(cell: Vector2i) -> bool:
+	for zone in safe_zones:
+		if zone.has_point(cell):
+			return true
+	return false
 
 
 ## The dark over the labyrinth, or null on a map without one.

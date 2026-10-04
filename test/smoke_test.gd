@@ -206,6 +206,8 @@ func _run() -> void:
 	_check(GameState.level == level_before + 1, "granting enough xp levels the player up")
 
 	await _test_labyrinth(main, floor_two, floor_two_player as Player)
+	await _test_safe_zone(floor_two, floor_two_player as Player)
+	await _test_traps(floor_two, floor_two_player as Player)
 	await _test_roaming(floor_two, floor_two_player as Player)
 
 
@@ -282,6 +284,141 @@ func _test_labyrinth(main: Node, map: Node2D, player: Player) -> void:
 	add_child(rebuilt)
 	_check((rebuilt.get_node("BossGate") as BossGate).revealed, "a found door stays found when the floor is rebuilt")
 	rebuilt.free()
+
+
+## The labyrinth's safe zone: walking in says what it is, a monster at its
+## doorway neither steps in nor comes for you while you are inside, and the fire
+## puts you back on your feet.
+func _test_safe_zone(map: Node2D, player: Player) -> void:
+	var walls: TileMapLayer = map.get_node("Walls")
+	_check(map.has_meta(&"safe_zone"), "the labyrinth has a safe zone")
+	if not map.has_meta(&"safe_zone"):
+		return
+	var camp: Rect2i = map.get_meta(&"safe_zone")
+	player.global_position = walls.map_to_local(camp.position)
+	await _physics(4)
+	_check(DialogueRunner.is_running(), "walking into the safe zone says what it is")
+	await _close_dialogue()
+	await _idle(2)
+
+	# A doorway out of the camp, and the cell beyond it, where the monster waits.
+	var doorway := Vector2i(-1, -1)
+	var outward := Vector2i.ZERO
+	for cell in _ring_of(camp.grow(1)):
+		if walls.get_cell_source_id(cell) != -1:
+			continue
+		doorway = cell
+		outward = Vector2i(signi(cell.x - camp.get_center().x) if cell.x < camp.position.x or cell.x >= camp.end.x else 0,
+				signi(cell.y - camp.get_center().y) if cell.y < camp.position.y or cell.y >= camp.end.y else 0)
+		break
+	_check(doorway.x >= 0, "the safe zone has a way in")
+	if doorway.x < 0:
+		return
+	var inside := doorway - outward * 2
+	player.global_position = walls.map_to_local(inside)
+	var monster := _spawn_monster(map, walls.map_to_local(doorway + outward))
+	var strayed := false
+	for _i in 180:
+		await _physics()
+		strayed = strayed or camp.has_point(walls.local_to_map(monster.global_position + Monster.FOOT))
+	_check(not strayed, "a monster never steps into the safe zone")
+	_check(monster.state != Monster.State.CHASE and not CombatManager.is_running(),
+			"and does not come for the player inside it, %d px away" \
+			% roundi(monster.global_position.distance_to(player.global_position)))
+	monster.queue_free()
+
+	var fire := map.get_node_or_null("Campfire") as Campfire
+	_check(fire != null and fire.is_available(), "the safe zone has a fire to rest by")
+	if fire == null:
+		return
+	GameState.set_hp(1)
+	fire.interact(player)
+	_check(GameState.hp == GameState.total_max_hp(), "resting by the fire restores all HP")
+	await _close_dialogue()
+	await _idle(2)
+
+
+## Gilded chests, sprung on a real floor 2: the item still lands, an alarm brings
+## monsters that come for you, a teleport sets you down where it said it would.
+func _test_traps(map: Node2D, player: Player) -> void:
+	var walls: TileMapLayer = map.get_node("Walls")
+	var block := _open_block(walls, Vector2i(5, 5))
+	_check(block.size != Vector2i.ZERO, "floor 2 has a 5x5 open block to spring a trap in")
+	if block.size == Vector2i.ZERO:
+		return
+	var centre := block.position + Vector2i(1, 2)
+	var potions := Inventory.count(&"small_potion")
+	var alarm := _trapped_chest(map, walls, centre, Chest.Trap.ALARM, &"smoke_alarm")
+	player.global_position = walls.map_to_local(centre + Vector2i(0, 1))
+	alarm.interact(player)
+	_check(Inventory.count(&"small_potion") == potions + 1, "a trapped chest still pays out")
+	var pack: Array[Monster] = []
+	for child in map.get_children():
+		if child is Monster and child.name.begins_with("Alarm"):
+			pack.append(child)
+	# As many as there is floor for, three cells out -- a 5x5 block may be walled in.
+	_check(pack.size() > 0 and pack.size() <= Chest.ALARM_PACK,
+			"its alarm brings monsters (%d of %d)" % [pack.size(), Chest.ALARM_PACK])
+	await _close_dialogue()
+	var hunted := false
+	for _i in 20:
+		await _physics()
+		hunted = hunted or pack.any(func(m: Monster) -> bool: return m.state == Monster.State.CHASE)
+	_check(hunted, "and they come for you once the box closes")
+	for monster in pack:
+		monster.queue_free()
+	if CombatManager.is_running():
+		await _flee_battle()
+		await _close_dialogue()
+	await _physics(2)
+
+	var room: Rect2i = map.get_meta(&"boss_room")
+	var target := walls.map_to_local(room.position)
+	var teleport := _trapped_chest(map, walls, centre + Vector2i(2, 0), Chest.Trap.TELEPORT, &"smoke_teleport")
+	teleport.trap_target = target
+	player.global_position = walls.map_to_local(centre + Vector2i(2, 1))
+	teleport.interact(player)
+	await _close_dialogue()
+	var moved := false
+	for _i in 120:
+		await _idle()
+		if player.position.distance_to(target) < 1.0 and not GameState.is_input_locked() \
+				or DialogueRunner.is_running():
+			moved = player.position.distance_to(target) < 1.0
+			if moved and DialogueRunner.is_running():
+				break
+	_check(moved, "a teleport trap sets you down where it leads")
+	await _close_dialogue()
+	await _idle(2)
+	_check(not GameState.is_input_locked(), "and hands the controls back")
+	# Out of the way of the roaming test, which paints its wall in the same block.
+	alarm.queue_free()
+	teleport.queue_free()
+	await _physics(2)
+
+
+func _trapped_chest(map: Node2D, walls: TileMapLayer, cell: Vector2i, trap: Chest.Trap,
+		flag: StringName) -> Chest:
+	var chest := (load("res://scenes/world/chest.tscn") as PackedScene).instantiate() as Chest
+	chest.gilded = true
+	chest.trap = trap
+	chest.item_id = &"small_potion"
+	chest.opened_flag = flag
+	chest.floor_number = 2
+	chest.position = walls.map_to_local(cell)
+	map.add_child(chest)
+	return chest
+
+
+func _ring_of(rect: Rect2i) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for x in range(rect.position.x, rect.end.x):
+		cells.append(Vector2i(x, rect.position.y))
+		cells.append(Vector2i(x, rect.end.y - 1))
+	for y in range(rect.position.y + 1, rect.end.y - 1):
+		cells.append(Vector2i(rect.position.x, y))
+		cells.append(Vector2i(rect.end.x - 1, y))
+	return cells
 
 
 ## Monsters that move, on a real generated floor with real walls: noticing needs

@@ -228,7 +228,7 @@ timed or failable quests, no branching quests where a choice picks between two
 endings, and **the tracker shows one quest at a time** rather than every live
 objective.
 
-### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3, §5, §6 ✅ (the battle screen is gone: fights happen on the map); §4 next
+### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3, §5, §6 ✅ (the battle screen is gone: fights happen on the map); §4 under way (safe zones and trapped chests in; puzzles next)
 
 Playtest feedback on the finished loop, and it lands on the overworld rather than on any
 one system: **the floors work, but exploring them isn't a game yet.** The camera shows the
@@ -585,7 +585,7 @@ predictably in the farthest room and often on screen.
   wants a layout change to be worth hiding — a door at the end of a straight road is found
   by walking down it.*
 
-#### 4. "Something's missing" in floor structure — design pass
+#### 4. "Something's missing" in floor structure — design pass *(decided 2026-10-03: safe zones ✅, trapped chests ✅, puzzles)*
 The layouts aren't bad but don't hold attention yet. Decide what the missing thing is
 **after** 1–3 land, because a close camera, moving monsters and a hidden door will change
 the answer. Candidates to weigh:
@@ -598,6 +598,55 @@ the answer. Candidates to weigh:
 - **Room shape variety** in the generator: `_carve_cave()` already exists in the authored
   builder; generated floors are still rects and L-corridors.
 - Ties into M6's *floor-shape variety* and *town hubs on generated floors*.
+
+*Decided 2026-10-03:* **safe zones** and **trapped chests**, plus **"some puzzles?"** — the
+user's own addition, to be turned into concrete candidates once the first two are in.
+Not taken this pass: room-shape variety and landmarks, and a named field monster guarding
+a treasure room. The authored-floor revisit §3 left open comes **after** §4, so it can use
+whatever §4 adds.
+- [x] **Safe zone.** *Landed 2026-10-03.* Every generated labyrinth has one: a 2×2 block of
+  maze cells (6×6 tiles) opened into one room, on the one way to the door, as near the
+  middle of that walk as the maze allows (30–70% of the way). `FloorGenerator._place_camp`
+  takes only blocks whose four cells the maze already joins to each other (three links
+  inside), so opening them up adds no loop and the maze stays perfect; a maze with no
+  such block on the way is grown again, as the walk length already was. It takes nothing
+  from the rng. In the middle, where the pillar between the four cells stood, is a
+  `Campfire` (the pack's camp fire pit with its fire particle on it): **E** rests you to
+  full HP, as often as you like, which is the only way to recover HP besides potions and a
+  level-up. `GameMap.safe_zones` keeps monsters out: a `Monster` won't step into one (its
+  probe's whole width), and a player inside one is not noticed, chased or engaged; pressing
+  **E** on a monster from inside still starts the fight. The first time you walk into a
+  floor's camp it says what it is. Once seen, the room stays half-lit in the labyrinth's
+  dark (`Darkness.glow`), so the fire is a light you can find your way back to, and the map
+  marks it with a fire glyph under a "Safe Zone" label. Checked by the floor test on every
+  generated floor (in the labyrinth, clear of the boss room, walling it up cuts the door
+  off, the fire in it, no monster starting in it) and by the smoke test on a real floor 2
+  (the message, a monster at its doorway neither stepping in nor coming for you, the fire
+  healing). Measured: every one of the 97 generated floors has one; the shortest walk to
+  the door moved from 70 to 64 tiles, over the test's 60. *Not taken:* healing over time
+  while inside (the fire is a choice you make, and a place to walk back to); safe zones on
+  authored floors (that is the revisit's call — Ashlow and the Lanternfall camp have no
+  monsters in them anyway).
+- [x] **Trapped chests.** *Landed 2026-10-03.* The tell is the chest: about a third of the
+  field's chests (`FloorGenerator.GILDED_CHANCE`) are the pack's big red one, which always
+  holds gear and is trapped about two times in three. A trap is always a gilded chest, but
+  a gilded chest is not always a trap — so the tell says *gamble*, not *don't*. The trap
+  springs as the lid opens, after the item is in the bag: the loot is the bait, not the
+  price. An **alarm** stands three of the floor's monsters on free floor three cells round
+  the chest, where they see you the moment the box closes (ordinary roaming monsters from
+  then on: outrunnable, gone once beaten). A **teleport** waits for the box to close,
+  blinks the screen (`SceneRouter.blink`, a fade within a map) and sets you down in a dead
+  end deep in the labyrinth — never the one with the dead-end chest in it — in the dark.
+  The labyrinth's own chest is never gilded: its dead end is the price already. The map
+  draws a gilded chest red (`UiPalette.MAP_GILDED`), because it shows what you saw. The
+  floor test refuses a trap on a plain chest or a teleport landing anywhere but open,
+  reachable labyrinth floor, and requires all three outcomes somewhere in the climb
+  (measured 61 safe / 48 alarms / 58 teleports over 97 floors, ~1.7 gilded a floor);
+  the smoke test springs both on a real floor 2. The map legend lost "boss" off "boss door"
+  to make room for "camp". *Not taken:* traps on authored floors (the revisit), a trap
+  that hurts (HP is what the alarm's pack is for), multi-enemy alarm fights (the party is
+  one — escorts are capped at one for the same reason).
+- [ ] **Puzzles.** Candidates to bring to the user once the chests are in.
 
 #### 5. Playtest notes (2026-10-01) — after §3 landed
 Three things from playing the finished §3. None is a bug; all three are "works, doesn't
@@ -1276,6 +1325,13 @@ on the real sprites — slashes, claws, bubbles over whoever is poisoned. Deep i
 labyrinth it is a pool of light in the dark. A boss steps out of its door to meet you.
 When it's over the camera eases back and you walk on from where you stood.
 
+And halfway through the maze there is somewhere to stop. Every labyrinth has a safe zone
+on the way to the door: a room round a campfire that no monster will follow you into,
+where you can rest back to full as often as you need. Once you have seen it, its glow
+stays in the dark, and the map marks it. And not every chest is what it seems: the big
+red ones always hold gear, and most of them are trapped — an alarm that brings the
+floor's monsters down on you, or a flash of light and a dead end deep in the maze.
+
 **The game is now completable end to end.** No placeholders remain in the core loop —
 `BossGate._fight()` was the last one.
 
@@ -1297,8 +1353,8 @@ bottom only goes up.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 87-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 128-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 100-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 129-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 87-check combat test
@@ -1336,9 +1392,10 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    the **M** map) are in, §5's playtest notes are answered (the labyrinth is several
    screens of it in the dark, the map is ink on parchment), and the battle screen that
    failed playtest is gone: **fights happen on the map** (§6, done 2026-10-02 — staging,
-   the world-space view, bosses stepping out of their doors, the pack's FX). **Next, the
-   §4 design pass** on what floors are still missing, and the authored-floor revisit §3
-   left open (Illfang, Nerith and Karvos all stand at the obvious end of their layouts).
+   the world-space view, bosses stepping out of their doors, the pack's FX). **§4 is
+   decided and under way**: safe zones are in every labyrinth and gilded chests are a
+   gamble; puzzles next (candidates to choose from), then the authored-floor revisit §3 left open
+   (Illfang, Nerith and Karvos all stand at the obvious end of their layouts).
    Floor 40 should be laid out after §4, for the same reason as before.
 3. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
    a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest

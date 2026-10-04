@@ -34,6 +34,8 @@ var _checks := 0
 var _lab_floors := 0
 var _lab_not_farthest := 0
 var _lab_walks: Array[int] = []
+## Gilded chests across every generated floor, by [enum Chest.Trap].
+var _gilded: Dictionary[int, int] = {}
 ## Gathered by [method _audit_formations] across every map with monsters on it.
 var _formations := 0
 var _hidden_formations := 0
@@ -293,9 +295,17 @@ func _run() -> void:
 	var shortest := 1 << 30
 	for walk in _lab_walks:
 		shortest = mini(shortest, walk)
-	# Measured at 70 over four world seeds. It was 28 when the maze fitted on about a
+	# Measured at 70 over four world seeds, 64 on this one since the safe zone joined
+	# the reasons a maze is regrown. It was 28 when the maze fitted on about a
 	# screen, which is what made it read as a corridor -- see M5.5 §5 in plan.md.
 	_check(shortest >= 60, "the labyrinth always stands in front of the door (shortest walk in: %d tiles)" % shortest)
+	# A gilded chest is a gamble only if all three outcomes turn up somewhere.
+	var plain: int = _gilded.get(Chest.Trap.NONE, 0)
+	var alarms: int = _gilded.get(Chest.Trap.ALARM, 0)
+	var teleports: int = _gilded.get(Chest.Trap.TELEPORT, 0)
+	_check(plain > 0 and alarms > 0 and teleports > 0,
+			"gilded chests are sometimes safe, sometimes alarms, sometimes teleports (%d / %d / %d)" % [
+				plain, alarms, teleports])
 
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
@@ -514,6 +524,20 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 			continue
 		if not reachable.has(walls.local_to_map((child as Node2D).position)):
 			return "floor %d has an unreachable chest" % floor_number
+		var chest := child as Chest
+		if chest.trap != Chest.Trap.NONE and not chest.gilded:
+			return "floor %d's %s is trapped and looks like any other chest" % [floor_number, chest.name]
+		if chest.gilded:
+			_gilded[chest.trap] = _gilded.get(chest.trap, 0) + 1
+		if chest.trap == Chest.Trap.TELEPORT:
+			# Somewhere you can stand, in the labyrinth, and walk out of.
+			var lands := walls.local_to_map(chest.trap_target)
+			var lab_rect: Rect2i = map.get_meta(&"labyrinth", Rect2i())
+			if not reachable.has(lands) or not lab_rect.has_point(lands):
+				return "floor %d's %s teleports to %s, not to open labyrinth floor" % [floor_number, chest.name, lands]
+			for other in map.get_children():
+				if other is Chest and walls.local_to_map((other as Node2D).position) == lands:
+					return "floor %d's %s teleports onto a chest" % [floor_number, chest.name]
 
 	# Autotiling rewrites every wall on the floor. Dropping one instead of
 	# replacing it would open the map onto the void, and the flood fill above
@@ -587,6 +611,24 @@ func _audit_labyrinth(map: Node2D, walls: TileMapLayer, gate: Node, start: Vecto
 		return "floor %d's boss room has %d open cells round it, not one doorway" % [floor_number, doorways]
 	if not reachable.has(room.position):
 		return "floor %d's boss room cannot be walked into" % floor_number
+
+	# A safe zone on the way: the one way to the door runs through it, its fire
+	# stands in it, and nothing that fights starts out in it.
+	if not map.has_meta(&"safe_zone"):
+		return "floor %d's labyrinth has no safe zone" % floor_number
+	var camp: Rect2i = map.get_meta(&"safe_zone")
+	if not lab.encloses(camp) or camp.intersects(room.grow(1)):
+		return "floor %d's safe zone %s is not in its labyrinth, clear of the boss room" % [floor_number, camp]
+	if not (map as GameMap).safe_zones.has(camp):
+		return "floor %d's safe zone is not one the map keeps monsters out of" % floor_number
+	if _flood_except(walls, start, camp).has(gate_cell):
+		return "floor %d's door can be reached without passing its safe zone" % floor_number
+	var fire := map.get_node_or_null("Campfire") as Node2D
+	if fire == null or not camp.has_point(walls.local_to_map(fire.position - Vector2(0, 8))):
+		return "floor %d's safe zone has no fire in it" % floor_number
+	for child in map.get_children():
+		if child is Monster and camp.has_point(walls.local_to_map((child as Node2D).position)):
+			return "floor %d has %s starting in its safe zone" % [floor_number, child.name]
 
 	# What the labyrinth is like to walk: its dead ends, and how far the door is
 	# along it against the farthest cell it has.

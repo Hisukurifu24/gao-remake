@@ -68,6 +68,7 @@ func _ready() -> void:
 	# floor's door is no longer hidden.
 	for floor_number in [2, 24, 95]:
 		await _capture_labyrinth(main, floor_number)
+	await _capture_trap(main)
 
 	for floor_number in [2, 10, 15, 24, 25, 37, 45, 55, 65, 75, 87, 100]:
 		await _capture_floor(floor_number)
@@ -622,6 +623,7 @@ func _capture_labyrinth(main: Node, floor_number: int) -> void:
 		if lab.has_point(cell):
 			inside += 1
 
+	var camp: Rect2i = map.get_meta(&"safe_zone", Rect2i())
 	GameState.push_input_lock()
 	var in_lab := 0
 	for i in path.size() - 1:
@@ -632,6 +634,18 @@ func _capture_labyrinth(main: Node, floor_number: int) -> void:
 			if in_lab == inside / 2:
 				await _wait(0.3)
 				await _capture(tag + "a_passage")
+		if camp.has_point(path[i]):
+			# The safe zone says what it is on the way through; stand by its fire.
+			player.global_position = walls.map_to_local(camp.position + Vector2i(1, camp.size.y - 2))
+			await _until(func() -> bool: return DialogueRunner.is_running(), 3.0)
+			await _typed(main)
+			await _capture(tag + "a2_camp")
+			while DialogueRunner.is_running():
+				DialogueRunner.advance()
+				await _typed(main)
+			await _wait(0.6)
+			await _capture(tag + "a3_camp_fire")
+			camp = Rect2i()
 	GameState.pop_input_lock()
 
 	player.global_position = walls.map_to_local(room.position + Vector2i(1, room.size.y - 2))
@@ -648,6 +662,49 @@ func _capture_labyrinth(main: Node, floor_number: int) -> void:
 	await _frames(4)
 	await _capture(tag + "d_map")
 	await _press(&"map")
+
+
+## A gilded chest on floor 2, the alarm it sounds, and the pack it brings.
+func _capture_trap(main: Node) -> void:
+	SceneRouter.enter_floor(2)
+	await _frames(2)
+	await _until(func() -> bool: return not GameState.is_input_locked(), 10.0)
+	var map := SceneRouter.current_map() as GameMap
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	var player := map.get_node("Player") as Player
+	var walls := map.get_node("Walls") as TileMapLayer
+	var at := walls.local_to_map(player.position)
+	var chest := (load("res://scenes/world/chest.tscn") as PackedScene).instantiate() as Chest
+	chest.gilded = true
+	chest.trap = Chest.Trap.ALARM
+	chest.item_id = &"guard_ring"
+	chest.opened_flag = &"screenshot_trap"
+	chest.floor_number = 2
+	chest.position = walls.map_to_local(at + Vector2i(0, -1))
+	map.add_child(chest)
+	player.facing = Vector2.UP
+	await _wait(0.4)
+	await _capture("05_trap_a_gilded")
+	chest.interact(player)
+	await _typed(main)
+	DialogueRunner.advance()
+	await _typed(main)
+	await _capture("05_trap_b_alarm")
+	while DialogueRunner.is_running():
+		DialogueRunner.advance()
+		await _typed(main)
+	await _wait(0.3)
+	await _capture("05_trap_c_pack")
+	if CombatManager.is_running():
+		await _end_fight()
+	GameState.push_input_lock()
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	await _frames(2)
+	GameState.pop_input_lock()
 
 
 ## The shortest walk between two cells, staying inside [param bounds].

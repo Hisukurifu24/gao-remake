@@ -178,9 +178,12 @@ func _draw_markers(walls: TileMapLayer, seen: Dictionary) -> void:
 		elif node is Interactable and ("target_floor" in node or "target_map" in node):
 			if (node as Interactable).is_available():
 				_mark(at, MapGlyph.Kind.EXIT, UiPalette.MAP_EXIT)
-		elif node is Interactable and "opened_flag" in node:
-			if (node as Interactable).is_available():
-				_mark(at, MapGlyph.Kind.CHEST, UiPalette.MAP_CHEST)
+		elif node is Campfire:
+			_mark(at, MapGlyph.Kind.CAMP, UiPalette.MAP_CAMP)
+		elif node is Chest:
+			if (node as Chest).is_available():
+				_mark(at, MapGlyph.Kind.CHEST,
+						UiPalette.MAP_GILDED if (node as Chest).gilded else UiPalette.MAP_CHEST)
 	# Over everything else, so a crowded square can't bury them.
 	var lift := Vector2(0, -(MapGlyph.measure(MapGlyph.Kind.PERSON).y
 			+ MapGlyph.measure(MapGlyph.Kind.QUEST).y) / 2.0)

@@ -62,6 +62,22 @@ func enter_floor(floor_number: int, spawn: StringName = &"", fade_time := FADE_T
 	floor_entered.emit(floor_number)
 
 
+## Fades out, runs [param action], fades back in -- a move within a map that
+## should not be watched, such as a trap's teleport. Holds the input lock.
+func blink(action: Callable, fade_time := FADE_TIME) -> void:
+	if _busy:
+		action.call()
+		return
+	_busy = true
+	GameState.push_input_lock()
+	await _fade_to(1.0, fade_time)
+	action.call()
+	await get_tree().process_frame
+	await _fade_to(0.0, fade_time)
+	GameState.pop_input_lock()
+	_busy = false
+
+
 ## The map the player is on, or null between maps. For views that draw it --
 ## the map screen -- and nothing that should be changing it.
 func current_map() -> Node:

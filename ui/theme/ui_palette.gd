@@ -71,8 +71,11 @@ const MAP_YOU := Color("74a334")
 const MAP_DOOR := Color("e0394c")
 const MAP_EXIT := Color("9fd8ef")
 const MAP_CHEST := Color("ffcb4d")
+## A gilded chest, red as it is drawn on the floor -- a shade off the door.
+const MAP_GILDED := Color("d25a3c")
 const MAP_PERSON := Color("f2eaf1")
 const MAP_QUEST := Color("ffcb4d")
+const MAP_CAMP := Color("f08a3c")
 const MAP_OUTLINE := Color("141b1b")
 
 

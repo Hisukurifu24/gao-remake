@@ -14,6 +14,9 @@ extends Interactable
 ## That is all decided here and handed over as [member Encounter.opening] --
 ## [CombatManager] never learns what a map is.
 ##
+## A safe zone ([member GameMap.safe_zones]) is closed to it: it won't step in,
+## and a player inside one is not noticed, chased or touched.
+##
 ## Beaten monsters are gone for the rest of the visit and back on the next one.
 ## Deliberately *not* a [GameState] flag like a chest: a chest holds one reward
 ## and a monster holds levels, and a player who has hit a wall needs somewhere
@@ -248,14 +251,14 @@ func _wander(delta: float) -> void:
 
 
 func _notices(player: Player) -> bool:
-	if player == null or _calm > 0.0:
+	if player == null or _calm > 0.0 or _sheltered(player):
 		return false
 	var offset := player.global_position - global_position
 	return offset.length() <= AGGRO_RADIUS and _can_see(player)
 
 
 func _loses(player: Player, delta: float) -> bool:
-	if player == null:
+	if player == null or _sheltered(player):
 		return true
 	if global_position.distance_to(player.global_position) > LOSE_RADIUS:
 		return true
@@ -266,7 +269,7 @@ func _loses(player: Player, delta: float) -> bool:
 
 
 func _touching(player: Player) -> bool:
-	if player == null or _calm > 0.0:
+	if player == null or _calm > 0.0 or _sheltered(player):
 		return false
 	if state != State.WANDER and state != State.CHASE:
 		return false
@@ -308,11 +311,25 @@ func _move(motion: Vector2) -> void:
 
 
 func _free_at(point: Vector2) -> bool:
+	var map := get_parent() as GameMap
+	if map != null and not map.safe_zones.is_empty():
+		# The probe's whole width stays out, not just its centre.
+		for corner: Vector2 in [Vector2(-BODY_RADIUS, 0), Vector2(BODY_RADIUS, 0),
+				Vector2(0, -BODY_RADIUS), Vector2(0, BODY_RADIUS)]:
+			if map.is_safe(map.to_local(point + FOOT + corner)):
+				return false
 	var query := PhysicsShapeQueryParameters2D.new()
 	query.shape = _probe
 	query.transform = Transform2D(0.0, point + FOOT)
 	query.collision_mask = 1
 	return get_world_2d().direct_space_state.intersect_shape(query, 1).is_empty()
+
+
+## Whether [param player] is standing in a safe zone.
+func _sheltered(player: Player) -> bool:
+	var map := get_parent() as GameMap
+	return map != null and not map.safe_zones.is_empty() \
+			and map.is_safe(map.to_local(player.global_position))
 
 
 func _can_see(player: Player) -> bool:

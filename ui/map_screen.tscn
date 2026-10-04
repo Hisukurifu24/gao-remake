@@ -58,7 +58,7 @@ script = ExtResource("2_view")
 [node name="Legend" type="HBoxContainer" parent="Sheet/Column"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 7
+theme_override_constants/separation = 5
 
 [node name="You" type="HBoxContainer" parent="Sheet/Column/Legend"]
 layout_mode = 2
@@ -92,7 +92,7 @@ kind = 1
 [node name="Label" type="Label" parent="Sheet/Column/Legend/Door"]
 layout_mode = 2
 theme_type_variation = &"InkLabel"
-text = "boss door"
+text = "door"
 
 [node name="Exit" type="HBoxContainer" parent="Sheet/Column/Legend"]
 layout_mode = 2
@@ -127,6 +127,23 @@ kind = 3
 layout_mode = 2
 theme_type_variation = &"InkLabel"
 text = "chest"
+
+[node name="Camp" type="HBoxContainer" parent="Sheet/Column/Legend"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Key" type="Control" parent="Sheet/Column/Legend/Camp"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("3_glyph")
+kind = 6
+
+[node name="Label" type="Label" parent="Sheet/Column/Legend/Camp"]
+layout_mode = 2
+theme_type_variation = &"InkLabel"
+text = "camp"
 
 [node name="Person" type="HBoxContainer" parent="Sheet/Column/Legend"]
 layout_mode = 2
