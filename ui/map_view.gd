@@ -186,7 +186,8 @@ func _draw_markers(walls: TileMapLayer, seen: Dictionary) -> void:
 				_mark(at, MapGlyph.Kind.CHEST, UiPalette.MAP_SEALED if chest.sealed
 						else UiPalette.MAP_GILDED if chest.gilded else UiPalette.MAP_CHEST)
 		elif node is Wisp or (node is SealedDoor and (node as SealedDoor).is_available()) \
-				or (node is Tablet and _rite_unsolved()):
+				or (node is Tablet and _rite_unsolved()) \
+				or (node is StatueAltar and (node as StatueAltar).is_available()):
 			_mark(at, MapGlyph.Kind.PUZZLE, UiPalette.MAP_PUZZLE)
 	# Over everything else, so a crowded square can't bury them.
 	var lift := Vector2(0, -(MapGlyph.measure(MapGlyph.Kind.PERSON).y

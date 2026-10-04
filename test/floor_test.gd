@@ -54,6 +54,9 @@ var _shortest_wisp := 1 << 30
 var _rites: Dictionary[int, int] = {}
 ## The tightest a timed rite's burn is against walking its shortest way round.
 var _tightest_burn := INF
+var _rings := 0
+var _fewest_ring_turns := 1 << 30
+var _most_ring_turns := 0
 var _vaults := 0
 var _gilded_sigils := 0
 
@@ -326,6 +329,9 @@ func _run() -> void:
 				timed + ordered, generated, timed, ordered])
 	_check(_tightest_burn >= 1.25,
 			"a timed rite always burns long enough to walk round (tightest: %.2fx the walk)" % _tightest_burn)
+	_check(_rings * 10 >= generated * 9 and _fewest_ring_turns >= FloorPuzzles.RING_TURNS_MIN,
+			"statues turn on %d of %d floors, %d to %d turns from facing in" % [
+				_rings, generated, _fewest_ring_turns, _most_ring_turns])
 	_check(_vaults * 4 >= generated * 3 and _gilded_sigils > 0,
 			"a sealed vault stands on %d of %d floors (a sigil under a gilded chest on %d)" % [
 				_vaults, generated, _gilded_sigils])
@@ -794,6 +800,43 @@ func _audit_puzzles(map: GameMap, walls: TileMapLayer, start: Vector2i, reachabl
 				return "%s's fires burn %.1fs, and walking round them takes %.1fs" % [label, rite.burn, seconds]
 		_rites[rite.mode] = _rites.get(rite.mode, 0) + 1
 
+	# The statues: four round the altar, each looking at it once solved, each one
+	# walkable up to; scrambled into an arrangement the turns can solve, and not
+	# one a couple of idle turns would.
+	var ring := map.get_node_or_null("StatueRing") as StatueRing
+	if ring != null:
+		var chest := map.get_node_or_null("ChestStatues") as Chest
+		var altar := map.get_node_or_null("StatueAltar") as StatueAltar
+		if chest == null or altar == null or ring.statues.size() != FloorPuzzles.RING.size():
+			return "%s has a ring of %d statues with no chest or no altar" % [label, ring.statues.size()]
+		if chest.hidden_until != ring.solved_flag or altar.solved_flag != ring.solved_flag:
+			return "%s's statue chest is not hidden until the statues face in" % label
+		var facings: Array[int] = []
+		var looks: Array[Vector2] = [Vector2.UP, Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT]
+		for i in ring.statues.size():
+			var statue := ring.statues[i]
+			if statue.index != i or statue.position != altar.position + Vector2(FloorPuzzles.RING[i] * TILE):
+				return "%s's %s does not stand in its place round the altar" % [label, statue.name]
+			if statue.position + looks[ring.targets[i]] * 2.0 * TILE != altar.position:
+				return "%s's %s is solved facing away from the altar" % [label, statue.name]
+			if not _approachable(walls, statue, walkable):
+				return "%s's %s cannot be walked up to" % [label, statue.name]
+			facings.append(statue.facing)
+		for piece: Node2D in [chest, altar]:
+			if not _approachable(walls, piece, walkable):
+				return "%s's %s cannot be walked up to" % [label, piece.name]
+		var turns := StatueRing.turns_to_solve(facings, ring.targets)
+		if turns.is_empty():
+			return "%s's statues cannot all be turned to face the altar from %s" % [label, facings]
+		var total := 0
+		for count in turns:
+			total += count
+		if total < FloorPuzzles.RING_TURNS_MIN:
+			return "%s's statues are %d turns from solved" % [label, total]
+		_rings += 1
+		_fewest_ring_turns = mini(_fewest_ring_turns, total)
+		_most_ring_turns = maxi(_most_ring_turns, total)
+
 	# The vault: shut, the door is the only way to its chest; open, the chest can be
 	# walked up to; and every sigil the door wants is in a chest you can reach
 	# without it -- under a puzzle's reward, or the floor's own loot.
@@ -812,7 +855,8 @@ func _audit_puzzles(map: GameMap, walls: TileMapLayer, start: Vector2i, reachabl
 			if vault.has_point(walls.local_to_map(holder.position)) or not _approachable(walls, holder, walkable):
 				return "%s's sigil %s is somewhere you cannot reach with the vault shut" % [label, sigil]
 			if holder.hidden_until != &"" and not (holder.hidden_until in [
-					wisp.solved_flag if wisp else &"-", rite.solved_flag if rite else &"-"]):
+					wisp.solved_flag if wisp else &"-", rite.solved_flag if rite else &"-",
+					ring.solved_flag if ring else &"-"]):
 				return "%s's sigil %s waits on a puzzle the floor does not have" % [label, sigil]
 			if holder.gilded:
 				_gilded_sigils += 1
@@ -833,6 +877,13 @@ func _audit_puzzles(map: GameMap, walls: TileMapLayer, start: Vector2i, reachabl
 		_vaults += 1
 	elif not by_sigil.is_empty():
 		return "%s hides sigils for a vault it does not have" % label
+
+	# And the pieces stand in nobody's way: with every one of them solid, the floor's
+	# own chests, its fire and its door can still be walked up to.
+	for child in map.get_children():
+		if (child is Chest and not (child as Chest).sealed) or child is BossGate or child is Campfire:
+			if not _approachable(walls, child, walkable):
+				return "%s's puzzles stand between you and %s" % [label, child.name]
 	return ""
 
 

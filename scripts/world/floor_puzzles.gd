@@ -7,8 +7,10 @@ extends RefCounted
 ##   you through the fog to its shrine in a room far off;
 ## - a ring of [b]braziers[/b] in another room wants lighting, against the clock or
 ##   in the order a tablet beside them gives;
+## - four [b]statues[/b] stand round an altar in a third, looking away from it:
+##   turning one turns its neighbours, and all four must face in;
 ## - a [b]sigil vault[/b] -- a sealed door off a room, opened by the sigils the
-##   other two hold and one more in an ordinary chest. It is what chains them.
+##   others hold and one more in an ordinary chest. It is what chains them.
 ##
 ## Two passes, because the generator has two moments that matter: [method plan]
 ## runs on the finished layout before it is dressed, and carves the vault, so the
@@ -34,6 +36,12 @@ const VAULT_WALL := 2
 const WALK_TILES_PER_SECOND := 90.0 / 16.0
 const BURN_SLACK := 1.3
 const BURN_PER_FIRE := 0.6
+## Where a ring's statues stand round its altar, in ring order (so neighbours in
+## this list turn together), and how far from solved a scramble may leave it:
+## at least this many turns -- fewer is solved by fiddling -- and at most this.
+const RING: Array[Vector2i] = [Vector2i(0, -2), Vector2i(2, 0), Vector2i(0, 2), Vector2i(-2, 0)]
+const RING_TURNS_MIN := 4
+const RING_TURNS_MAX := 8
 ## What a sealed chest holds: the best of what the floor can give. Until there is
 ## more gear than this, that is these -- and Col, once M5.6 lands.
 const SEALED_LOOT: Array[StringName] = [
@@ -45,6 +53,8 @@ const WISP_SCENE := preload("res://scenes/world/wisp.tscn")
 const SHRINE_SCENE := preload("res://scenes/world/wisp_shrine.tscn")
 const BRAZIER_SCENE := preload("res://scenes/world/brazier.tscn")
 const TABLET_SCENE := preload("res://scenes/world/tablet.tscn")
+const STATUE_SCENE := preload("res://scenes/world/statue.tscn")
+const ALTAR_SCENE := preload("res://scenes/world/statue_altar.tscn")
 const SEAL_SCENE := preload("res://scenes/world/sealed_door.tscn")
 
 const STEPS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
@@ -63,6 +73,14 @@ var rite_order: Array[int] = []
 var rite_burn := 0.0
 var tablet_cell := Vector2i(-1, -1)
 var rite_chest := Vector2i(-1, -1)
+## The statues' room, their altar, where each stands (in [constant RING] order),
+## which way each starts out facing, and the fewest turns that solve them.
+var statue_room := Rect2i()
+var altar_cell := Vector2i(-1, -1)
+var statue_cells: Array[Vector2i] = []
+var statue_facings: Array[int] = []
+var statue_turns := 0
+var statue_chest := Vector2i(-1, -1)
 ## The vault's room and doorway, in tiles, and its chest.
 var vault := Rect2i()
 var vault_door := Rect2i()
@@ -107,7 +125,9 @@ func plan(rooms: Array[Rect2i], entry: Rect2i, chest_cells: Array[Vector2i],
 		return
 	_plan_wisp(candidates, entry, chest_cells)
 	_plan_rite(candidates, chest_cells)
-	var sources := (1 if has_wisp() else 0) + (1 if has_rite() else 0) + (1 if field_chests > 0 else 0)
+	_plan_statues(candidates, chest_cells)
+	var sources := (1 if has_wisp() else 0) + (1 if has_rite() else 0) \
+			+ (1 if has_statues() else 0) + (1 if field_chests > 0 else 0)
 	if sources >= 2:
 		_plan_vault(candidates)
 
@@ -118,6 +138,18 @@ func has_wisp() -> bool:
 
 func has_rite() -> bool:
 	return not braziers.is_empty()
+
+
+func has_statues() -> bool:
+	return not statue_cells.is_empty()
+
+
+## The way each of a ring's statues faces once solved: at the altar in the middle.
+static func ring_targets() -> Array[int]:
+	var targets: Array[int] = []
+	for i in RING.size():
+		targets.append(posmod(i + 2, 4))
+	return targets
 
 
 func has_vault() -> bool:
@@ -297,6 +329,99 @@ static func _orders(count: int) -> Array:
 	return orders
 
 
+# --- the statues ---------------------------------------------------------------
+
+## Four statues round an altar, two cells out on each side, in a room with no
+## chest and no other puzzle in it. A statue stands a cell in from the room's
+## edge, or on it with rock at its back -- never in a corridor's mouth -- and the
+## sealed chest stands clear of every piece, a corner of the ring at the nearest.
+func _plan_statues(candidates: Array[Rect2i], chest_cells: Array[Vector2i]) -> void:
+	var eligible: Array[Rect2i] = []
+	for room in candidates:
+		if room == wisp_room or room.has_point(shrine_cell) or room == rite_room:
+			continue
+		var has_chest := false
+		for cell in chest_cells:
+			if room.grow(1).has_point(cell):
+				has_chest = true
+		if not has_chest:
+			eligible.append(room)
+	if eligible.is_empty():
+		return
+	var shift := _rng.randi() % eligible.size()
+	for i in eligible.size():
+		var room: Rect2i = eligible[(i + shift) % eligible.size()]
+		var altar := _spot(room, func(cell: Vector2i) -> bool: return _ring_fits(room, cell))
+		if altar.x < 0:
+			continue
+		var pieces: Array[Vector2i] = [altar]
+		for offset in RING:
+			pieces.append(altar + offset)
+		var chest := _spot(room, func(cell: Vector2i) -> bool:
+			if not _clear(cell, 1, false) or _taken.has(cell):
+				return false
+			for piece in pieces:
+				var off := (cell - piece).abs()
+				if maxi(off.x, off.y) < 2:
+					return false
+			return true)
+		if chest.x < 0:
+			continue
+		statue_room = room
+		altar_cell = altar
+		statue_chest = chest
+		statue_cells = pieces.slice(1)
+		for piece in pieces:
+			_reserve(piece, 0)
+		_reserve(chest, 1)
+		_scramble_statues()
+		return
+
+
+## Whether a ring round [param altar] fits in [param room]: the five cells carved,
+## unclaimed and free of decor, with the cells between them, and each statue
+## inside the room's edge or backed onto rock.
+func _ring_fits(room: Rect2i, altar: Vector2i) -> bool:
+	if not _clear(altar, 1):
+		return false
+	var inner := room.grow(-1)
+	for offset in RING:
+		var cell := altar + offset
+		if not room.has_point(cell) or not _open.has(cell) or _taken.has(cell):
+			return false
+		if not inner.has_point(cell) and _open.has(cell + offset / 2):
+			return false
+	return true
+
+
+## Turns the solved ring backwards a seeded number of times, so whatever it shows
+## is solvable by construction -- by turning each statue as many more times as
+## makes four. Tried until it lands between [constant RING_TURNS_MIN] and
+## [constant RING_TURNS_MAX] turns from solved, with more than one statue to turn.
+func _scramble_statues() -> void:
+	var count := RING.size()
+	var targets := ring_targets()
+	var turns: Array[int] = []
+	for _try in 64:
+		turns.clear()
+		var total := 0
+		var moving := 0
+		for i in count:
+			turns.append(_rng.randi() % 4)
+			total += turns[i]
+			moving += 1 if turns[i] > 0 else 0
+		if total >= RING_TURNS_MIN and total <= RING_TURNS_MAX and moving >= 2:
+			break
+	statue_facings.clear()
+	statue_turns = 0
+	for i in count:
+		var moved := 0
+		for j in StatueRing.turned_by(i, count):
+			moved += turns[j]
+		statue_facings.append(posmod(targets[i] - moved, 4))
+		statue_turns += turns[i]
+
+
 # --- the vault ----------------------------------------------------------------
 
 ## A room carved out of the solid rock beside a field room, behind a sealed
@@ -314,7 +439,8 @@ func _plan_vault(candidates: Array[Rect2i]) -> void:
 	for busy in [false, true]:
 		for i in rooms.size():
 			var room: Rect2i = rooms[(i + shift) % rooms.size()]
-			var used := room == wisp_room or room.has_point(shrine_cell) or room == rite_room
+			var used := room == wisp_room or room.has_point(shrine_cell) or room == rite_room \
+					or room == statue_room
 			if used == busy:
 				ordered.append(room)
 	for side in STEPS:
@@ -433,6 +559,28 @@ func place(map: Node2D) -> void:
 		map.add_child(tablet)
 		if has_vault():
 			sigils.append(_sigil(chest, sigils.size()))
+	if has_statues():
+		var chest := _add_sealed_chest(map, "ChestStatues", statue_chest, flag("statues"))
+		var ring := StatueRing.new()
+		ring.name = "StatueRing"
+		ring.targets = ring_targets()
+		ring.solved_flag = flag("statues")
+		map.add_child(ring)
+		var altar := ALTAR_SCENE.instantiate()
+		altar.name = "StatueAltar"
+		altar.position = _world(altar_cell)
+		altar.set(&"solved_flag", flag("statues"))
+		map.add_child(altar)
+		for i in statue_cells.size():
+			var statue := STATUE_SCENE.instantiate() as Statue
+			statue.name = "Statue%d" % i
+			statue.position = _world(statue_cells[i])
+			statue.index = i
+			statue.facing = statue_facings[i] as Statue.Facing
+			map.add_child(statue)
+			ring.statues.append(statue)
+		if has_vault():
+			sigils.append(_sigil(chest, sigils.size()))
 	if has_vault():
 		# One more in the field, under the floor's own loot -- a gilded chest's, if it
 		# has one: the gamble is what the third sigil costs.
@@ -463,7 +611,8 @@ func place(map: Node2D) -> void:
 ## leave the floor short of the kills its boss is balanced for.
 func _clear_monsters(map: Node2D) -> void:
 	var solid: Dictionary[Vector2i, bool] = {}
-	for cell in braziers + [tablet_cell, rite_chest, shrine_cell, shrine_cell + Vector2i.DOWN]:
+	for cell in braziers + statue_cells + [tablet_cell, rite_chest, shrine_cell,
+			shrine_cell + Vector2i.DOWN, altar_cell, statue_chest]:
 		solid[cell] = true
 	for child in map.get_children():
 		var monster := child as Monster

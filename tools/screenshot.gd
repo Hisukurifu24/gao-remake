@@ -2,6 +2,7 @@ extends Node
 ## Boots the game, captures a few frames to user:// and exits.
 ##
 ##     "$GODOT" --path . res://tools/screenshot.tscn
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --puzzles   # that pass only
 ##
 ## Dev aid for checking how a change actually looks without sitting through the
 ## game. Needs a real window, so it can't run with --headless.
@@ -29,6 +30,12 @@ func _ready() -> void:
 	while GameState.is_input_locked():
 		await get_tree().process_frame
 	await _frames(2)
+	if "--puzzles" in OS.get_cmdline_user_args():
+		for floor_number in [2, 37]:
+			await _capture_puzzles(main, floor_number)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
 	await _capture("01_town")
 
 	var town: Node2D = main.get_node("WorldRoot").get_child(0)
@@ -710,15 +717,15 @@ func _capture_trap(main: Node) -> void:
 
 
 ## A generated floor's puzzles, on the first floor at or above [param from_floor]
-## that has all three: the wisp waiting, its shrine lit with the chest beside it,
-## the braziers half lit and the tablet read, the sealed door, the map with the
-## floor explored, and the vault open.
+## that has all four: the wisp waiting, its shrine lit with the chest beside it,
+## the braziers half lit and the tablet read, the statues looking away and then
+## turned in, the sealed door, the map with the floor explored, and the vault open.
 func _capture_puzzles(main: Node, from_floor: int) -> void:
 	var floor_number := from_floor
 	while floor_number < from_floor + 8:
 		var probe := FloorRegistry.build_floor(floor_number)
 		var whole := probe.get_node_or_null("Wisp") != null and probe.get_node_or_null("BrazierRite") != null \
-				and probe.get_node_or_null("SealedDoor") != null
+				and probe.get_node_or_null("SealedDoor") != null and probe.get_node_or_null("StatueRing") != null
 		probe.free()
 		if whole and not FloorRegistry.get_floor(floor_number).is_authored():
 			break
@@ -757,6 +764,25 @@ func _capture_puzzles(main: Node, from_floor: int) -> void:
 	while DialogueRunner.is_running():
 		DialogueRunner.advance()
 		await _typed(main)
+
+	var ring := map.get_node("StatueRing") as StatueRing
+	var altar := map.get_node("StatueAltar") as Node2D
+	player.global_position = altar.global_position + Vector2(-16, 40)
+	player.facing = Vector2.UP
+	await _wait(0.6)
+	await _capture(tag + "_c2_statues")
+	var facings: Array[int] = []
+	for statue in ring.statues:
+		facings.append(statue.facing)
+	var turns := StatueRing.turns_to_solve(facings, ring.targets)
+	for i in turns.size():
+		for _t in turns[i]:
+			ring.statues[i].interact(player)
+	while DialogueRunner.is_running():
+		DialogueRunner.advance()
+		await _typed(main)
+	await _wait(0.6)
+	await _capture(tag + "_c3_statues_solved")
 
 	var seal := map.get_node("SealedDoor") as SealedDoor
 	var door: Rect2i = map.get_meta(&"vault_door")

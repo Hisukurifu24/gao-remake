@@ -30,7 +30,9 @@ func _ready() -> void:
 		mark.texture = region
 		# Half size: a texel is still a whole screen pixel at 320x180.
 		mark.scale = Vector2(0.5, 0.5)
-		mark.position = Vector2((i - (sigils.size() - 1) / 2.0) * 9.0, 2.0)
+		# Four hollows close up a pixel, to stay on the door's 32.
+		var pitch := 9.0 if sigils.size() <= 3 else 8.0
+		mark.position = Vector2((i - (sigils.size() - 1) / 2.0) * pitch, 2.0)
 		_stone.add_child(mark)
 		_marks.append(mark)
 	_refresh()

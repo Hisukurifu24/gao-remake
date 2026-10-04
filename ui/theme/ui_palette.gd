@@ -76,8 +76,8 @@ const MAP_GILDED := Color("d25a3c")
 const MAP_PERSON := Color("f2eaf1")
 const MAP_QUEST := Color("ffcb4d")
 const MAP_CAMP := Color("f08a3c")
-## Something to work out -- a wisp waiting, unlit braziers, a sealed door -- and
-## the sealed chest it pays out in, blue as it is drawn.
+## Something to work out -- a wisp waiting, unlit braziers, a dark altar, a sealed
+## door -- and the sealed chest it pays out in, blue as it is drawn.
 const MAP_PUZZLE := Color("c08ee8")
 const MAP_SEALED := Color("5aa9e6")
 const MAP_OUTLINE := Color("141b1b")

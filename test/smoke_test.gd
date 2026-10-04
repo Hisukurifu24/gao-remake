@@ -398,14 +398,15 @@ func _test_traps(map: Node2D, player: Player) -> void:
 	await _physics(2)
 
 
-## The three puzzles, solved on a real floor 2: the wisp leads, waits for you and
+## The four puzzles, solved on a real floor 2: the wisp leads, waits for you and
 ## lights its shrine; the braziers go out in the wrong order and when the fire
 ## runs down, hold their clock through the input lock, and pay out when all are
-## lit; the vault stays shut until the last sigil is in hand. Each chest appears
-## only once its puzzle is solved.
+## lit; a statue turns its neighbours with it, and the ring wakes the altar once
+## all four face it; the vault stays shut until the last sigil is in hand. Each
+## chest appears only once its puzzle is solved.
 ##
 ## The world seed is random per run and a floor may lack a puzzle (the floor test
-## counts how many do), so this picks a seed whose floor 2 has all three, with a
+## counts how many do), so this picks a seed whose floor 2 has all four, with a
 ## timed rite, and goes back up to it.
 func _test_puzzles(world_root: Node2D) -> void:
 	var picked := 0
@@ -414,15 +415,17 @@ func _test_puzzles(world_root: Node2D) -> void:
 		var probe := FloorRegistry.build_floor(2)
 		var rite := probe.get_node_or_null("BrazierRite") as BrazierRite
 		var whole := probe.get_node_or_null("Wisp") != null and probe.get_node_or_null("SealedDoor") != null \
+				and probe.get_node_or_null("StatueRing") != null \
 				and rite != null and rite.mode == BrazierRite.Mode.TIMED
 		probe.free()
 		if whole:
 			picked = candidate
 			break
-	_check(picked > 0, "some world seed's floor 2 has a wisp, a timed rite and a vault")
+	_check(picked > 0, "some world seed's floor 2 has a wisp, a timed rite, statues and a vault")
 	if picked == 0:
 		return
-	for flag: StringName in [&"puzzle_2_wisp", &"puzzle_2_braziers", &"puzzle_2_vault"]:
+	for flag: StringName in [&"puzzle_2_wisp", &"puzzle_2_braziers", &"puzzle_2_statues",
+			&"puzzle_2_vault"]:
 		GameState.set_flag(flag, false)
 	await SceneRouter.enter_floor(2, &"default")
 	await _until_unlocked()
@@ -513,6 +516,45 @@ func _test_puzzles(world_root: Node2D) -> void:
 	await _idle(2)
 	_check(rite_chest.is_available() and rite_chest.visible, "and its chest appears")
 	_check(_open_sealed(rite_chest, player), "the braziers' chest opens, a sigil under its loot")
+	await _close_dialogue()
+	await _idle(2)
+
+	# --- the statues ---
+	var ring := map.get_node("StatueRing") as StatueRing
+	var altar := map.get_node("StatueAltar") as StatueAltar
+	var ring_chest := map.get_node("ChestStatues") as Chest
+	var statues := ring.statues
+	_check(not altar.is_lit() and not ring_chest.is_available() and not ring.all_facing(),
+			"the statues look away, the altar is dark and its chest is not there")
+	var before: Array[int] = []
+	for statue in statues:
+		before.append(statue.facing)
+	statues[0].interact(player)
+	var turned := true
+	for i in statues.size():
+		var expected := before[i] + (1 if i in StatueRing.turned_by(0, statues.size()) else 0)
+		turned = turned and statues[i].facing == posmod(expected, 4)
+	_check(turned and statues[2].facing == before[2],
+			"turning a statue turns the two beside it and leaves the one across alone")
+	var facings: Array[int] = []
+	for statue in statues:
+		facings.append(statue.facing)
+	var turns := StatueRing.turns_to_solve(facings, ring.targets)
+	_check(not turns.is_empty(), "the ring can be solved from wherever it stands")
+	for i in turns.size():
+		for _t in turns[i]:
+			statues[i].interact(player)
+	await _idle(2)
+	_check(GameState.has_flag(&"puzzle_2_statues") and ring.all_facing() and DialogueRunner.is_running(),
+			"with all four facing in, the ring is solved and says so")
+	await _close_dialogue()
+	await _idle(2)
+	var facing_now := statues[0].facing
+	statues[0].interact(player)
+	_check(statues[0].facing == facing_now, "a solved ring turns no more")
+	_check(altar.is_lit() and ring_chest.is_available() and ring_chest.visible,
+			"the altar's orb lights and its chest appears")
+	_check(_open_sealed(ring_chest, player), "the statues' chest opens, a sigil under its loot")
 	await _close_dialogue()
 	await _idle(2)
 
