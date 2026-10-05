@@ -160,6 +160,17 @@ func _run() -> void:
 	GameState.set_hp(4000)
 
 	var gate: Node2D = field.get_node("BossGate")
+	# Floor 1 ends in a labyrinth too: Illfang's door shows only from its room.
+	var field_walls: TileMapLayer = field.get_node("Walls")
+	var illfang_room: Rect2i = field.get_meta(&"boss_room", Rect2i())
+	_check(not (gate as BossGate).revealed and not (gate as BossGate).is_available(),
+			"Illfang's door is hidden in the field's labyrinth")
+	field_player.global_position = field_walls.map_to_local(illfang_room.position)
+	await _physics(4)
+	_check((gate as BossGate).revealed and GameState.has_flag(BossGate.found_flag(1)),
+			"and shows once you walk into its room")
+	await _close_dialogue()
+	await _idle(2)
 	_staged_figures = -1
 	_field = null
 	_fight_camera = null

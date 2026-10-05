@@ -128,11 +128,15 @@ func _draw_cells(ground: TileMapLayer, walls: TileMapLayer, seen: Dictionary,
 ## rather than on it, so it never sits on a passage or a symbol. Where the sheet
 ## ends first it goes just inside the place's top edge instead: below would put it
 ## on whatever is next door. Ink with a parchment halo, for when it crosses rock.
+## A name that would land on one already written -- two places side by side on a
+## map drawn small -- slides along the line clear of it, or goes inside its place's
+## top edge instead, then a line lower at a time until it is clear.
 func _draw_landmarks(seen: Dictionary) -> void:
 	var font := get_theme_font(&"font", &"Label")
 	var font_size := get_theme_font_size(&"font_size", &"Label")
 	var ascent := font.get_ascent(font_size)
 	var descent := font.get_descent(font_size)
+	var written: Array[Rect2] = []
 	for place: String in _map.landmarks:
 		var rect: Rect2i = _map.landmarks[place]
 		if not _any_seen(rect, seen):
@@ -141,9 +145,38 @@ func _draw_landmarks(seen: Dictionary) -> void:
 		var top := _corner(rect.position)
 		var middle := top.x + rect.size.x * _cell / 2.0
 		var left := clampf(middle - width / 2.0, 1.0, size.x - width - 1.0)
-		var baseline_y := top.y - descent - 1.0
-		if baseline_y - ascent < 1.0:
-			baseline_y = top.y + ascent + 1.0
+		var inside := top.y + ascent + 1.0
+		var tries: Array[float] = [top.y - descent - 1.0]
+		for line in 4:
+			tries.append(inside + line * (ascent + descent + 1.0))
+		var baseline_y := tries[0] if tries[0] - ascent >= 1.0 else inside
+		var placed := false
+		for y in tries:
+			if y - ascent < 1.0:
+				continue
+			# Where it wants to be, then slid clear of whatever is in the way, either side.
+			var blockers := written.filter(func(other: Rect2) -> bool:
+				return other.intersects(_label_box(left, y, width, ascent, descent)))
+			var options: Array[float] = [left]
+			if not blockers.is_empty():
+				var right := 0.0
+				var leftmost := size.x
+				for other: Rect2 in blockers:
+					right = maxf(right, other.end.x)
+					leftmost = minf(leftmost, other.position.x)
+				options.append_array([right + 3.0, leftmost - width - 3.0])
+			for x in options:
+				if x < 1.0 or x + width > size.x - 1.0:
+					continue
+				var box := _label_box(x, y, width, ascent, descent)
+				if written.all(func(other: Rect2) -> bool: return not other.intersects(box)):
+					left = x
+					baseline_y = y
+					placed = true
+					break
+			if placed:
+				break
+		written.append(_label_box(left, baseline_y, width, ascent, descent))
 		var baseline := Vector2(roundf(left), roundf(baseline_y))
 		for halo: Vector2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1),
 				Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
@@ -151,6 +184,13 @@ func _draw_landmarks(seen: Dictionary) -> void:
 					font_size, UiPalette.MAP_FLOOR)
 		draw_string(font, baseline, place, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size,
 				UiPalette.INK)
+
+
+## Where a name written at [param baseline_y] needs the sheet to itself: its halo,
+## and a space's width either side, so two names never read as one word.
+static func _label_box(left: float, baseline_y: float, width: float, ascent: float,
+		descent: float) -> Rect2:
+	return Rect2(left - 3.0, baseline_y - ascent - 1.0, width + 6.0, ascent + descent + 2.0)
 
 
 func _draw_markers(walls: TileMapLayer, seen: Dictionary) -> void:

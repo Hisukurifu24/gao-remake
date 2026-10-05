@@ -182,6 +182,62 @@ func flag(puzzle: String) -> StringName:
 	return StringName("puzzle_%d_%s" % [floor_number, puzzle])
 
 
+# --- an authored floor's -------------------------------------------------------
+
+## An authored floor's puzzles are chosen, not rolled: its script names the room
+## each one goes in, in place of [method plan], and the pieces are put down where
+## a generated floor's would be in that room. What is left to the stream -- a
+## rite's corners and order, a ring's scramble, the sealed loot -- is fixed by the
+## floor's own seed, so the tool writes the same floor every time it is run.
+## [param chest_cells] are the floor's chests, every one a field chest here.
+func hold(chest_cells: Array[Vector2i], keep_out: Array[Rect2i]) -> void:
+	_field_chests = chest_cells.size()
+	for cell in chest_cells:
+		_reserve(cell, 1)
+	for rect in keep_out:
+		for y in range(rect.position.y, rect.end.y):
+			for x in range(rect.position.x, rect.end.x):
+				_taken[Vector2i(x, y)] = true
+
+
+## A wisp idling in [param start_room] that leads to a shrine in [param shrine_room].
+func pin_wisp(start_room: Rect2i, shrine_room: Rect2i) -> bool:
+	var start := _spot(start_room, func(cell: Vector2i) -> bool: return _clear(cell, 1))
+	return start.x >= 0 and _lead(start_room, start, shrine_room)
+
+
+## [param count] braziers round [param room], lit by [param mode].
+func pin_rite(room: Rect2i, mode: BrazierRite.Mode, count := 3) -> bool:
+	return _rite_in(room, count, _rng.randi() % 4, mode)
+
+
+func pin_statues(room: Rect2i) -> bool:
+	return _statues_in(room)
+
+
+## The vault off [param room]'s [param side] wall, nearest the middle of it.
+func pin_vault(room: Rect2i, side: Vector2i) -> bool:
+	for offset in _wall_offsets(room, side):
+		var pocket := _pocket(room, side, offset, VAULT_ROOM)
+		if not pocket.is_empty():
+			_carve_vault(pocket)
+			return true
+	return false
+
+
+## A cracked wall in [param room]'s [param side] wall, nearest the middle of it.
+## Never the south: see [method _plan_crack].
+func pin_crack(room: Rect2i, side: Vector2i) -> bool:
+	if side == Vector2i.DOWN or _biome.id in UNCRACKABLE:
+		return false
+	for offset in _wall_offsets(room, side):
+		var pocket := _pocket(room, side, offset, HOLLOW)
+		if not pocket.is_empty():
+			_take_crack(pocket, side)
+			return true
+	return false
+
+
 # --- the wisp ---------------------------------------------------------------
 
 ## The wisp waits in a room in the near half of the field from the entrance -- you
@@ -209,20 +265,27 @@ func _plan_wisp(candidates: Array[Rect2i], entry: Rect2i, chest_cells: Array[Vec
 			best = room
 	if best_steps < 0:
 		return
+	_lead(start_room, start, best)
+
+
+## The wisp idling at [param start] in [param start_room], and its shrine in
+## [param shrine_room]. False if the shrine has no room or there is no way there.
+func _lead(start_room: Rect2i, start: Vector2i, best: Rect2i) -> bool:
 	# The shrine stands with its chest a cell below it, both clear all round.
 	var shrine := _spot(best, func(cell: Vector2i) -> bool:
 		return _clear(cell, 1) and _clear(cell + Vector2i.DOWN, 1))
 	if shrine.x < 0:
-		return
+		return false
 	var path := _guided_path(start, shrine)
 	if path.is_empty():
-		return
+		return false
 	wisp_room = start_room
 	wisp_cell = start
 	shrine_cell = shrine
 	wisp_path = path
 	_reserve(shrine, 1)
 	_reserve(shrine + Vector2i.DOWN, 1)
+	return true
 
 
 ## The way from [param from] to [param to] through the field, keeping off the
@@ -282,31 +345,40 @@ func _plan_rite(candidates: Array[Rect2i], chest_cells: Array[Vector2i]) -> void
 	if eligible.is_empty():
 		return
 	var room: Rect2i = eligible[_rng.randi() % eligible.size()]
+	var count := 4 if room.size.x >= 9 and _rng.randf() < 0.5 else 3
+	_rite_in(room, count, _rng.randi() % 4, -1)
+
+
+## [param count] braziers in the corners of [param room] but corner [param spare],
+## lit by [param mode] -- or, at -1, whichever the stream says. False if a corner
+## is not free floor or the chest has nowhere to stand.
+func _rite_in(room: Rect2i, count: int, spare: int, mode: int) -> bool:
 	var corners: Array[Vector2i] = [
 		room.position + Vector2i(1, 1), Vector2i(room.end.x - 2, room.position.y + 1),
 		Vector2i(room.end.x - 2, room.end.y - 2), Vector2i(room.position.x + 1, room.end.y - 2),
 	]
-	var count := 4 if room.size.x >= 9 and _rng.randf() < 0.5 else 3
-	var spare := _rng.randi() % 4
 	var cells: Array[Vector2i] = []
 	for i in count:
 		cells.append(corners[(spare + 1 + i) % 4])
 	var tablet := corners[spare] if count == 3 else room.position + Vector2i(2, 1)
 	for cell in cells + [tablet]:
 		if not _open.has(cell) or _taken.has(cell):
-			return
+			return false
 	for cell in cells + [tablet]:
 		_reserve(cell, 0)
 	var chest := _spot(room, func(cell: Vector2i) -> bool: return _clear(cell, 1))
 	if chest.x < 0:
 		for cell in cells + [tablet]:
 			_taken.erase(cell)
-		return
+		return false
 	rite_room = room
 	braziers = cells
 	tablet_cell = tablet
 	rite_chest = chest
-	rite_mode = BrazierRite.Mode.TIMED if _rng.randf() < 0.5 else BrazierRite.Mode.ORDERED
+	if mode < 0:
+		rite_mode = BrazierRite.Mode.TIMED if _rng.randf() < 0.5 else BrazierRite.Mode.ORDERED
+	else:
+		rite_mode = mode as BrazierRite.Mode
 	rite_order.clear()
 	for i in cells.size():
 		rite_order.append(i)
@@ -322,6 +394,7 @@ func _plan_rite(candidates: Array[Rect2i], chest_cells: Array[Vector2i]) -> void
 		rite_burn = BURN_PER_FIRE * (cells.size() - 1) \
 				+ _tour_tiles(cells) / WALK_TILES_PER_SECOND * BURN_SLACK
 	_reserve(chest, 1)
+	return true
 
 
 ## The shortest walk that visits every one of [param cells], from any of them,
@@ -371,32 +444,38 @@ func _plan_statues(candidates: Array[Rect2i], chest_cells: Array[Vector2i]) -> v
 		return
 	var shift := _rng.randi() % eligible.size()
 	for i in eligible.size():
-		var room: Rect2i = eligible[(i + shift) % eligible.size()]
-		var altar := _spot(room, func(cell: Vector2i) -> bool: return _ring_fits(room, cell))
-		if altar.x < 0:
-			continue
-		var pieces: Array[Vector2i] = [altar]
-		for offset in RING:
-			pieces.append(altar + offset)
-		var chest := _spot(room, func(cell: Vector2i) -> bool:
-			if not _clear(cell, 1, false) or _taken.has(cell):
-				return false
-			for piece in pieces:
-				var off := (cell - piece).abs()
-				if maxi(off.x, off.y) < 2:
-					return false
-			return true)
-		if chest.x < 0:
-			continue
-		statue_room = room
-		altar_cell = altar
-		statue_chest = chest
-		statue_cells = pieces.slice(1)
+		if _statues_in(eligible[(i + shift) % eligible.size()]):
+			return
+
+
+## A ring round an altar in [param room], nearest its middle, and its chest clear
+## of every piece. False if the room has no place for one.
+func _statues_in(room: Rect2i) -> bool:
+	var altar := _spot(room, func(cell: Vector2i) -> bool: return _ring_fits(room, cell))
+	if altar.x < 0:
+		return false
+	var pieces: Array[Vector2i] = [altar]
+	for offset in RING:
+		pieces.append(altar + offset)
+	var chest := _spot(room, func(cell: Vector2i) -> bool:
+		if not _clear(cell, 1, false) or _taken.has(cell):
+			return false
 		for piece in pieces:
-			_reserve(piece, 0)
-		_reserve(chest, 1)
-		_scramble_statues()
-		return
+			var off := (cell - piece).abs()
+			if maxi(off.x, off.y) < 2:
+				return false
+		return true)
+	if chest.x < 0:
+		return false
+	statue_room = room
+	altar_cell = altar
+	statue_chest = chest
+	statue_cells = pieces.slice(1)
+	for piece in pieces:
+		_reserve(piece, 0)
+	_reserve(chest, 1)
+	_scramble_statues()
+	return true
 
 
 ## Whether a ring round [param altar] fits in [param room]: the five cells carved,
@@ -513,12 +592,16 @@ func _plan_crack(candidates: Array[Rect2i]) -> void:
 			for offset in _wall_offsets(room, side):
 				var pocket := _pocket(room, side, offset, HOLLOW)
 				if not pocket.is_empty():
-					crack_side = side
-					crack_door = pocket[0]
-					crack_hollow = pocket[1]
-					crack_chest = pocket[2]
-					_claim(pocket)
+					_take_crack(pocket, side)
 					return
+
+
+func _take_crack(pocket: Array, side: Vector2i) -> void:
+	crack_side = side
+	crack_door = pocket[0]
+	crack_hollow = pocket[1]
+	crack_chest = pocket[2]
+	_claim(pocket)
 
 
 ## Keeps the rock round a pocket for it, and the cells in front of its doorway.

@@ -26,6 +26,24 @@ const BOSS_GATE_SCENE := "res://scenes/world/boss_gate.tscn"
 const STAIRS_SCENE := "res://scenes/world/floor_stairs.tscn"
 const MONSTER_SCENE := "res://scenes/world/monster.tscn"
 const EXIT_SCENE := "res://scenes/world/map_exit.tscn"
+const CAMPFIRE_SCENE := "res://scenes/world/campfire.tscn"
+## Loaded when used, never named as a class: naming one compiles it with this
+## script, before the autoloads exist, and with it every scene it preloads -- whose
+## scripts then fail on [code]EventBus[/code].
+const GENERATOR := "res://scripts/world/floor_generator.gd"
+const PUZZLES := "res://scripts/world/floor_puzzles.gd"
+const CHEST_SCRIPT := "res://scripts/world/chest.gd"
+
+## [enum FloorGenerator.Side], which side of the rest of the floor a labyrinth
+## stands on; [method _grow_labyrinth] checks the two agree.
+enum Side { EAST, WEST, SOUTH, NORTH }
+## An authored floor's boss room, in maze cells: square, 10x10 tiles, where a
+## generated one is 3x2. An authored boss is drawn full size -- Illfang is three
+## tiles tall -- and in a room six deep you would face it from the bottom row,
+## behind the crowns of the wall below.
+const AUTHORED_BOSS_BLOCK := Vector2i(3, 3)
+## [enum BrazierRite.Mode], how a pinned rite's fires are to be lit.
+enum Rite { TIMED, ORDERED }
 const CHARACTER_SHEET := "res://assets/ninja_adventure/Actor/Character/%s/SpriteSheet.png"
 
 const TILE := 16
@@ -40,12 +58,24 @@ const PREVIEW_MARKS := {
 	STAIRS_SCENE: "<",
 	MONSTER_SCENE: "m",
 	EXIT_SCENE: "E",
+	CAMPFIRE_SCENE: "f",
+	"res://scenes/world/wisp.tscn": "w",
+	"res://scenes/world/wisp_shrine.tscn": "s",
+	"res://scenes/world/brazier.tscn": "b",
+	"res://scenes/world/tablet.tscn": "t",
+	"res://scenes/world/statue.tscn": "S",
+	"res://scenes/world/statue_altar.tscn": "a",
+	"res://scenes/world/sealed_door.tscn": "D",
+	"res://scenes/world/cracked_wall.tscn": "x",
 }
 
 var floor_number := 0
 var size := Vector2i.ZERO
 var biome_path := ""
 var out_path := ""
+## What the dressing's trees and flowers are scattered by; the floor number unless
+## a floor keeps an older seed so rebuilding it doesn't reshuffle its look.
+var dress_seed := -1
 
 var _biome: BiomeKit
 var _ground: TileMapLayer
@@ -53,6 +83,18 @@ var _walls: TileMapLayer
 var _open: Dictionary[Vector2i, bool] = {}
 ## [rect, house variant] for every pack house, placed once the map is dressed.
 var _houses: Array = []
+## The floor's labyrinth, once [method _grow_labyrinth] has grown it, and the seed
+## it was grown from -- which also places what stands in it.
+var _lab = null  # FloorGenerator.Labyrinth -- see GENERATOR
+var _lab_seed := 0
+## The dead end the labyrinth's chest waits in, in cells of the maze; and the
+## others, in tiles, where a teleport trap sets you down.
+var _lab_chest_end := Vector2i(-1, -1)
+var _deep: Array[Vector2i] = []
+var _puzzles = null  # FloorPuzzles
+## What the layout asked for and could not have -- a puzzle with no room for it, a
+## maze with no camp. [method _verify] refuses the floor on any of them.
+var _problems := PackedStringArray()
 
 
 func _initialize() -> void:
@@ -189,6 +231,15 @@ func _ellipse(rect: Rect2i, wobble := 0.0, lobes := 3, phase := 0.0) -> Array[Ve
 	return cells
 
 
+## A gap in the map's outer ring, where a [MapExit] to another map stands: the one
+## carve allowed to reach the edge. The floor test excuses holes in the ring only
+## on a map with a way off it.
+func _carve_gap(rect: Rect2i, tile: int) -> void:
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			_open_cell(Vector2i(x, y), tile)
+
+
 ## Puts something solid back on a carved cell: a roof, a boulder, a pool.
 func _block(rect: Rect2i, tile: int) -> void:
 	for y in range(rect.position.y, rect.end.y):
@@ -244,8 +295,13 @@ func _house(rect: Rect2i, variant := 0) -> void:
 ## and pools live on this layer too and are scenery. Pack houses go up after, on
 ## the props layer the forest was planted on.
 func _join_walls() -> void:
+	# The vault is carved by [FloorPuzzles], which never writes to [member _open]:
+	# take it from the tiles, so the reachability check walks into it.
+	for cell in _ground.get_used_cells():
+		if _walls.get_cell_source_id(cell) == -1:
+			_open[cell] = true
 	var map := _ground.get_parent() as Node2D
-	MapDresser.dress(map, _biome, _ground, _walls, floor_number)
+	MapDresser.dress(map, _biome, _ground, _walls, floor_number if dress_seed < 0 else dress_seed)
 	if _houses.is_empty():
 		return
 	var props := MapDresser.props_layer(map, _biome)
@@ -268,6 +324,143 @@ func _open_cell(cell: Vector2i, tile: int) -> void:
 func _close_cell(cell: Vector2i, tile: int) -> void:
 	_paint(_walls, cell, tile)
 	_open.erase(cell)
+
+
+# --- the labyrinth ----------------------------------------------------------
+
+## Grows the floor's labyrinth -- the same maze a generated floor ends in, by the
+## same code -- into the rect the layout set aside for it: [param cells] of maze
+## with its top-left corner at [param at], standing on the [param facing] side of
+## the rest of the floor, its mouth [param along] cells down the wall that faces
+## back. [param maze_seed] fixes it; a floor whose maze grows no safe zone or too
+## few dead ends is refused, and the cure is another seed.
+##
+## Carve the corridor to [member FloorGenerator.Labyrinth.doorstep] afterwards, and
+## call [method _add_labyrinth] once the map is dressed. [param boss_block] is the
+## boss room's size in cells; zero for a generated floor's.
+func _grow_labyrinth(at: Vector2i, cells: Vector2i, facing: int, along: int,
+		maze_seed: int, boss_block := AUTHORED_BOSS_BLOCK) -> void:
+	var generator: GDScript = load(GENERATOR)
+	assert(generator.Side == Side, "authored_floor.gd's Side has drifted from FloorGenerator's")
+	if boss_block == Vector2i.ZERO:
+		boss_block = generator.BOSS_BLOCK
+	_lab_seed = maze_seed
+	_lab = generator.grow_into(_biome, _ground, _walls, _open, size, at, cells, facing,
+			along, maze_seed, boss_block)
+	var rect: Rect2i = _lab.rect
+	if not Rect2i(Vector2i.ZERO, size).encloses(rect):
+		_problems.append("the labyrinth %s runs off the %s map" % [rect, size])
+	if not (_lab.camp as Rect2i).has_area():
+		_problems.append("the labyrinth grown from seed %d has no safe zone" % maze_seed)
+	if _lab.dead_ends.size() < int(generator.MIN_DEAD_ENDS) + 1:
+		_problems.append("the labyrinth grown from seed %d has %d dead ends" % [
+				maze_seed, _lab.dead_ends.size()])
+	else:
+		# One dead end keeps the labyrinth's chest, the rest are where a teleport
+		# trap sets you down -- the generator's split, decided by the maze's seed.
+		var rng := _lab_rng("chest")
+		var pick: int = rng.randi() % _lab.dead_ends.size()
+		_lab_chest_end = _lab.dead_ends[pick]
+		for i in _lab.dead_ends.size():
+			if i != pick:
+				var end: Rect2i = _lab.cell_rect(_lab.dead_ends[i])
+				_deep.append(end.end - Vector2i.ONE)
+
+
+## Everything the labyrinth holds, once the map is dressed: the dark over it, the
+## safe zone and its fire, the door's room, [param monsters] (enemy ids) walking
+## its passages and [param chest] (a chest table row without [code]at[/code]) in
+## one of its dead ends. Named [param place] on the map. [param first_monster] and
+## [param chest_index] continue the floor's own numbering.
+func _add_labyrinth(map: Node2D, place: String, monsters: Array, first_monster: int,
+		chest: Dictionary, chest_index: int) -> void:
+	map.set(&"dark_area", _lab.rect)
+	map.set(&"safe_zones", [_lab.camp_room] as Array[Rect2i])
+	var places: Dictionary[String, Rect2i] = (map.get(&"landmarks") as Dictionary).duplicate()
+	places[place] = _lab.rect
+	places["Safe Zone"] = _lab.camp_room
+	map.set(&"landmarks", places)
+	# What the floor test needs to find the labyrinth again, as a generated floor
+	# leaves it.
+	map.set_meta(&"labyrinth", _lab.rect)
+	map.set_meta(&"labyrinth_mouth", _lab.mouth)
+	map.set_meta(&"boss_room", _lab.boss_room)
+	map.set_meta(&"safe_zone", _lab.camp_room)
+
+	var camp: Rect2i = _lab.camp_room
+	var fire := (load(CAMPFIRE_SCENE) as PackedScene).instantiate()
+	fire.name = "Campfire"
+	# Where the pillar between the camp's four cells stood, as on a generated floor.
+	fire.position = Vector2((camp.position.x + camp.size.x / 2) * TILE,
+			(camp.position.y + camp.size.y / 2 + 1) * TILE)
+	_add(map, fire)
+
+	if not chest.is_empty() and _lab_chest_end.x >= 0:
+		var row := chest.duplicate()
+		var end: Rect2i = _lab.cell_rect(_lab_chest_end)
+		row["at"] = end.position
+		_add_chest(map, chest_index, row)
+
+	var passages: Array[Rect2i] = _lab.passages()
+	var rng := _lab_rng("monsters")
+	var placed: Array[Vector2i] = []
+	var index := first_monster
+	for enemy_id: StringName in monsters:
+		for _try in 32:
+			var passage: Rect2i = passages[rng.randi() % passages.size()]
+			var cell := passage.position + Vector2i(rng.randi_range(0, 1), rng.randi_range(0, 1))
+			if cell in placed or not _open.has(cell):
+				continue
+			placed.append(cell)
+			_add_monster(map, index, cell, enemy_id)
+			index += 1
+			break
+
+
+## The door's cell: the middle of the labyrinth's boss room.
+func _lab_door() -> Vector2i:
+	var room: Rect2i = _lab.boss_room
+	return room.position + room.size / 2
+
+
+func _lab_rng(what: String) -> RandomNumberGenerator:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%d:%s" % [_lab_seed, what])
+	return rng
+
+
+# --- puzzles ----------------------------------------------------------------
+
+## Starts the floor's puzzles. [param chest_cells] are its own chests (one of them
+## will hold the vault's last sigil -- a gilded one, if any is), [param keep_out]
+## every cell a piece must not stand on or crowd: people, stairs, ways out. The
+## labyrinth is kept out already. Then pin each puzzle to its room with
+## [method _pin] before the map is dressed -- the vault is carved out of the rock,
+## and its walls join like any -- and put them down with [method _place_puzzles]
+## once the chests are.
+func _new_puzzles(chest_cells: Array[Vector2i], keep_out: Array[Vector2i]) -> void:
+	_puzzles = load(PUZZLES).new(floor_number, hash("authored:%d" % floor_number), _biome,
+			_ground, _walls, _open, Rect2i(Vector2i.ONE, size - Vector2i(2, 2)))
+	var rects: Array[Rect2i] = []
+	for cell in keep_out:
+		rects.append(Rect2i(cell - Vector2i.ONE, Vector2i(3, 3)))
+	if _lab != null:
+		var lab: Rect2i = _lab.rect
+		rects.append(lab.grow(1))
+	_puzzles.hold(chest_cells, rects)
+
+
+## Refuses the floor if a puzzle the layout asked for has no room where it asked.
+func _pin(done: bool, what: String) -> void:
+	assert(load("res://scripts/world/brazier_rite.gd").Mode == Rite,
+			"authored_floor.gd's Rite has drifted from BrazierRite's")
+	if not done:
+		_problems.append("%s does not fit where the layout puts it" % what)
+
+
+func _place_puzzles(map: Node2D) -> void:
+	if _puzzles != null:
+		_puzzles.place(map)
 
 
 # --- contents --------------------------------------------------------------
@@ -322,6 +515,11 @@ func _add_npc(map: Node2D, entry: Dictionary) -> void:
 	_add(map, node)
 
 
+## [param entry] is one row of a floor's chest table: [code]at[/code],
+## [code]item[/code], [code]amount[/code], [code]flag[/code], and for a gilded one
+## [code]gilded[/code] and a [code]trap[/code] -- [code]&"alarm"[/code] or
+## [code]&"teleport"[/code], which sets you down in one of the labyrinth's dead ends.
+## A trap on a chest that is not gilded is refused: the gilding is the tell.
 func _add_chest(map: Node2D, index: int, entry: Dictionary) -> void:
 	var chest := (load(CHEST_SCENE) as PackedScene).instantiate()
 	chest.name = "Chest%d" % index
@@ -329,6 +527,19 @@ func _add_chest(map: Node2D, index: int, entry: Dictionary) -> void:
 	chest.set(&"item_id", entry["item"])
 	chest.set(&"amount", entry["amount"])
 	chest.set(&"opened_flag", entry["flag"])
+	chest.set(&"floor_number", floor_number)
+	var gilded: bool = entry.get("gilded", false)
+	chest.set(&"gilded", gilded)
+	var trap: StringName = entry.get("trap", &"")
+	var traps: Dictionary = load(CHEST_SCRIPT).Trap
+	if trap == &"alarm" and gilded:
+		chest.set(&"trap", traps["ALARM"])
+	elif trap == &"teleport" and gilded and not _deep.is_empty():
+		chest.set(&"trap", traps["TELEPORT"])
+		chest.set(&"trap_target", _world(_deep[index % _deep.size()]))
+	elif trap != &"":
+		_problems.append("chest %d's %s trap wants a gilded chest (and a teleport, a labyrinth)" % [
+				index, trap])
 	_add(map, chest)
 
 
@@ -342,25 +553,36 @@ func _add_monster(map: Node2D, index: int, cell: Vector2i, enemy_id: StringName)
 	_add(map, monster)
 
 
+## [param zone] stretches the exit's trigger, and [param auto] walks you through it
+## without a prompt -- a gap in a map's edge rather than a door.
 func _add_exit(map: Node2D, node_name: String, cell: Vector2i, target_map: String,
-		target_spawn: StringName, verb: String, label: String) -> void:
+		target_spawn: StringName, verb: String, label: String, zone := Vector2.ONE,
+		auto := false) -> void:
 	var exit := (load(EXIT_SCENE) as PackedScene).instantiate()
 	exit.name = node_name
 	exit.position = _world(cell)
+	exit.scale = zone
 	exit.set(&"target_map", target_map)
 	exit.set(&"target_spawn", target_spawn)
 	exit.set(&"prompt_verb", verb)
 	exit.set(&"display_name", label)
+	exit.set(&"auto_trigger", auto)
 	_add(map, exit)
 
 
+## In the labyrinth's boss room if the floor has one, hidden until you walk into
+## it -- the generated floors' rule; [param cell] is ignored then. Otherwise at
+## [param cell], in plain view.
 func _add_boss_gate(map: Node2D, cell: Vector2i, boss_name: String, label: String) -> void:
 	var gate := (load(BOSS_GATE_SCENE) as PackedScene).instantiate()
 	gate.name = "BossGate"
-	gate.position = _world(cell)
+	gate.position = _world(_lab_door() if _lab != null else cell)
 	gate.set(&"floor_number", floor_number)
 	gate.set(&"boss_name", boss_name)
 	gate.set(&"display_name", label)
+	if _lab != null:
+		var room: Rect2i = _lab.boss_room
+		gate.set(&"reveal_area", Rect2(room.position * TILE, room.size * TILE))
 	_add(map, gate)
 
 
@@ -373,6 +595,8 @@ func _add_boss_gate(map: Node2D, cell: Vector2i, boss_name: String, label: Strin
 ## run later. Entities are read off the map rather than out of the tables, so a
 ## new kind of thing on a floor is checked without anybody remembering to list it.
 func _verify(map: Node2D) -> String:
+	if not _problems.is_empty():
+		return "; ".join(_problems)
 	var spawns := map.get_node_or_null("SpawnPoints")
 	if spawns == null or spawns.get_child_count() == 0:
 		return "there are no spawn points"
@@ -396,6 +620,10 @@ func _verify(map: Node2D) -> String:
 	for child in things:
 		var node := child as Node2D
 		if node == null or node is TileMapLayer or node == spawns:
+			continue
+		# A cracked wall stands in the wall it cracks, and its chest in the rock
+		# behind it: the floor test breaks it open and walks in.
+		if node.name in [&"CrackedWall", &"ChestCrack"]:
 			continue
 		var cell := _cell_of(node)
 		if not reachable.has(cell):
@@ -505,11 +733,24 @@ func _world(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * TILE + TILE / 2.0, cell.y * TILE + TILE / 2.0)
 
 
+## Gives [param root] everything under it that nobody owns -- what [FloorPuzzles]
+## puts down, built for a generated floor that is never saved -- so it is packed
+## with the scene. A node inside an instanced scene is owned by that scene's root
+## already, and stays so.
+func _adopt(root: Node, node: Node) -> void:
+	for child in node.get_children():
+		if child.owner == null:
+			child.owner = root
+		if child.scene_file_path.is_empty():
+			_adopt(root, child)
+
+
 func _cell_of(node: Node2D) -> Vector2i:
 	return Vector2i(floori(node.position.x / TILE), floori(node.position.y / TILE))
 
 
 func _save(node: Node, path: String) -> bool:
+	_adopt(node, node)
 	var packed := PackedScene.new()
 	var err := packed.pack(node)
 	if err != OK:

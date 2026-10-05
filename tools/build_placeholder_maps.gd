@@ -1,11 +1,13 @@
 extends SceneTree
-## Builds Floor 1's two authored maps: the Town of Beginnings and the West Field.
+## Builds the Town of Beginnings, Floor 1's first map. Its second, the West Field
+## with the floor's labyrinth, is tools/build_floor_01.gd's: it moved onto the
+## shared authored-floor builder when the labyrinths came to the authored floors.
 ##
 ##     "$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd
 ##
 ## Tile data is a binary blob inside .tscn, so these maps are authored by the
-## engine rather than by hand. The output is ordinary scenes -- open them in the
-## editor and paint over them; just don't re-run this or it overwrites your work.
+## engine rather than by hand. The output is an ordinary scene -- open it in the
+## editor and paint over it; just don't re-run this or it overwrites your work.
 ##
 ## The layout is painted in the biome's semantic slots -- grass, path, wall -- and
 ## then handed to [MapDresser], the same pass a generated floor gets: the wall
@@ -20,36 +22,16 @@ const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const NPC_SCENE := "res://scenes/world/npc.tscn"
 const CHEST_SCENE := "res://scenes/world/chest.tscn"
 const EXIT_SCENE := "res://scenes/world/map_exit.tscn"
-const BOSS_GATE_SCENE := "res://scenes/world/boss_gate.tscn"
-const MONSTER_SCENE := "res://scenes/world/monster.tscn"
 const CHARACTER_SHEET := "res://assets/ninja_adventure/Actor/Character/%s/SpriteSheet.png"
-
-## Floor 1's monsters are placed by hand rather than by the curve in
-## [FloorTuning], but the count is the same one: ten kills is what puts a new
-## player at the level Illfang is tuned for.
-const FIELD_MONSTERS := [
-	[Vector2i(12, 5), &"frenzy_boar"],
-	[Vector2i(18, 12), &"little_nepent"],
-	[Vector2i(30, 6), &"frenzy_boar"],
-	[Vector2i(44, 9), &"little_nepent"],
-	[Vector2i(6, 22), &"frenzy_boar"],
-	[Vector2i(28, 18), &"little_nepent"],
-	[Vector2i(38, 20), &"frenzy_boar"],
-	[Vector2i(50, 20), &"little_nepent"],
-	[Vector2i(36, 30), &"frenzy_boar"],
-	[Vector2i(22, 33), &"frenzy_boar"],
-]
 
 const TILE := 16
 const SOURCE_ID := 0
 
-# Both maps are deliberately larger than the 320x180 viewport so the camera
-# actually scrolls instead of sitting on limits.
+# Deliberately larger than the 320x180 viewport so the camera actually scrolls
+# instead of sitting on limits.
 const TOWN_W := 50
 const TOWN_H := 36
-const FIELD_W := 60
-const FIELD_H := 44
-## How deep the forest round each map is. Two rows, so the outer row's crowns have
+## How deep the forest round the town is. Two rows, so the outer row's crowns have
 ## a row of trunks in front of them rather than the edge of the world.
 const BORDER := 2
 
@@ -63,15 +45,8 @@ const TOWN_HOUSES: Array[Rect2i] = [
 const TOWN_GROVES: Array[Rect2i] = [
 	Rect2i(42, 11, 5, 3), Rect2i(12, 29, 4, 3), Rect2i(2, 12, 3, 4),
 ]
-const FIELD_GROVES: Array[Vector2i] = [
-	Vector2i(9, 6), Vector2i(13, 9), Vector2i(6, 16), Vector2i(17, 19),
-	Vector2i(34, 8), Vector2i(41, 15), Vector2i(52, 11), Vector2i(44, 33),
-	Vector2i(30, 36), Vector2i(20, 40), Vector2i(53, 27),
-]
-
-## Fixed, so rebuilding the maps never reshuffles their trees and flowers.
+## Fixed, so rebuilding the town never reshuffles its trees and flowers.
 const TOWN_SEED := 1001
-const FIELD_SEED := 1002
 
 
 func _initialize() -> void:
@@ -81,7 +56,6 @@ func _initialize() -> void:
 		return
 	var biome: BiomeKit = load(BIOME_PATH)
 	_save(_build_town(biome), TOWN_PATH)
-	_save(_build_field(biome), FIELD_PATH)
 	quit()
 
 
@@ -130,58 +104,6 @@ func _build_town(biome: BiomeKit) -> Node2D:
 	return map
 
 
-func _build_field(biome: BiomeKit) -> Node2D:
-	var map := _new_map("Field", &"field_f1", "West Field", biome)
-	var ground: TileMapLayer = map.get_node("Ground")
-	var walls: TileMapLayer = map.get_node("Walls")
-
-	_fill(ground, Rect2i(0, 0, FIELD_W, FIELD_H), biome.floor_tile)
-	_fill(ground, Rect2i(23, 0, 3, 26), biome.path_tile)
-	_fill(ground, Rect2i(26, 23, 22, 3), biome.path_tile)
-	_fill(ground, Rect2i(47, 23, 3, 15), biome.path_tile)        # approach to the labyrinth door
-
-	_border(walls, Rect2i(0, 0, FIELD_W, FIELD_H), biome.wall_tile)
-	_erase(walls, Rect2i(23, 0, 3, BORDER))                         # gate back to town
-	_fill(walls, Rect2i(8, 28, 10, 7), biome.liquid_tile)          # pond
-	for spot in FIELD_GROVES:
-		_fill(walls, Rect2i(spot, Vector2i(2, 2)), biome.wall_tile)
-
-	MapDresser.dress(map, biome, ground, walls, FIELD_SEED)
-
-	_add_spawns(map, {
-		"default": Vector2(392, 40),
-		"from_town": Vector2(392, 40),
-	})
-
-	_add(map, _npc(
-		Vector2(488, 264), "Scout", "a nervous scout",
-		[
-			"You're heading further out? Watch the treeline.",
-			"Frenzy Boars charge the moment you turn your back.",
-			"The labyrinth door is south-east, past the pond.",
-			"Illfang is behind it. Nobody's come back through yet.",
-		],
-		&"", "CamouflageGreen"
-	))
-	_add(map, _chest(Vector2(744, 168), &"bronze_sword", 1, &"chest_field_north"))
-	_add(map, _exit(Vector2(392, 8), Vector2(2, 1), TOWN_PATH, &"from_field", true))
-
-	for index in FIELD_MONSTERS.size():
-		var spot: Vector2i = FIELD_MONSTERS[index][0]
-		_add(map, _monster(index, Vector2(spot.x * TILE + 8, spot.y * TILE + 8),
-				FIELD_MONSTERS[index][1]))
-
-	var gate := (load(BOSS_GATE_SCENE) as PackedScene).instantiate()
-	gate.name = "BossGate"
-	gate.position = Vector2(792, 600)
-	gate.set(&"floor_number", 1)
-	gate.set(&"boss_name", "Illfang the Kobold Lord")
-	_add(map, gate)
-
-	_add(map, _player(Vector2(392, 40)))
-	return map
-
-
 ## The solid part of a house: everything but the roof's top row.
 func _house_footprint(house: Rect2i) -> Rect2i:
 	return Rect2i(house.position.x, house.position.y + 1, house.size.x, house.size.y - 1)
@@ -195,7 +117,7 @@ func _new_map(node_name: String, id: StringName, display: String, biome: BiomeKi
 	map.set_script(load("res://scripts/world/game_map.gd"))
 	map.set(&"map_id", id)
 	map.set(&"display_name", display)
-	map.set(&"floor_number", 1)  # both authored maps are Floor 1
+	map.set(&"floor_number", 1)
 	map.modulate = biome.ambient_tint
 
 	var ground := TileMapLayer.new()
@@ -255,16 +177,6 @@ func _npc(at: Vector2, speaker: String, display: String, lines: Array, flag: Str
 	node.set(&"sprite_sheet", load(CHARACTER_SHEET % look))
 	if not dialogue_path.is_empty():
 		node.set(&"dialogue", load(dialogue_path))
-	return node
-
-
-func _monster(index: int, at: Vector2, enemy_id: StringName) -> Node:
-	var node := (load(MONSTER_SCENE) as PackedScene).instantiate()
-	node.name = "Monster%d" % index
-	node.position = at
-	node.set(&"enemy", load("res://resources/enemies/%s.tres" % enemy_id))
-	node.set(&"level", 2)  # matches resources/floors/floor_01.tres
-	node.set(&"floor_number", 1)
 	return node
 
 

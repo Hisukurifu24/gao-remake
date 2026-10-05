@@ -22,8 +22,9 @@ const WRONG_FLARE := 0.35
 @export var burn := 8.0
 @export var solved_flag: StringName = &""
 
-## The rite's braziers, by index. Set by whoever builds it, before it enters the tree.
-var braziers: Array[Brazier] = []
+## The rite's braziers, by index. Set by whoever builds it, before it enters the
+## tree -- exported, so an authored floor's saved scene keeps them.
+@export var braziers: Array[Brazier] = []
 
 var _lit: Array[int] = []
 ## Seconds since the first fire was lit; below zero while none is.

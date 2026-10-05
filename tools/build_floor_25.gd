@@ -25,6 +25,12 @@ extends "res://tools/authored_floor.gd"
 ## monsters back, which is the fare: the short way up costs you the tunnels you
 ## cleared on the way down.
 ##
+## [b]Under the Breach, the labyrinth.[/b] What the miners broke into is the top
+## of it: the maze grows south from the Breach by the generator's own code, from a
+## seed fixed here, and the door is found the way a generated floor's is -- from
+## inside its room. The lift still waits in the Breach, so the ride home is from
+## the maze's mouth, not from the door.
+##
 ## [b]Caverns, not rooms.[/b] Everything is carved with [method _carve_cave] --
 ## wobbled ellipses rather than rectangles -- and joined by tunnels that jog
 ## instead of making one L. The main line is three tiles wide, the branches to the
@@ -36,7 +42,7 @@ const OUT_PATH := "res://scenes/world/floor_25.tscn"
 const FLOOR_NUMBER := 25
 const BOSS_NAME := "Karvos the Twin-Headed"
 
-const SIZE := Vector2i(80, 62)
+const SIZE := Vector2i(80, 92)
 const MAIN_WIDTH := 3
 const BRANCH_WIDTH := 2
 
@@ -45,6 +51,7 @@ const BRANCH_WIDTH := 2
 # Lanternfall is in the north-west. The workings run east along the top, down the
 # east side, and back west along the bottom, so the Breach ends up under the camp
 # with forty rows of rock between them -- the shape the lift exists to cut short.
+# The labyrinth is under all of it.
 
 const CAMP := Rect2i(2, 2, 30, 20)
 const UPPER := Rect2i(42, 2, 24, 14)
@@ -64,7 +71,27 @@ const GALLERIES := [
 ## round it. Blocked as an ellipse after the carve, like a boulder.
 const LAKE := Rect2i(54, 27, 12, 6)
 
-## Named places, for the map screen -- what the miners call them.
+## The labyrinth: 12x7 cells of maze (50x30 tiles) under the Breach, its mouth in
+## its north wall straight below the cavern.
+const LABYRINTH_AT := Vector2i(2, 60)
+const LABYRINTH_CELLS := Vector2i(12, 7)
+const LABYRINTH_MOUTH := 2
+const LABYRINTH_SEED := 25
+## Down from the Breach's floor to the mouth.
+const INTO_LABYRINTH := Vector2i(12, 52)
+
+## Where the puzzles go, as rects the pieces are placed in -- inside each cavern's
+## wobbled edge, since a puzzle wants the corners of the rect it is given to be
+## floor. Lanterns to light before the first burns down on Stillwater's western
+## shore, four statues in the lower workings with a vault off its south side, and
+## a crack in the lake gallery's back wall.
+const RITE_ROOM := Rect2i(48, 24, 8, 11)
+const RING_ROOM := Rect2i(47, 43, 9, 9)
+const VAULT_ROOM := Rect2i(56, 46, 12, 9)
+const CRACK_ROOM := Rect2i(28, 26, 9, 6)
+
+## Named places, for the map screen -- what the miners call them. The labyrinth
+## is named by [method _add_labyrinth].
 const LANDMARKS := {
 	"Lanternfall": CAMP,
 	"Upper galleries": UPPER,
@@ -91,7 +118,6 @@ const BRANCHES := [
 
 const STAIRS_CELL := Vector2i(5, 12)
 const SPAWN_CELL := Vector2i(9, 12)
-const GATE_CELL := Vector2i(7, 51)
 
 ## The bottom of the shaft, in the Breach, and where it lets you off in the camp.
 const LIFT_CELL := Vector2i(15, 46)
@@ -127,8 +153,10 @@ const NPCS := [
 ]
 
 ## The three tags are the only chests the Army's job cares about, and the only
-## things in the dead ends. The other three sit on the main line, where a player
-## who never speaks to Dorran still walks past them.
+## things in the dead ends. The others sit on the main line, where a player who
+## never speaks to Dorran still walks past them -- two of them gilded: the one by
+## the lake drops you into the labyrinth, and the one in the Breach calls up what
+## the hole lets through.
 const CHESTS := [
 	{"at": Vector2i(74, 9), "item": &"raid_tag", "amount": 1,
 		"flag": &"chest_lanternfall_tag_upper"},
@@ -142,11 +170,19 @@ const CHESTS := [
 		"flag": &"chest_lanternfall_lake"},
 	{"at": Vector2i(68, 51), "item": &"whetstone", "amount": 2,
 		"flag": &"chest_lanternfall_lower"},
+	{"at": Vector2i(70, 34), "item": &"blackwyrm_coat", "amount": 1,
+		"flag": &"chest_lanternfall_lakeshore", "gilded": true, "trap": &"teleport"},
+	{"at": Vector2i(8, 49), "item": &"guard_ring", "amount": 1,
+		"flag": &"chest_lanternfall_breach", "gilded": true, "trap": &"alarm"},
 ]
+## The labyrinth's own, at one of its dead ends.
+const LABYRINTH_CHEST := {"item": &"health_potion", "amount": 3,
+	"flag": &"chest_lanternfall_labyrinth"}
 
-## Ten, which is [method FloorTuning.monster_count] for this floor. Five are
-## kobolds because "The Door Under the Camp" asks for four, and the last of them
-## stands in the Breach, between the lift and the door.
+## Ten, which is [method FloorTuning.monster_count] for this floor, and
+## [constant LABYRINTH_MONSTERS] more in the maze. Five are kobolds because "The
+## Door Under the Camp" asks for four, and the last of them stands in the Breach,
+## between the lift and the way down.
 const MONSTERS := [
 	[Vector2i(48, 6), &"cave_bat"],
 	[Vector2i(57, 11), &"kobold_trooper"],
@@ -154,11 +190,12 @@ const MONSTERS := [
 	[Vector2i(50, 26), &"cave_bat"],
 	[Vector2i(52, 33), &"kobold_trooper"],
 	[Vector2i(70, 27), &"cave_bat"],
-	[Vector2i(52, 47), &"kobold_trooper"],
+	[Vector2i(60, 49), &"kobold_trooper"],
 	[Vector2i(64, 52), &"kobold_trooper"],
 	[Vector2i(69, 46), &"cave_bat"],
 	[Vector2i(20, 53), &"kobold_trooper"],
 ]
+const LABYRINTH_MONSTERS := [&"kobold_trooper", &"cave_bat", &"kobold_trooper"]
 
 ## Stalagmites. None in the galleries -- a dead end is a small place and a
 ## boulder in one is a wall.
@@ -192,10 +229,23 @@ func _build() -> Node2D:
 		_carve_path(run, MAIN_WIDTH)
 	for run in BRANCHES:
 		_carve_path(run, BRANCH_WIDTH)
+	_grow_labyrinth(LABYRINTH_AT, LABYRINTH_CELLS, Side.SOUTH, LABYRINTH_MOUTH, LABYRINTH_SEED)
+	_carve_path([INTO_LABYRINTH, _lab.doorstep], MAIN_WIDTH)
 
 	# After the tunnels, so a tunnel mouth can never carve through a hut.
 	_furnish_camp()
 	_decorate()
+	var chest_cells: Array[Vector2i] = []
+	for entry in CHESTS:
+		chest_cells.append(entry["at"])
+	var keep_out: Array[Vector2i] = [SPAWN_CELL, STAIRS_CELL, LIFT_CELL, LIFT_TOP]
+	for entry in NPCS:
+		keep_out.append(entry["at"])
+	_new_puzzles(chest_cells, keep_out)
+	_pin(_puzzles.pin_rite(RITE_ROOM, Rite.TIMED, 3), "the lanterns")
+	_pin(_puzzles.pin_statues(RING_ROOM), "the statues")
+	_pin(_puzzles.pin_vault(VAULT_ROOM, Vector2i.DOWN), "the vault")
+	_pin(_puzzles.pin_crack(CRACK_ROOM, Vector2i.LEFT), "the cracked wall")
 	_join_walls()
 
 	# Every arrival but the lift lands on the camp's street: up the stairs, back
@@ -213,7 +263,10 @@ func _build() -> Node2D:
 		_add_monster(map, index, MONSTERS[index][0], MONSTERS[index][1])
 	_add_exit(map, "LiftUp", LIFT_CELL, OUT_PATH, &"from_lift", "Ride",
 			"the lift up to Lanternfall")
-	_add_boss_gate(map, GATE_CELL, BOSS_NAME, "the Breach door")
+	_add_labyrinth(map, "the Labyrinth", LABYRINTH_MONSTERS, MONSTERS.size(), LABYRINTH_CHEST,
+			CHESTS.size())
+	_place_puzzles(map)
+	_add_boss_gate(map, Vector2i.ZERO, BOSS_NAME, "the labyrinth door")
 	_add_player(map, SPAWN_CELL)
 	return map
 

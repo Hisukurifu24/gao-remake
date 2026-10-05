@@ -105,6 +105,34 @@ static func generate(definition: FloorDefinition, generation_seed: int) -> Node2
 	return FloorGenerator.new()._build(definition, generation_seed)
 
 
+## An authored floor's labyrinth, grown by the same code as a generated floor's:
+## a [param cells] maze whose top-left corner is [param at] (in tiles), standing on
+## the [param facing] side of the rest of the floor ([enum Side]), its mouth
+## [param along] cells down the wall that faces back. Carved into [param ground] and
+## [param walls], recorded in [param open], from [param maze_seed] -- an authored
+## floor fixes that, so the maze is the same every time the tool is run. The
+## corridor up to [member Labyrinth.doorstep] is the floor's to carve.
+static func grow_into(biome: BiomeKit, ground: TileMapLayer, walls: TileMapLayer,
+		open: Dictionary[Vector2i, bool], map_size: Vector2i, at: Vector2i, cells: Vector2i,
+		facing: int, along: int, maze_seed: int, boss_block := BOSS_BLOCK) -> Labyrinth:
+	var builder := FloorGenerator.new()
+	builder._biome = biome
+	builder._ground = ground
+	builder._walls = walls
+	builder._open = open
+	builder._size = map_size
+	builder._rng.seed = maze_seed
+	var lab := Labyrinth.new()
+	lab.cells = cells
+	lab.side = facing
+	lab.boss_block = boss_block
+	lab.rect = Rect2i(at, cells * LAB_PITCH + Vector2i(LAB_WALL, LAB_WALL))
+	lab.start = Labyrinth.start_cell(cells, facing, along)
+	builder._grow_labyrinth(lab)
+	builder._open_mouth(lab)
+	return lab
+
+
 func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	_definition = definition
 	_biome = definition.biome
@@ -360,16 +388,16 @@ func _farthest_room(rooms: Array[Rect2i], from: Vector2i) -> Rect2i:
 ## [method _place_camp]), so the walk always passes through it.
 func _carve_labyrinth(lab: Labyrinth) -> void:
 	var cells := lab.cells
-	match lab.side:
-		Side.EAST:
-			lab.start = Vector2i(0, _rng.randi_range(0, cells.y - 1))
-		Side.WEST:
-			lab.start = Vector2i(cells.x - 1, _rng.randi_range(0, cells.y - 1))
-		Side.SOUTH:
-			lab.start = Vector2i(_rng.randi_range(0, cells.x - 1), 0)
-		Side.NORTH:
-			lab.start = Vector2i(_rng.randi_range(0, cells.x - 1), cells.y - 1)
+	var along := _rng.randi_range(0, (cells.y if lab.side in [Side.EAST, Side.WEST] else cells.x) - 1)
+	lab.start = Labyrinth.start_cell(cells, lab.side, along)
+	_grow_labyrinth(lab)
 
+
+## The maze itself, once [param lab] knows its cells, its side and its start:
+## grown, measured, regrown, and carved with its boss room and safe zone. Shared
+## by a generated floor and an authored one ([method grow_into]).
+func _grow_labyrinth(lab: Labyrinth) -> void:
+	var cells := lab.cells
 	# Distance on the grid is a poor guess at distance through a maze: a room two
 	# cells from the mouth can be forty tiles' walk or six. So the maze is grown,
 	# measured, and grown again until the walk to the door is at least the grid's
@@ -377,7 +405,8 @@ func _carve_labyrinth(lab: Labyrinth) -> void:
 	var wanted := cells.x + cells.y - 2
 	var best_score := -1
 	for _attempt in MAZE_ATTEMPTS:
-		var block_size := BOSS_BLOCK if _rng.randf() < 0.5 else Vector2i(BOSS_BLOCK.y, BOSS_BLOCK.x)
+		var block_size := lab.boss_block if _rng.randf() < 0.5 \
+				else Vector2i(lab.boss_block.y, lab.boss_block.x)
 		var block := _place_block(cells, lab.start, block_size)
 		var links := _grow_maze(cells, lab.start, block)
 		var steps := _steps_to(links, lab.start, block)
@@ -571,9 +600,23 @@ func _place_block(cells: Vector2i, start: Vector2i, block_size: Vector2i) -> Rec
 ## nearest room. Returns the room the player arrives in: a seeded pick from the
 ## rooms in the far half from the mouth, so the walk crosses the field first.
 func _connect_labyrinth(lab: Labyrinth, rooms: Array[Rect2i]) -> Rect2i:
-	# The gap through the labyrinth's own wall, from its first cell to the field;
-	# then a doorstep two cells out from it and square to it, where a corridor's
-	# three-cell width touches both of the mouth's rows (or columns).
+	_open_mouth(lab)
+	var doorstep := lab.doorstep
+	var by_distance := rooms.duplicate()
+	by_distance.sort_custom(func(a: Rect2i, b: Rect2i) -> bool:
+		return (_center(a) - doorstep).length_squared() < (_center(b) - doorstep).length_squared())
+	# Across the field first, then along its edge to the doorstep: the labyrinth
+	# stands beyond that edge, so neither leg can cut into it.
+	_carve_elbow(_center(by_distance[0]), doorstep, lab.side == Side.EAST or lab.side == Side.WEST)
+
+	var far_half := by_distance.slice(by_distance.size() / 2)
+	return far_half[_rng.randi() % far_half.size()]
+
+
+## The gap through the labyrinth's own wall, from its first cell to the field;
+## then a doorstep two cells out from it and square to it, where a corridor's
+## three-cell width touches both of the mouth's rows (or columns).
+func _open_mouth(lab: Labyrinth) -> void:
 	var first := _cell_rect(lab, lab.start)
 	var across := Vector2i(LAB_WALL, LAB_PASSAGE)
 	var down := Vector2i(LAB_PASSAGE, LAB_WALL)
@@ -592,21 +635,11 @@ func _connect_labyrinth(lab: Labyrinth, rooms: Array[Rect2i]) -> Rect2i:
 			lab.mouth = Rect2i(first.position + Vector2i(0, LAB_PASSAGE), down)
 			doorstep = Vector2i(lab.mouth.position.x, lab.mouth.end.y + 1)
 	_carve(lab.mouth, _biome.floor_tile)
-
-	var by_distance := rooms.duplicate()
-	by_distance.sort_custom(func(a: Rect2i, b: Rect2i) -> bool:
-		return (_center(a) - doorstep).length_squared() < (_center(b) - doorstep).length_squared())
-	# Across the field first, then along its edge to the doorstep: the labyrinth
-	# stands beyond that edge, so neither leg can cut into it.
-	_carve_elbow(_center(by_distance[0]), doorstep, lab.side == Side.EAST or lab.side == Side.WEST)
-
-	var far_half := by_distance.slice(by_distance.size() / 2)
-	return far_half[_rng.randi() % far_half.size()]
+	lab.doorstep = doorstep
 
 
 func _cell_rect(lab: Labyrinth, cell: Vector2i) -> Rect2i:
-	return Rect2i(lab.rect.position + Vector2i(LAB_WALL, LAB_WALL) + cell * LAB_PITCH,
-			Vector2i(LAB_PASSAGE, LAB_PASSAGE))
+	return lab.cell_rect(cell)
 
 
 ## The wall between two neighbouring cells.
@@ -749,13 +782,7 @@ func _add_monsters(map: Node2D, rooms: Array[Rect2i], entry: Rect2i, boss_room: 
 	# A two-room floor still has to be levellable, so fall back to the entrance.
 	if candidates.is_empty():
 		candidates.append(entry)
-	var passages: Array[Rect2i] = []
-	if lab.has_maze():
-		for cell: Vector2i in lab.links:
-			if cell != lab.start and not lab.block.has_point(cell) and not lab.camp.has_point(cell):
-				passages.append(_cell_rect(lab, cell))
-		passages.sort_custom(func(a: Rect2i, b: Rect2i) -> bool:
-			return a.position.y < b.position.y or (a.position.y == b.position.y and a.position.x < b.position.x))
+	var passages := lab.passages() if lab.has_maze() else [] as Array[Rect2i]
 
 	var count := FloorTuning.monster_count(_definition.floor_number)
 	var in_lab := count / LAB_MONSTER_SHARE if not passages.is_empty() else 0
@@ -860,9 +887,42 @@ class Labyrinth:
 	## cell -> the cells it is joined to.
 	var links: Dictionary[Vector2i, Array] = {}
 	var dead_ends: Array[Vector2i] = []
+	## The boss room's size in cells, one way round or the other.
+	var boss_block := BOSS_BLOCK
+	## Where a corridor from the field meets the mouth, in tiles: two out from it,
+	## square to it.
+	var doorstep := Vector2i.ZERO
 
 	func has_maze() -> bool:
 		return rect.has_area()
+
+	## The cell [param along] the wall facing the field: the maze is grown from it,
+	## and the mouth opens beside it.
+	static func start_cell(maze: Vector2i, facing: int, along: int) -> Vector2i:
+		match facing:
+			Side.EAST:
+				return Vector2i(0, along)
+			Side.WEST:
+				return Vector2i(maze.x - 1, along)
+			Side.SOUTH:
+				return Vector2i(along, 0)
+		return Vector2i(along, maze.y - 1)
+
+	## A cell's passage, in tiles.
+	func cell_rect(cell: Vector2i) -> Rect2i:
+		return Rect2i(rect.position + Vector2i(LAB_WALL, LAB_WALL) + cell * LAB_PITCH,
+				Vector2i(LAB_PASSAGE, LAB_PASSAGE))
+
+	## Every passage cell but the mouth's, the boss room's and the safe zone's, in
+	## tiles and in reading order -- where a monster may walk the maze from.
+	func passages() -> Array[Rect2i]:
+		var found: Array[Rect2i] = []
+		for cell: Vector2i in links:
+			if cell != start and not block.has_point(cell) and not camp.has_point(cell):
+				found.append(cell_rect(cell))
+		found.sort_custom(func(a: Rect2i, b: Rect2i) -> bool:
+			return a.position.y < b.position.y or (a.position.y == b.position.y and a.position.x < b.position.x))
+		return found
 
 	static func join(into: Dictionary[Vector2i, Array], a: Vector2i, b: Vector2i) -> void:
 		if not into.has(a):

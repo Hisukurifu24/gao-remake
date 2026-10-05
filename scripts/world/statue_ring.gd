@@ -13,10 +13,10 @@ extends Node
 ## [method turns_to_solve] can say how far from solved it is.
 
 ## The statues, by index round the ring. Set by whoever builds it, before it
-## enters the tree.
-var statues: Array[Statue] = []
+## enters the tree -- exported, so an authored floor's saved scene keeps them.
+@export var statues: Array[Statue] = []
 ## The way each statue faces when the ring is solved: at the altar.
-var targets: Array[int] = []
+@export var targets: Array[int] = []
 @export var solved_flag: StringName = &""
 
 

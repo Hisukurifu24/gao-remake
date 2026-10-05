@@ -51,6 +51,16 @@ func _ready() -> void:
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
+	if "--bosses" in OS.get_cmdline_user_args():
+		await _capture_boss_fights()
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--world" in OS.get_cmdline_user_args():
+		await _capture_world(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
 	await _capture("01_town")
 
 	var town: Node2D = main.get_node("WorldRoot").get_child(0)
@@ -897,8 +907,9 @@ func _path_within(walls: TileMapLayer, from: Vector2i, to: Vector2i, bounds: Rec
 
 
 ## Floor 1 up close: the depth sort, which is only visible with somebody standing
-## in the right place -- behind a roof, under a grove's crowns -- and the pieces a
-## generated floor never shows, the pond's shoreline and the labyrinth door.
+## in the right place -- behind a roof, under a grove's crowns -- the pieces a
+## generated floor never shows, the pond's shoreline, and what the authored floors
+## have of the generated ones': a labyrinth's mouth and camp, and their puzzles.
 ##
 ## The input lock is held for each shot so the field's monsters stand still rather
 ## than wandering into frame and starting a fight.
@@ -908,15 +919,20 @@ func _capture_world(main: Node) -> void:
 		["res://scenes/world/town.tscn", Vector2(15 * 16 + 8, 9 * 16 + 10), "04j_town_behind_house"],
 		["res://scenes/world/field.tscn", Vector2(14 * 16 + 8, 26 * 16 + 8), "04k_field_pond"],
 		["res://scenes/world/field.tscn", Vector2(42 * 16, 14 * 16 + 12), "04l_field_under_grove"],
-		["res://scenes/world/field.tscn", Vector2(49 * 16 + 8, 35 * 16 + 8), "04m_field_door"],
+		["res://scenes/world/field.tscn", Vector2(57 * 16 + 8, 24 * 16 + 8), "04m_field_labyrinth"],
+		["res://scenes/world/field.tscn", Vector2(31 * 16 + 8, 8 * 16 + 8), "04m2_field_wisp"],
 		["res://scenes/world/floor_10.tscn", Vector2(7 * 16 + 8, 4 * 16 + 10), "04n_ashlow_behind_house"],
 		["res://scenes/world/floor_10.tscn", Vector2(15 * 16 + 8, 14 * 16 + 8), "04o_ashlow_square"],
 		["res://scenes/world/floor_10.tscn", Vector2(36 * 16 + 8, 31 * 16 + 8), "04p_ashlow_pool"],
+		["res://scenes/world/floor_10.tscn", Vector2(64 * 16 + 8, 16 * 16 + 8), "04p3_ashlow_braziers"],
+		["res://scenes/world/floor_10.tscn", Vector2(79 * 16, 32 * 16), "04p4_ashlow_hollow_camp"],
 		["res://scenes/world/floor_25.tscn", Vector2(11 * 16 + 8, 6 * 16 + 10), "04q_lanternfall_behind_tent"],
 		["res://scenes/world/floor_25.tscn", Vector2(17 * 16, 12 * 16 + 8), "04r_lanternfall_square"],
 		["res://scenes/world/floor_25.tscn", Vector2(52 * 16 + 8, 8 * 16 + 8), "04s_lanternfall_galleries"],
 		["res://scenes/world/floor_25.tscn", Vector2(60 * 16 + 8, 34 * 16 + 8), "04t_lanternfall_lake"],
 		["res://scenes/world/floor_25.tscn", Vector2(11 * 16 + 8, 49 * 16 + 8), "04u_lanternfall_breach"],
+		["res://scenes/world/floor_25.tscn", Vector2(50 * 16, 49 * 16 + 8), "04v_lanternfall_statues"],
+		["res://scenes/world/floor_25.tscn", Vector2(31 * 16, 84 * 16), "04w_lanternfall_labyrinth_camp"],
 	]
 	for spot: Array in spots:
 		var current := world.get_child(0) if world.get_child_count() > 0 else null
@@ -929,6 +945,8 @@ func _capture_world(main: Node) -> void:
 		GameState.push_input_lock()
 		player.global_position = spot[1]
 		await _wait(0.5)
+		# A labyrinth's camp says what it is the first time you are in it.
+		await _dismiss()
 		await _capture(spot[2])
 		if spot[2] == "04p_ashlow_pool":
 			# Rue's wolves, killed: the map should send you back to Rue.

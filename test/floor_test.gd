@@ -366,7 +366,8 @@ func _run() -> void:
 		var problem := _audit_authored(floor_number)
 		if not problem.is_empty():
 			broken_authored.append(problem)
-	_check(broken_authored.is_empty(), "every authored floor is completable%s" % (
+	_check(broken_authored.is_empty(),
+			"every authored floor is completable, ends in a labyrinth and has its puzzles solvable%s" % (
 			"" if broken_authored.is_empty() else " -- " + ", ".join(broken_authored)))
 
 	# --- a fight can be staged wherever one can start ---
@@ -572,29 +573,9 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 	if not reachable.has(walls.local_to_map(gate.position)):
 		return "floor %d boss gate is unreachable" % floor_number
 
-	var crack := map.get_node_or_null("CrackedWall") as CrackedWall
-	for child in map.get_children():
-		if not child.name.begins_with("Chest"):
-			continue
-		# Behind a cracked wall is rock until it breaks: _audit_puzzles breaks it.
-		if crack != null and (child as Chest).hidden_until == crack.opened_flag:
-			continue
-		if not reachable.has(walls.local_to_map((child as Node2D).position)):
-			return "floor %d has an unreachable chest" % floor_number
-		var chest := child as Chest
-		if chest.trap != Chest.Trap.NONE and not chest.gilded:
-			return "floor %d's %s is trapped and looks like any other chest" % [floor_number, chest.name]
-		if chest.gilded:
-			_gilded[chest.trap] = _gilded.get(chest.trap, 0) + 1
-		if chest.trap == Chest.Trap.TELEPORT:
-			# Somewhere you can stand, in the labyrinth, and walk out of.
-			var lands := walls.local_to_map(chest.trap_target)
-			var lab_rect: Rect2i = map.get_meta(&"labyrinth", Rect2i())
-			if not reachable.has(lands) or not lab_rect.has_point(lands):
-				return "floor %d's %s teleports to %s, not to open labyrinth floor" % [floor_number, chest.name, lands]
-			for other in map.get_children():
-				if other is Chest and walls.local_to_map((other as Node2D).position) == lands:
-					return "floor %d's %s teleports onto a chest" % [floor_number, chest.name]
+	var trapped := _audit_chests(map, walls, reachable, "floor %d" % floor_number, true)
+	if not trapped.is_empty():
+		return trapped
 
 	# Autotiling rewrites every wall on the floor. Dropping one instead of
 	# replacing it would open the map onto the void, and the flood fill above
@@ -632,6 +613,37 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 		_audit_formations(map, walls, start, reachable, "floor %d" % floor_number)
 		_audit_boss_formations(map, walls, gate, reachable, floor_number, "floor %d" % floor_number)
 	return lost
+
+
+## Every chest can be reached -- but the one behind a cracked wall, which is rock
+## until [method _audit_puzzles] breaks it -- and a trap is always a gilded chest,
+## a teleport always landing on open labyrinth floor. [param tally] counts the
+## gilded ones for the climb's trap split, which is the generated floors'.
+func _audit_chests(map: Node2D, walls: TileMapLayer, reachable: Dictionary, label: String,
+		tally: bool) -> String:
+	var crack := map.get_node_or_null("CrackedWall") as CrackedWall
+	for child in map.get_children():
+		var chest := child as Chest
+		if chest == null:
+			continue
+		if crack != null and chest.hidden_until == crack.opened_flag:
+			continue
+		if not reachable.has(walls.local_to_map(chest.position)):
+			return "%s has an unreachable chest" % label
+		if chest.trap != Chest.Trap.NONE and not chest.gilded:
+			return "%s's %s is trapped and looks like any other chest" % [label, chest.name]
+		if chest.gilded and tally:
+			_gilded[chest.trap] = _gilded.get(chest.trap, 0) + 1
+		if chest.trap == Chest.Trap.TELEPORT:
+			# Somewhere you can stand, in the labyrinth, and walk out of.
+			var lands := walls.local_to_map(chest.trap_target)
+			var lab_rect: Rect2i = map.get_meta(&"labyrinth", Rect2i())
+			if not reachable.has(lands) or not lab_rect.has_point(lands):
+				return "%s's %s teleports to %s, not to open labyrinth floor" % [label, chest.name, lands]
+			for other in map.get_children():
+				if other is Chest and walls.local_to_map((other as Node2D).position) == lands:
+					return "%s's %s teleports onto a chest" % [label, chest.name]
+	return ""
 
 
 ## The labyrinth stands between the field and the door, the door hides in a room
@@ -1193,14 +1205,19 @@ func _ring(rect: Rect2i) -> Array[Vector2i]:
 
 
 ## [method _flood], treating [param blocked] as wall.
+## [method _flood] with [param blocked] walled up. Kept to the walls' used rect,
+## like [method _flood_within]: an authored map has holes in its border where its
+## exits are, and a fill that leaves through one never stops.
 func _flood_except(walls: TileMapLayer, from: Vector2i, blocked: Rect2i) -> Dictionary:
+	var bounds := walls.get_used_rect()
 	var seen := {from: true}
 	var queue: Array[Vector2i] = [from]
 	while not queue.is_empty():
 		var cell: Vector2i = queue.pop_back()
 		for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
 			var next: Vector2i = cell + offset
-			if seen.has(next) or blocked.has_point(next) or walls.get_cell_source_id(next) != -1:
+			if seen.has(next) or blocked.has_point(next) or not bounds.has_point(next) \
+					or walls.get_cell_source_id(next) != -1:
 				continue
 			seen[next] = true
 			queue.append(next)
@@ -1298,6 +1315,10 @@ func _audit_authored(floor_number: int) -> String:
 				continue
 			if node.name == "SpawnPoints" or node.name == "Player":
 				continue
+			# A cracked wall stands in rock and its chest behind it, until the
+			# puzzle audit below breaks it open.
+			if node is CrackedWall or (node is Chest and (node as Chest).hidden_until.ends_with("_crack")):
+				continue
 			if not reachable.has(walls.local_to_map(node.position)):
 				stranded.append(node.name)
 				continue
@@ -1322,13 +1343,44 @@ func _audit_authored(floor_number: int) -> String:
 			map.free()
 			break
 
+		# The door's map ends the way a generated floor does: in a labyrinth that
+		# hides the door until you are in its room, with a safe zone on the way --
+		# and whatever puzzles the floor has are solvable. Proved by the same
+		# audits, since hand-placing them fails the same ways.
+		var door := map.get_node_or_null("BossGate") as BossGate
+		var own_door := first_visit and door != null and door.floor_number == floor_number
+		if first_visit:
+			problem = _audit_chests(map, walls, reachable, label, false)
+		if problem.is_empty() and own_door:
+			problem = _audit_labyrinth(map, walls, door, start, reachable)
+		if problem.is_empty() and own_door:
+			# An authored boss is drawn at full size and its fight framed at x1, half
+			# a view either side of it. A map edge nearer than that pins the camera,
+			# and the player stands under the menu -- the first Illfang and Nerith
+			# in their mazes, against the map's east edge.
+			var half := Vector2(_view_size(map)) / 2.0
+			var room := Rect2(_painted_rect(map).position * 16, _painted_rect(map).size * 16)
+			if not room.encloses(Rect2(door.position - half, half * 2.0)):
+				problem = "%s's door is nearer the map's edge than half a view" % label
+		if problem.is_empty() and first_visit:
+			problem = _audit_puzzles(map as GameMap, walls, start, reachable, floor_number)
+			# With the vault open and the cracked wall broken (the puzzle audit
+			# broke it), as a generated floor is swept: a fight can follow you in.
+			var seal := map.get_node_or_null("SealedDoor")
+			if seal != null:
+				for shape in seal.get_node("Solid").get_children():
+					(shape as CollisionShape2D).disabled = true
+			reachable = _flood_within(walls, start, walls.get_used_rect())
+		if not problem.is_empty():
+			map.free()
+			break
+
 		var hunted := false
 		for child in map.get_children():
 			hunted = hunted or child is Monster
 		if first_visit and hunted:
 			_audit_formations(map, walls, start, reachable, label)
-		var door := map.get_node_or_null("BossGate") as BossGate
-		if first_visit and door != null and door.floor_number == floor_number:
+		if own_door:
 			_audit_boss_formations(map, walls, door, reachable, floor_number, label)
 
 		# A map with no way off it is a map whose walls are all there is between

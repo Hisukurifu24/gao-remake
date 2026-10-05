@@ -228,7 +228,7 @@ timed or failable quests, no branching quests where a choice picks between two
 endings, and **the tracker shows one quest at a time** rather than every live
 objective.
 
-### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3, §5, §6 ✅ (the battle screen is gone: fights happen on the map); §4's chosen set in (safe zones, trapped chests, four puzzles and the cracked wall; the authored-floor revisit next)
+### M5.5 — Exploration feel ⚠ *before any more authored floors* — §1, §2, §3, §5, §6 ✅ (the battle screen is gone: fights happen on the map); §4's chosen set in (safe zones, trapped chests, four puzzles and the cracked wall); the authored-floor revisit ✅ (Floors 1, 10 and 25 end in labyrinths too)
 
 Playtest feedback on the finished loop, and it lands on the overworld rather than on any
 one system: **the floors work, but exploring them isn't a game yet.** The camera shows the
@@ -579,11 +579,11 @@ predictably in the farthest room and often on screen.
   reach; the boss room has exactly one doorway and can be walked into; the maze has two
   dead ends or more. Across the run, the door is not always the farthest point and never
   under 24 tiles in. The smoke test walks into the room on a real floor 2 and opens the map.*
-- [ ] Revisit authored floors: Illfang's door sits in plain view in the field, Nerith's
+- [x] Revisit authored floors: Illfang's door sits in plain view in the field, Nerith's
   hollow and Karvos's Breach are both at the obvious end of their layouts. *They get fog
   of war and the map for free; `reveal_area` is the hook for hiding their doors, but each
   wants a layout change to be worth hiding — a door at the end of a straight road is found
-  by walking down it.*
+  by walking down it.* **Done 2026-10-04** — see *The authored-floor revisit* below §4.
 
 #### 4. "Something's missing" in floor structure — design pass *(decided 2026-10-03: safe zones ✅, trapped chests ✅, puzzles ✅ — wisp, braziers, vault, statues, cracked wall)*
 The layouts aren't bad but don't hold attention yet. Decide what the missing thing is
@@ -779,7 +779,8 @@ whatever §4 adds.
   *My calls, open to change:* the door's look (the dungeon set's panels read a little like
   a crate in the forest); the burn margin; three braziers more often than four; sealed loot
   is gear only. *Not yet:* puzzles in the labyrinth (the wisp as a moving light in the
-  dark, braziers that glow once lit), puzzles on authored floors.
+  dark, braziers that glow once lit). *(Puzzles on authored floors came with the
+  revisit, below.)*
 
   *Turning statues, as built (2026-10-04).* `FloorPuzzles._plan_statues` after the rite,
   on the same stream; `StatueRing` (a `Node`, like `BrazierRite`) owns the rule and the
@@ -832,6 +833,80 @@ whatever §4 adds.
   top rather than its face and reads less well; never south walls (it would be under your
   feet, on the rock's top); not in the sky; the chest holds sealed loot and no sigil, so
   the vault never depends on spotting a secret; the grit stays after it breaks.
+
+#### The authored-floor revisit ✅ *(decided and built 2026-10-04)*
+§3 left the three authored floors with their doors in plain view, and §4's safe zones,
+traps and puzzles were generated-floor only. The user chose, when asked: **each authored
+floor ends in a labyrinth grown by the generator's own maze code** into a rect its layout
+sets aside, from a seed the floor script fixes; plus **gilded/trapped chests** and
+**hand-placed puzzles** (chosen per floor, not rolled); and **Floor 1's field moves onto the
+shared builder** with a deliberately small first maze. Not taken: hand-drawn mazes (more
+character, far more work per floor, and every later milestone would need one), and
+reshaping the open layouts with the door in a side room (found by checking every room,
+not by solving anything).
+
+- **Floor 1 — the West Field** (`tools/build_floor_01.gd`, writes `field.tscn`; the town
+  stays on `build_placeholder_maps.gd`). The road south from the town gate turns east and
+  runs into a 7x5-cell maze (30x22 tiles) beyond the treeline; Illfang's door shows only
+  from its room, 38 tiles in. A wisp by the town gate leads across the meadow to a shrine
+  by the pond, and a gilded chest by the pond holds a coat and brings the boars down.
+  Seven monsters in the meadow, three in the maze.
+- **Floor 10 — Ashlow Wood**: the Hollow *is* the labyrinth now — 10x7 cells east of a
+  clearing at its edge, 70 tiles to Nerith's door. A fourth glade hides off the north one
+  behind a bend: four braziers lit in the order a tablet gives, and a sealed vault off its
+  north side. A wisp leads from the south glade to the Hollow's edge, and a split boulder
+  in the south glade's treeline hides a hollow. The deep glade's charm is in a gilded
+  chest that drops you into the Hollow; the one at the edge brings the wolves.
+- **Floor 25 — Lanternfall**: what the miners broke into is the top of a labyrinth — 12x7
+  cells growing south from the Breach, 86 tiles to Karvos's door. The lift still waits in
+  the Breach, so the ride home is from the maze's mouth. Lanterns to light against the
+  clock on Stillwater's western shore, four statues in the lower workings with a vault off
+  its south side, a crack in the lake gallery's back wall; a gilded chest at the lakeshore
+  drops you into the maze, and one in the Breach calls the kobolds up.
+
+As built:
+- **`FloorGenerator.grow_into()`** grows and carves a maze into a map someone else is
+  building: the start-cell choice and the mouth were split out of the generated path
+  (`_grow_labyrinth`, `_open_mouth`, `Labyrinth.start_cell/cell_rect/passages`) with every
+  draw on the floor's rng left in its order. **All 97 generated floors fingerprint
+  identical before and after** (every layer, node and property, world seed 12345).
+- **`tools/authored_floor.gd`** gained `_grow_labyrinth()` (refuses a seed whose maze has no
+  camp or too few dead ends), `_add_labyrinth()` (the dark, the camp and its fire, the
+  floor test's metadata, maze monsters and a dead-end chest, all placed by the maze's
+  seed), a hidden `_add_boss_gate()`, gilded/trapped rows in the chest table, and
+  `_new_puzzles()` + `_pin()` over **`FloorPuzzles.pin_wisp/rite/statues/vault/crack`**: the
+  generated planners split into "which room" (rolled) and "in this room" (shared). A pin
+  that doesn't fit refuses the floor at the tool. Anything the puzzles put down is adopted
+  into the saved scene, and `BrazierRite.braziers`, `StatueRing.statues/targets` are
+  exported so a saved scene keeps them.
+- **The floor test's authored walk** now runs `_audit_labyrinth`, the chest/trap audit
+  (shared with the generated floors as `_audit_chests`) and `_audit_puzzles` on authored
+  maps, then sweeps formations with the vault open and the crack broken; an authored door
+  outside a labyrinth fails it. `_flood_except` is bounded to the walls' used rect, since
+  an authored map has a hole where its exit is — unbounded, it hung the suite.
+- **The tool must not name game classes.** Naming `FloorGenerator`, `FloorPuzzles` or
+  `Chest` in a `--script` tool compiles them with it — before the autoloads exist — and
+  with them every scene they preload, whose scripts then fail on `EventBus`. The builder
+  loads them by path at runtime and mirrors the two enums it needs (`Side`, `Rite`),
+  asserting they still match.
+- **An authored boss room is square** — 3x3 cells, 10x10 tiles, where a generated one is
+  3x2 — and **an authored door stands at least half a view from the map's edge**, which
+  the floor test now checks. Both came out of the screenshots: an authored boss is drawn
+  full size and framed at x1, so in a six-deep room you faced Illfang from the bottom row
+  behind the hedge's crowns, and with the maze flush against the map's east edge the
+  camera was pinned and put the player under the menu. Floor 1 and Floor 10 gained six
+  columns of forest east of their mazes.
+- **The map view's names no longer collide.** Floor 25 grew taller and is drawn smaller;
+  "Lanternfall" ran into "Upper galleries". A name now slides along its line clear of one
+  already written, or drops a line at a time.
+
+*My calls, open to change:* maze sizes (Floor 1 7x5, Floor 10 10x7, Floor 25 12x7 — under
+the curve's 12x7/14x8 for 25, since an authored floor has more besides); where each maze
+stands; which puzzles each floor got (Floor 1 only the wisp; no statues on 10; no wisp on
+25); the sealed chests pay `SEALED_LOOT` even on Floor 1, so a wisp there can hand a new
+player a Blackwyrm Coat before Illfang; Floor 1's camp is near its mouth (the maze is
+small); quest dialogue is unchanged, since Sable, Maren and Argo already point where the
+mazes went — only Floor 1's scout was rewritten.
 
 #### 5. Playtest notes (2026-10-01) — after §3 landed
 Three things from playing the finished §3. None is a bug; all three are "works, doesn't
@@ -1605,10 +1680,18 @@ under level 30, and Karvos the Twin-Headed is at the bottom — one head roars y
 other swings while you are. The way down is long and there is only one. The lift at the
 bottom only goes up.
 
+And the hand-built floors end the way the rest do now. The West Field's road runs east
+into a small first labyrinth, where Illfang's door shows only once you are in its room;
+Ashlow's Hollow is a maze of its own past a clearing at its edge; and under Lanternfall's
+Breach the miners' hole opens into one, with the lift waiting at its mouth for the ride
+home. Each has its camp, a gilded chest or two, and puzzles placed by hand — a wisp
+across the meadow, fires in a hidden glade with a vault behind them, lanterns by the lake
+and statues in the lower workings.
+
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 132-check game loop test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 134-check game loop test
 "$GODOT" --headless --path . res://test/floor_test.tscn     # 136-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
@@ -1621,10 +1704,11 @@ python3 tools/gen_placeholder_art.py
 "$GODOT" --headless --path . --import                       # not optional -- see below
 "$GODOT" --headless --path . --script res://tools/build_biomes.gd
 "$GODOT" --headless --path . --script res://tools/build_ui_font.gd
-"$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd
+"$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd   # the town
+"$GODOT" --headless --path . --script res://tools/build_floor_01.gd             # the field
 "$GODOT" --headless --path . --script res://tools/build_floor_10.gd
 "$GODOT" --headless --path . --script res://tools/build_floor_25.gd
-# either floor tool with `-- --preview` prints the layout instead of writing it
+# any build_floor_NN tool with `-- --preview` prints the layout instead of writing it
 ```
 
 ⚠ The `--import` step is load-bearing, not housekeeping. `build_biomes.gd` reads the
@@ -1633,7 +1717,7 @@ atlases are now 7 rows rather than 1, a stale cache means the wall blob is cut f
 nothing at all. Pack biomes (`PACK_BIOMES`) are the exception: they are cut from the pack's
 sheets directly and embedded, so no import step can leave them stale.
 
-⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn` / `field.tscn`, and each
+⚠ `build_placeholder_maps.gd` **overwrites** `town.tscn`, and each
 `build_floor_NN.gd` **overwrites** its `floor_NN.tscn`. Once you start painting a map in
 the editor, stop running the tool that writes it (`-- --preview` is still safe).
 `build_biomes.gd` is always safe — it only touches derived resources.
@@ -1650,10 +1734,10 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    the world-space view, bosses stepping out of their doors, the pack's FX). **§4 is
    decided and its chosen set is in**: safe zones are in every labyrinth, gilded chests
    are a gamble, and the puzzles are all built (wisp, braziers, sigil vault, turning
-   statues, cracked wall -- 2026-10-04). Next is the authored-floor revisit §3 left open
-   (Illfang, Nerith and Karvos all stand at the obvious end of their layouts), which
-   can now use any of that.
-   Floor 40 should be laid out after §4, for the same reason as before.
+   statues, cracked wall -- 2026-10-04). **The authored-floor revisit is done too**
+   (2026-10-04): Floors 1, 10 and 25 end in labyrinths grown by the generator's code,
+   with camps, gilded chests and hand-placed puzzles. M5.5 is complete bar playtesting
+   it; Floor 40 can be laid out on the same builder.
 3. **M5.6 — Col.** Decided 2026-10-04: Col from monsters, materials, chests and quests;
    spent on smith enhancement, Argo's boss-door information and shops (with a merchant
    at some campfires); fixed prices, stock unlocked by floor; your Col drops where you
