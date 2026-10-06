@@ -5,6 +5,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --puzzles   # that pass only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --cracks    # the cracked walls only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --gates     # the teleport gates only
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --camps     # the adventurers' camps only
 ##
 ## Dev aid for checking how a change actually looks without sitting through the
 ## game. Needs a real window, so it can't run with --headless.
@@ -59,6 +60,11 @@ func _ready() -> void:
 		return
 	if "--gates" in OS.get_cmdline_user_args():
 		await _capture_gates(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--camps" in OS.get_cmdline_user_args():
+		await _capture_camps(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1000,6 +1006,40 @@ func _capture_gates(main: Node) -> void:
 	await _capture("04y2_gate_menu_scrolled")
 	menu.call(&"close")
 	await _frames(2)
+
+
+## A generated floor's adventurers' camp in every band, as you arrive in it; one
+## of its people talking; and the camp on the map.
+const CAMP_FLOORS := [2, 15, 22, 35, 45, 55, 65, 75, 85, 95]
+
+
+func _capture_camps(main: Node) -> void:
+	for floor_number: int in CAMP_FLOORS:
+		GameState.clear_floor(floor_number - 1)
+		SceneRouter.enter_floor(floor_number, &"default")
+		var map := await _arrived(floor_number)
+		await _wait(0.3)
+		await _capture("04z_camp_floor%02d" % floor_number)
+		if floor_number != CAMP_FLOORS[0]:
+			continue
+		var camper := map.get_node_or_null("Camper0") as Npc
+		if camper != null:
+			var player := map.get_node("Player") as Player
+			for offset: Vector2 in [Vector2(0, 16), Vector2(0, -16), Vector2(16, 0), Vector2(-16, 0)]:
+				var cell := map.get_node("Walls").local_to_map(camper.position + offset) as Vector2i
+				if map.is_standable(cell):
+					player.position = camper.position + offset
+					player.facing = -offset.normalized()
+					break
+			await _frames(6)
+			await _capture("04z_camp_prompt")
+			camper.interact(player)
+			await _typed(main)
+			await _capture("04z_camp_talk")
+			while DialogueRunner.is_running():
+				DialogueRunner.advance()
+				await _frames(2)
+		await _capture_map(main, "04z_camp_map")
 
 
 ## The map screen over whatever has been explored so far. Opened directly, since

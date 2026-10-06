@@ -93,6 +93,14 @@ const ROW_HOUSES := 16
 ## Under the houses, which leave room for one five cells tall: a composed wall blob.
 const ROW_BLOB := 21
 const PACK_ROWS := ROW_BLOB + 6
+## The adventurers' camp every floor above the first has, in every biome alike: the
+## pack's three tents. Below the blob on a biome that has one, else where it would be.
+const CAMP_TENTS := [
+	["tileset_camp.png", Rect2i(4, 0, 3, 3)],
+	["tileset_camp.png", Rect2i(7, 0, 3, 3)],
+	["tileset_camp.png", Rect2i(10, 0, 3, 3)],
+]
+const CAMP_ROWS := 3
 const GROUND_GRASS := 0
 const GROUND_DIRT := 1
 ## Variants that should be the exception on a lawn, not half of it.
@@ -877,6 +885,16 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 		houses.append(coords)
 		column += size.x
 
+	var camp: Array[Vector2i] = []
+	column = 0
+	for entry: Array in CAMP_TENTS:
+		var size: Vector2i = (entry[1] as Rect2i).size
+		var coords := Vector2i(column, _camp_row(spec))
+		source.create_tile(coords, size)
+		_stand_up(source.get_tile_data(coords, 0), size)
+		camp.append(coords)
+		column += size.x
+
 	var wall_set := -1
 	if _has_blob(spec):
 		wall_set = _add_terrain_set(tile_set, ["wall"])
@@ -904,6 +922,7 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 	biome.decor_tiles = decor
 	biome.decor_density = spec.get("decor_density", 0.06)
 	biome.house_tiles = houses
+	biome.camp_tiles = camp
 	if spec.has("backdrop"):
 		var backdrop := PortableCompressedTexture2D.new()
 		backdrop.keep_compressed_buffer = true
@@ -915,7 +934,7 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 
 func _compose(spec: Dictionary) -> Image:
 	# Only a biome with a composed blob pays for its rows.
-	var rows := PACK_ROWS if _has_blob(spec) else ROW_BLOB
+	var rows := _camp_row(spec) + CAMP_ROWS
 	var atlas := Image.create_empty(PACK_COLUMNS * TILE, rows * TILE, false, Image.FORMAT_RGBA8)
 	var slots: Array = spec["slots"]
 	for index in slots.size():
@@ -980,6 +999,11 @@ func _compose(spec: Dictionary) -> Image:
 		var cells: Rect2i = entry[1]
 		_blit(atlas, entry[0], cells, Vector2i(column, ROW_HOUSES))
 		column += cells.size.x
+	column = 0
+	for entry: Array in CAMP_TENTS:
+		var cells: Rect2i = entry[1]
+		_blit(atlas, entry[0], cells, Vector2i(column, _camp_row(spec)))
+		column += cells.size.x
 	return atlas
 
 
@@ -1016,6 +1040,11 @@ func _compose_cliffs(atlas: Image, spec: Dictionary) -> void:
 ## Whether the spec composes a wall blob, and so pays for its rows.
 func _has_blob(spec: Dictionary) -> bool:
 	return spec.has("cliffs") or spec.has("hole") or spec.has("masonry")
+
+
+## Where the camp's tents go: under the blob, or where it would be on a biome without.
+func _camp_row(spec: Dictionary) -> int:
+	return PACK_ROWS if _has_blob(spec) else ROW_BLOB
 
 
 ## The plain wall slot is the blob's solid tile: what a mass cell draws before it is

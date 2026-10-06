@@ -65,6 +65,10 @@ var _cracks_in_trees := 0
 var _cracks_facing := 0
 ## Floors whose teleport gate passed [method _audit_teleport_gate].
 var _teleport_gates := 0
+## Gathered by [method _audit_camp] across every generated floor.
+var _camps := 0
+var _whole_camps := 0
+var _full_plots := 0
 
 
 func _ready() -> void:
@@ -324,6 +328,12 @@ func _run() -> void:
 	# the reasons a maze is regrown. It was 28 when the maze fitted on about a
 	# screen, which is what made it read as a corridor -- see M5.5 §5 in plan.md.
 	_check(shortest >= 60, "the labyrinth always stands in front of the door (shortest walk in: %d tiles)" % shortest)
+	# Every generated floor has its camp, and most have the whole of it: a fire, both
+	# tents and two people. Measured at 175 of 194 over two world seeds; what falls
+	# short is an arrival room whose neighbours crowd the plot.
+	_check(_camps == generated and _whole_camps * 100 >= _camps * 80,
+			"every generated floor has an adventurers' camp, and %d of %d are whole (%d at full size)" % [
+				_whole_camps, _camps, _full_plots])
 	# A gilded chest is a gamble only if all three outcomes turn up somewhere.
 	var plain: int = _gilded.get(Chest.Trap.NONE, 0)
 	var alarms: int = _gilded.get(Chest.Trap.ALARM, 0)
@@ -594,6 +604,9 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 			"floor %d" % floor_number)
 	if not gated.is_empty():
 		return gated
+	var camped := _audit_camp(map as GameMap, walls, start, floor_number)
+	if not camped.is_empty():
+		return camped
 
 	# Autotiling rewrites every wall on the floor. Dropping one instead of
 	# replacing it would open the map onto the void, and the flood fill above
@@ -1482,6 +1495,122 @@ func _audit_teleport_gate(map: GameMap, walls: TileMapLayer, start: Vector2i,
 		if not with.has(cell) and map.is_standable(cell):
 			return "%s's teleport gate cuts off %d,%d" % [label, cell.x, cell.y]
 	_teleport_gates += 1
+	return ""
+
+
+## A generated floor's camp stands round where you arrive, with its gate; has
+## nothing of the floor's in it (the plot was carved by rule, so a chest or a
+## monster there means the floor moved); its fire doesn't rest you; its people
+## have something to say and can be walked up to; and it cuts nothing off -- every
+## cell a body could walk to with the camp gone, it can walk to with it there, bar
+## the cells the camp stands in. Nothing of the camp stands against anything solid
+## but its own plot's rock, so it narrows no corridor either.
+func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_number: int) -> String:
+	var label := "floor %d" % floor_number
+	if not map.has_meta(&"camp"):
+		return "%s has no camp" % label
+	var plot: Rect2i = map.get_meta(&"camp")
+	if not plot.has_point(start):
+		return "%s's camp is not where you arrive" % label
+	var gate := map.get_node_or_null("TeleportGate") as Node2D
+	if gate == null or not plot.has_point(walls.local_to_map(gate.position)):
+		return "%s's teleport gate is not in its camp" % label
+	if plot.intersects(map.get_meta(&"labyrinth", Rect2i())):
+		return "%s's camp runs into the labyrinth" % label
+	if not walls.get_used_rect().grow(-1).encloses(plot):
+		return "%s's camp runs into the outer wall" % label
+	if map.landmarks.get("Camp", Rect2i()) != plot:
+		return "%s's camp is not named on the map" % label
+
+	var fire := map.get_node_or_null("Cookfire") as Campfire
+	var campers: Array[Npc] = []
+	for child in map.get_children():
+		var node := child as Node2D
+		if node == null:
+			continue
+		if (node is Chest or node is Monster) and plot.has_point(walls.local_to_map(node.position)):
+			return "%s has %s in its camp" % [label, node.name]
+		if node is Npc and String(node.name).begins_with("Camper"):
+			campers.append(node)
+	if fire != null and fire.rests:
+		return "%s's cookfire rests you" % label
+	# The plot was carved whole, so anything on the walls in it is a tent's footprint.
+	var tent_cells: Array[Vector2i] = []
+	for y in range(plot.position.y, plot.end.y):
+		for x in range(plot.position.x, plot.end.x):
+			var cell := Vector2i(x, y)
+			if walls.get_cell_source_id(cell) != -1:
+				tent_cells.append(cell)
+
+	# Everything solid the camp put down, gone and back.
+	var shapes: Array[CollisionShape2D] = []
+	for node: Node2D in ([fire] if fire != null else []) + campers:
+		shapes.append(node.get_node("Solid/CollisionShape2D") as CollisionShape2D)
+	var atlas: Array[Vector2i] = []
+	for cell in tent_cells:
+		atlas.append(walls.get_cell_atlas_coords(cell))
+		walls.erase_cell(cell)
+	for shape in shapes:
+		shape.disabled = true
+	map.refresh_solids()
+	var without := _flood_standable(map, start)
+	for i in tent_cells.size():
+		walls.set_cell(tent_cells[i], 0, atlas[i])
+	for shape in shapes:
+		shape.disabled = false
+	map.refresh_solids()
+	var with := _flood_standable(map, start)
+	var stands: Dictionary[Vector2i, bool] = {}
+	for cell in tent_cells:
+		stands[cell] = true
+	for cell: Vector2i in without:
+		if not with.has(cell) and map.is_standable(cell):
+			return "%s's camp cuts off %d,%d" % [label, cell.x, cell.y]
+		if not map.is_standable(cell) and not stands.has(cell):
+			stands[cell] = true
+	# Beside anything the camp stands in: floor, more of the same thing, or rock
+	# beyond the plot -- never a squeeze between two solid things inside it.
+	for cell: Vector2i in stands:
+		if not plot.has_point(cell):
+			continue
+		for step: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var next := cell + step
+			if stands.has(next) or map.is_standable(next) or not plot.has_point(next):
+				continue
+			return "%s's camp has something solid against %d,%d" % [label, next.x, next.y]
+
+	for camper in campers:
+		var at := walls.local_to_map(camper.position)
+		if not plot.has_point(at):
+			return "%s's %s stands outside the camp" % [label, camper.name]
+		var talk := camper.dialogue
+		if talk == null or talk.entry_index() < 0 or talk.default_speaker.is_empty():
+			return "%s's %s has nothing to say" % [label, camper.name]
+		for line in talk.lines:
+			if line.text.is_empty() or "{" in line.text:
+				return "%s's %s says \"%s\"" % [label, camper.name, line.text]
+		var reached := false
+		for step: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			reached = reached or with.has(at + step)
+		if not reached:
+			return "%s's %s can't be walked up to" % [label, camper.name]
+
+	# A footprint with no tent drawn over it is an invisible wall.
+	var biome := FloorRegistry.get_floor(floor_number).biome
+	var props := map.get_node_or_null("Props") as TileMapLayer
+	var tents := 0
+	if props != null:
+		for anchor in props.get_used_cells():
+			if props.get_cell_atlas_coords(anchor) in biome.camp_tiles:
+				tents += 1
+	if tents * 6 != tent_cells.size():
+		return "%s's camp has %d tents drawn over %d cells of footprint" % [label, tents, tent_cells.size()]
+
+	_camps += 1
+	if fire != null and tents >= FloorCamp.TENTS and campers.size() >= 2:
+		_whole_camps += 1
+	if plot.size == FloorCamp.PLOT:
+		_full_plots += 1
 	return ""
 
 

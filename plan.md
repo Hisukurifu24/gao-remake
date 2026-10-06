@@ -1503,10 +1503,53 @@ says how the upper floors are lived in. So:
     map, for its own floor, arrival in front of it and standable, and its solid base
     cutting nothing off — the walls-only flood fills can't see it), and a smoke-test
     round trip floor 2 → town → floor 2 through the real menu.
-  - *Not yet:* gates stand where a floor is entered because generated floors have no
-    camp yet; when the camp plot is reserved (above), the gate moves into it. The old
-    one-floor `FloorStairs` stay for now — the gate makes them redundant, so decide
-    whether they go when the camps land.
+  - *Done 2026-10-06:* the camp plot is reserved round the room a generated floor is
+    entered in, so the gate already stands in it (below). The old one-floor
+    `FloorStairs` **stay** — the user's call when the camps landed.
+
+**Camps on generated floors — the camp tier, built 2026-10-06.** Asked, the user chose:
+the plot *carved by rule* round the arrival room (not the entry room alone, which is
+too small for a village; not a seeded room, which would reshuffle every floor); this
+slice is the **camp tier only**; the cookfire is **decoration** — it doesn't rest you;
+the stairs stay. Built:
+- [x] `FloorCamp` (`scripts/world/floor_camp.gd`), beside `FloorPuzzles` and shaped
+  like it: `reserve()` picks and carves the plot once the arrival room is known,
+  `plan()` decides what stands where before dressing, `place()` puts it down after.
+- [x] **The plot**: 16×12 round the arrival room, two cells of rock from every other
+  room and inside the field's wall ring, as centred on the room as that allows — or
+  the biggest that fits when a neighbour crowds it (44 of the 97 floors on the
+  test's seed get the full size). Carved as plain floor
+  with no rng: **fingerprinted over 194 floors (seeds 12345 and 999), no chest, trap,
+  monster, door, gate or stairs moved**. Puzzles shifted on a few floors, since their
+  own stream reads the open cells — which the floor test's with/without-puzzles check
+  still holds to.
+- [x] **What stands in it**: a cookfire (`Campfire.rests = false`, "Look at"), two of
+  the pack's tents (`tileset_camp.png`, now in every biome's atlas as
+  `BiomeKit.camp_tiles`, pitched like Lanternfall's: an invisible solid footprint on
+  `Walls`, the tent on `Props`) and two or three adventurers round the fire. *Where*
+  is rule — nothing stands in a corridor's sweep (`FloorGenerator._lanes`), every
+  piece has a free cell, a corridor or the plot's rock all round it, and nothing is
+  put down that cuts a plot cell off from the arrival; the fire's spot is the one
+  nearest the middle that a whole camp fits round. *Who and what* comes from the
+  camp's own stream (`hash("<seed>:camp")`): tents, sheets, handles, lines.
+- [x] **Their lines read the floor**: a scout (which side the labyrinth is on), a
+  veteran (the boss's name and level) and a local (a monster from the floor's pool,
+  or the band's flavour), each with a line for a found door and/or a cleared floor —
+  generated `Dialogue`s gated by the existing `FLAG_SET boss_found_<n>` and
+  `FLOOR_CLEARED`.
+- [x] The plot is a named place on **M** ("Camp"); the fire draws the camp glyph.
+- [x] Floor test `_audit_camp` on every generated floor: plot round the arrival and
+  the gate, clear of the labyrinth and the outer wall, named; no chest or monster in
+  it; the fire doesn't rest; every tent drawn over its footprint; the camp cuts
+  nothing off and stands against nothing solid but its own rock; every camper has
+  lines with nothing left unfilled and can be walked up to; and at least 80% of
+  camps whole (fire, two tents, two people — 87 of 97 on the test's seed, 175 of
+  194 over two seeds).
+- *Not a safe zone*: monsters may follow you in. A fire that won't rest you in a room
+  monsters won't enter would contradict the labyrinth's safe zone. Revisit if
+  arriving into a chase feels wrong.
+- *Next*: settling — the camp → village stage keyed on how far above the floor you
+  have cleared, filling the same plot; then local-quest templates.
 
 #### Floor 10 — Ashlow Wood ✅
 
@@ -1812,11 +1855,18 @@ home. Each has its camp, a gilded chest or two, and puzzles placed by hand — a
 across the meadow, fires in a hidden glade with a vault behind them, lanterns by the lake
 and statues in the lower workings.
 
+And you are not the only one up here. Every generated floor greets you with an
+adventurers' camp: a couple of tents, a cookfire and two or three players round it, with
+the teleport gate beside them. One knows which side of the field the labyrinth is on,
+one knows the boss by name and what level you'll want, one warns you about what walks
+the field — and they have something new to say once you've found the door, and again
+once the floor is cleared.
+
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 142-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 138-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 139-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 87-check combat test
@@ -1866,7 +1916,8 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    shapes, landmarks) and the decision that the Town of Beginnings becomes the hub are
    under M6's "Floor variety". **First lever built (2026-10-06): teleport gates** —
    every floor has one where it is entered, the town's plaza has one, and any visited
-   floor is a touch away. Next on that track: camps on generated floors (the reserved
+   floor is a touch away. **Camps on generated floors (the camp tier) are built too**
+   (2026-10-06). Next on that track: settling, then local-quest templates — was: camps on generated floors (the reserved
    plot the gate moves into) and settling.
 3. **M5.6 — Col.** Decided 2026-10-04: Col from monsters, materials, chests and quests;
    spent on smith enhancement, Argo's boss-door information and shops (with a merchant

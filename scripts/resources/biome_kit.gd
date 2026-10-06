@@ -55,6 +55,9 @@ enum WallStyle {
 ## Standing multi-cell buildings for authored maps, placed with
 ## [method MapDresser.anchor_for].
 @export var house_tiles: Array[Vector2i] = []
+## The adventurers' camp's tents, the same in every biome: standing 3x3 tiles,
+## pitched by [FloorCamp] on a footprint of [member wall_alt_tile].
+@export var camp_tiles: Array[Vector2i] = []
 
 @export_group("Backdrop")
 ## Drawn repeating behind the map, where a see-through wall mass shows it -- the

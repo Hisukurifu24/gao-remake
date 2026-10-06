@@ -70,6 +70,8 @@ const TELEPORT_GATE_SCENE := preload("res://scenes/world/teleport_gate.tscn")
 ## three-wide corridors run, so the gate's base never narrows one below two.
 const GATE_OFFSET := Vector2i(2, -2)
 const GATE_ARRIVAL := Vector2i(2, -1)
+## Where the stairs down stand from the entrance room's centre.
+const STAIRS_OFFSET := Vector2i(-2, 0)
 
 ## What a floor cache can hold. Consumables are the staple -- they are what makes
 ## walking off the main line worth the monsters in the way. Gear is the rarer
@@ -105,6 +107,9 @@ var _size := Vector2i.ZERO
 ## Every carved (walkable) cell, minus whatever decor later blocks.
 var _open: Dictionary[Vector2i, bool] = {}
 var _decor: Array[Vector2i] = []
+## Every cell a corridor's width swept, open already or not: what the camp keeps
+## clear of, since a corridor through a room is invisible in [member _open].
+var _lanes: Dictionary[Vector2i, bool] = {}
 
 
 static func generate(definition: FloorDefinition, generation_seed: int) -> Node2D:
@@ -184,6 +189,10 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 		boss_room = _farthest_room(rooms, _center(entry))
 		_carve(boss_room, _biome.special_tile)
 		gate_cell = _center(boss_room)
+	# The adventurers' camp, round the room you arrive in. By rule: no rng.
+	var camp := FloorCamp.new(_definition.floor_number, generation_seed, _biome,
+			_ground, _walls, _open)
+	camp.reserve(field, rooms, entry)
 
 	# One cache waits at a dead end of the labyrinth, for whoever took the wrong turn.
 	var lab_chest := lab.dead_ends.size() > 0 and _definition.chest_count > 1
@@ -204,6 +213,13 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	var must_reach: Array[Vector2i] = chest_cells.duplicate()
 	must_reach.append(gate_cell)
 	_ensure_reachable(_center(entry), must_reach)
+	var arrival := _center(entry)
+	camp.plan(arrival, _lanes, [
+		Rect2i(arrival - Vector2i.ONE, Vector2i(3, 3)),
+		Rect2i(arrival + GATE_OFFSET - Vector2i(1, 2), Vector2i(3, 3)),
+		Rect2i(arrival + GATE_ARRIVAL, Vector2i.ONE),
+		Rect2i(arrival + STAIRS_OFFSET, Vector2i.ONE),
+	] as Array[Rect2i])
 	# Before dressing: the vault is carved out of the rock, and its walls join like any.
 	var puzzles: FloorPuzzles = null
 	if with_puzzles and lab.has_maze():
@@ -223,12 +239,13 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	if lab.camp_room.has_area():
 		_add_campfire(map, lab.camp_room)
 	if _definition.floor_number > 1:
-		_add_stairs(map, _center(entry) + Vector2i(-2, 0))
+		_add_stairs(map, _center(entry) + STAIRS_OFFSET)
+	camp.place(map, lab.side if lab.has_maze() else -1, _definition.boss_name)
 
 	if lab.has_maze():
 		# Inside the labyrinth you see only what is in line of sight.
 		map.set(&"dark_area", lab.rect)
-		var places: Dictionary[String, Rect2i] = {"The Labyrinth": lab.rect}
+		var places: Dictionary[String, Rect2i] = {"The Labyrinth": lab.rect, "Camp": camp.plot}
 		if lab.camp_room.has_area():
 			places["Safe Zone"] = lab.camp_room
 			map.set(&"safe_zones", [lab.camp_room] as Array[Rect2i])
@@ -238,6 +255,7 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 		map.set_meta(&"labyrinth", lab.rect)
 		map.set_meta(&"labyrinth_mouth", lab.mouth)
 		map.set_meta(&"boss_room", lab.boss_room)
+	map.set_meta(&"camp", camp.plot)
 
 	var player := PLAYER_SCENE.instantiate()
 	player.name = "Player"
@@ -357,6 +375,7 @@ func _carve_line(from: Vector2i, to: Vector2i) -> void:
 					continue
 				if target.x >= _size.x - 1 or target.y >= _size.y - 1:
 					continue
+				_lanes[target] = true
 				if not _open.has(target):
 					_walls.erase_cell(target)
 					_paint(_ground, target, _biome.path_tile)
