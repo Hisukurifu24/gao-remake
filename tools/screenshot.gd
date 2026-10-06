@@ -4,6 +4,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --puzzles   # that pass only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --cracks    # the cracked walls only
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --gates     # the teleport gates only
 ##
 ## Dev aid for checking how a change actually looks without sitting through the
 ## game. Needs a real window, so it can't run with --headless.
@@ -56,6 +57,11 @@ func _ready() -> void:
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
+	if "--gates" in OS.get_cmdline_user_args():
+		await _capture_gates(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
 	if "--world" in OS.get_cmdline_user_args():
 		await _capture_world(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
@@ -92,6 +98,7 @@ func _ready() -> void:
 	await _capture_combat()
 
 	await _capture_world(main)
+	await _capture_gates(main)
 
 	# One floor per biome band worth showing off, and the authored ones past the
 	# first -- 24 and 25 side by side are the same band generated and built.
@@ -960,6 +967,39 @@ func _capture_world(main: Node) -> void:
 			await _capture_map(main, "04u2_lanternfall_map")
 		GameState.pop_input_lock()
 		await _frames(2)
+
+
+## The teleport gates: standing at the town's, Ashlow's, Lanternfall's and a
+## generated floor's, and the floor list over the town's after a long climb --
+## long enough to scroll. Arrived at through each gate's own spawn, so the shot is
+## what coming through one looks like.
+func _capture_gates(main: Node) -> void:
+	for floor_number in range(1, 31):
+		if floor_number > 1:
+			GameState.clear_floor(floor_number - 1)
+		GameState.visit_floor(floor_number)
+	var spots := [
+		[1, "04x_town_gate"], [10, "04x2_ashlow_gate"], [25, "04x3_lanternfall_gate"],
+		[3, "04x4_floor3_gate"],
+	]
+	for spot: Array in spots:
+		SceneRouter.enter_floor(spot[0], &"gate")
+		var map := await _arrived(spot[0])
+		var player := map.get_node("Player") as Player
+		player.facing = Vector2.UP
+		await _wait(0.3)
+		await _capture(spot[1])
+	SceneRouter.enter_floor(1, &"gate")
+	await _arrived(1)
+	var menu := main.get_node("GateMenu")
+	menu.call(&"open", 1)
+	await _wait(0.2)
+	await _capture("04y_gate_menu")
+	for _i in 12:
+		await _press(&"move_up")
+	await _capture("04y2_gate_menu_scrolled")
+	menu.call(&"close")
+	await _frames(2)
 
 
 ## The map screen over whatever has been explored so far. Opened directly, since

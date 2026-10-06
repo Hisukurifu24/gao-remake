@@ -89,5 +89,9 @@ signal hp_changed(hp: int, max_hp: int)
 signal xp_gained(amount: int)
 signal leveled_up(new_level: int)
 signal floor_cleared(floor_number: int)
+## The player touched the teleport gate on [param floor_number] and wants to go
+## somewhere. A *request*, like [signal item_granted]: the gate menu is its only
+## listener, and answers by sending them -- or by not, if they think better of it.
+signal teleport_requested(floor_number: int)
 ## The player walked into a floor's hidden boss room and the door showed itself.
 signal boss_room_found(floor_number: int)

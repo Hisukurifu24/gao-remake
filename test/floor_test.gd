@@ -63,6 +63,8 @@ var _cracks := 0
 var _cracks_in_trees := 0
 ## Cracked walls in a room's north wall, facing you; the rest are in a side wall.
 var _cracks_facing := 0
+## Floors whose teleport gate passed [method _audit_teleport_gate].
+var _teleport_gates := 0
 
 
 func _ready() -> void:
@@ -172,6 +174,12 @@ func _run() -> void:
 	_check(not GameState.is_floor_unlocked(3), "clearing floor 1 does not unlock floor 3")
 	_check(GameState.highest_floor_reached() == 2, "highest reached tracks the clear")
 	_check(GameState.has_flag(&"floor_1_cleared"), "clearing a floor sets its world flag")
+	GameState.visit_floor(12)
+	GameState.visit_floor(3)
+	GameState.visit_floor(12)
+	_check(GameState.visited_floors() == ([3, 12] as Array[int]) and GameState.has_visited(3)
+			and not GameState.has_visited(2) and GameState.has_flag(&"floor_12_visited"),
+			"visited floors are a set, listed lowest first, each with its world flag")
 
 	# --- boss naming ---
 	_check(FloorTuning.boss_name(37) == FloorTuning.boss_name(37), "boss names are deterministic")
@@ -369,6 +377,12 @@ func _run() -> void:
 	_check(broken_authored.is_empty(),
 			"every authored floor is completable, ends in a labyrinth and has its puzzles solvable%s" % (
 			"" if broken_authored.is_empty() else " -- " + ", ".join(broken_authored)))
+
+	# Every floor, authored or generated, can be gone back to: a gate where it is
+	# entered, an arrival in front of it, and nothing walled off by its base.
+	_check(_teleport_gates == FloorTuning.TOP_FLOOR,
+			"every floor has a teleport gate where it is entered (%d of %d)" % [
+				_teleport_gates, FloorTuning.TOP_FLOOR])
 
 	# --- a fight can be staged wherever one can start ---
 	# Swept by both audits above, over every cell a monster can reach you on. A
@@ -576,6 +590,10 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 	var trapped := _audit_chests(map, walls, reachable, "floor %d" % floor_number, true)
 	if not trapped.is_empty():
 		return trapped
+	var gated := _audit_teleport_gate(map as GameMap, walls, start, floor_number,
+			"floor %d" % floor_number)
+	if not gated.is_empty():
+		return gated
 
 	# Autotiling rewrites every wall on the floor. Dropping one instead of
 	# replacing it would open the map onto the void, and the flood fill above
@@ -1259,6 +1277,9 @@ func _audit_authored(floor_number: int) -> String:
 	var pending: Array = [[FloorRegistry.build_floor(floor_number), &"", "floor %d" % floor_number]]
 	var visited := {}
 	var found_gate := false
+	# The first map is the one the floor is entered at, and where its teleport
+	# gate has to be: arriving through any gate builds the floor and asks for it.
+	var entry_map := true
 	var monsters := 0
 	var counted := {}
 	var problem := ""
@@ -1351,6 +1372,9 @@ func _audit_authored(floor_number: int) -> String:
 		var own_door := first_visit and door != null and door.floor_number == floor_number
 		if first_visit:
 			problem = _audit_chests(map, walls, reachable, label, false)
+		if problem.is_empty() and entry_map:
+			problem = _audit_teleport_gate(map as GameMap, walls, start, floor_number, label)
+		entry_map = false
 		if problem.is_empty() and own_door:
 			problem = _audit_labyrinth(map, walls, door, start, reachable)
 		if problem.is_empty() and own_door:
@@ -1422,6 +1446,42 @@ func _audit_authored(floor_number: int) -> String:
 	if monsters < FloorTuning.monster_count(floor_number):
 		return "floor %d carries %d monsters where the curve wants %d" % [
 				floor_number, monsters, FloorTuning.monster_count(floor_number)]
+	return ""
+
+
+## A floor's teleport gate stands on the map the floor is entered at and answers
+## for that floor; its map's [code]gate[/code] spawn, where you arrive through it,
+## is in front of it and can be stood on from the entrance; and its base, which is
+## solid, cuts nothing off -- every cell a body could walk to without it, it can
+## walk to with it, bar the cells the base stands in. The walls-only flood fills
+## never see the gate, so they would not notice it closing a corridor.
+func _audit_teleport_gate(map: GameMap, walls: TileMapLayer, start: Vector2i,
+		floor_number: int, label: String) -> String:
+	var gate := map.get_node_or_null("TeleportGate") as TeleportGate
+	if gate == null:
+		return "%s has no teleport gate" % label
+	if gate.floor_number != floor_number:
+		return "%s's teleport gate answers for floor %d" % [label, gate.floor_number]
+	var marker := map.get_node_or_null("SpawnPoints/gate") as Node2D
+	if marker == null:
+		return "%s has no gate spawn" % label
+	if marker.position.distance_to(gate.position) > TILE * 1.5:
+		return "%s's gate spawn is not in front of its gate" % label
+
+	var base := gate.get_node("Solid/CollisionShape2D") as CollisionShape2D
+	base.disabled = true
+	map.refresh_solids()
+	var without := _flood_standable(map, start)
+	base.disabled = false
+	map.refresh_solids()
+	var with := _flood_standable(map, start)
+	var arrival := walls.local_to_map(marker.position)
+	if not with.has(arrival) or not map.is_standable(arrival):
+		return "%s's gate spawn can't be stood on from the entrance" % label
+	for cell: Vector2i in without:
+		if not with.has(cell) and map.is_standable(cell):
+			return "%s's teleport gate cuts off %d,%d" % [label, cell.x, cell.y]
+	_teleport_gates += 1
 	return ""
 
 

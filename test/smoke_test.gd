@@ -220,6 +220,7 @@ func _run() -> void:
 	await _test_safe_zone(floor_two, floor_two_player as Player)
 	await _test_traps(floor_two, floor_two_player as Player)
 	await _test_roaming(floor_two, floor_two_player as Player)
+	await _test_teleport(main, world_root)
 	await _test_puzzles(world_root)
 
 
@@ -417,6 +418,59 @@ func _test_traps(map: Node2D, player: Player) -> void:
 ## chest appears only once its puzzle is solved. The cracked wall is rock until
 ## E breaks it, and broken when you come back.
 ##
+## The teleport gates, through the real menu: from floor 2's gate down to the Town
+## of Beginnings, a look and a change of mind there, and back up to floor 2 --
+## arriving in front of the gate each time.
+func _test_teleport(main: Node, world_root: Node2D) -> void:
+	var menu := main.get_node("GateMenu")
+	_check(GameState.visited_floors() == ([1, 2] as Array[int]),
+			"standing on a floor marks it visited (%s)" % [GameState.visited_floors()])
+
+	var map := world_root.get_child(0) as GameMap
+	await _touch_gate(map)
+	_check(menu.is_open() and GameState.is_input_locked(),
+			"touching floor 2's teleport gate opens the floor list and holds the lock")
+	_check(menu.selected_floor() == 1, "and it starts on the one floor that isn't here")
+	await _tap(&"interact")
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	_check(map.map_id == &"town" and GameState.current_floor == 1 and not menu.is_open(),
+			"choosing floor 1 takes you to the Town of Beginnings")
+	_check(_at_spawn(map, &"gate"), "arriving in front of the town's gate")
+
+	await _touch_gate(map)
+	_check(menu.is_open() and menu.selected_floor() == 2,
+			"the town's gate opens on the front line, floor 2")
+	await _tap(&"ui_cancel")
+	_check(not menu.is_open() and not GameState.is_input_locked(),
+			"cancelling closes the list and lets go of the lock")
+	await _touch_gate(map)
+	await _tap(&"interact")
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	_check(map.map_id == &"floor_2" and GameState.current_floor == 2 and _at_spawn(map, &"gate"),
+			"and the gate takes you back up, in front of floor 2's gate")
+
+
+## Stands the player at [param map]'s gate spawn facing the gate and presses
+## interact, the way a player would.
+func _touch_gate(map: GameMap) -> void:
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	var player := map.get_node("Player") as Player
+	player.global_position = (map.get_node("SpawnPoints/gate") as Node2D).global_position
+	player.velocity = Vector2.ZERO
+	player.facing = Vector2.UP
+	await _physics(4)
+	await _tap(&"interact")
+
+
+func _at_spawn(map: GameMap, spawn: StringName) -> bool:
+	var marker := map.get_node("SpawnPoints/%s" % spawn) as Node2D
+	return (map.get_node("Player") as Node2D).global_position.distance_to(marker.global_position) < 2.0
+
+
 ## The world seed is random per run and a floor may lack a puzzle (the floor test
 ## counts how many do), so this picks a seed whose floor 2 has all four and a
 ## cracked wall, with a timed rite, and goes back up to it.

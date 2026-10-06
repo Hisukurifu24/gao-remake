@@ -72,6 +72,7 @@ static var _candidates: Array[Vector4] = []
 func _ready() -> void:
 	if floor_number > 0:
 		GameState.current_floor = floor_number
+		GameState.visit_floor(floor_number)
 	_resolve_layers()
 	_player = get_node_or_null("Player") as Player
 	if _player:

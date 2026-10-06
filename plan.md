@@ -597,7 +597,8 @@ the answer. Candidates to weigh:
   bridge — which also matter more once you can't see the whole map.
 - **Room shape variety** in the generator: `_carve_cave()` already exists in the authored
   builder; generated floors are still rects and L-corridors.
-- Ties into M6's *floor-shape variety* and *town hubs on generated floors*.
+- Ties into M6's *floor-shape variety* and *town hubs on generated floors* (the latter
+  superseded 2026-10-05: Floor 1's town is the hub — M6's "Floor variety").
 
 *Decided 2026-10-03:* **safe zones** and **trapped chests**, plus **"some puzzles?"** — the
 user's own addition, to be turned into concrete candidates once the first two are in.
@@ -1363,9 +1364,11 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
 *Generation depth (wants combat first):*
 - [ ] Floor-shape variety: not every floor should be a full dungeon crawl. Short
   field-and-boss floors between the big ones — the anime skips floors for this reason.
-- [ ] Town hubs / settlements on *generated* floors; still dungeon-only. Ashlow (Floor 10)
-  is the authored proof that a hub belongs on a floor rather than only at the bottom of
-  the tower — what's open is teaching the generator to build one.
+  *Expanded 2026-10-05 under "Floor variety" below.*
+- [ ] ~~Town hubs / settlements on *generated* floors.~~ *Superseded 2026-10-05:* the
+  Town of Beginnings is the hub for the whole climb, built out and reached by a way back
+  down; every other floor gets an adventurers' camp that settles as you climb
+  (2026-10-06) — see "Floor variety" below.
 - [x] Enemy spawning on the map (visible, avoidable), populated from the biome's enemy
   pool and `FloorTuning.enemy_level`. **Landed early with M4** — the boss gate is
   unreachable without something to level on. Monsters have no solid body (since M5.5
@@ -1383,6 +1386,127 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
   a `.tres`, and its NPCs, quests and boss). 40 next.
 - [ ] **Floor 100: the final boss — *you* — as an authored multi-phase fight.** The one
   encounter that should be hand-built end to end.
+
+#### Floor variety — "the floors play the same" *(raised 2026-10-05, not yet decided)*
+The user, after M5.5's set landed: floors are repetitive — *both* to look at and to play,
+but **mostly they play the same**. The diagnosis: every generated floor is one recipe —
+a field of rect rooms and L-corridors, a labyrinth strip on one side, a camp halfway, a
+few puzzles in the field rooms, the boss at the end. The biome changes every ten floors;
+the structure never does, so by floor 4 you have seen the template, and the §4 features
+decorate it rather than change it. Levers, cheapest first — the last three change what
+you *do*, the first two what you *see*, so those are where to start:
+
+- [ ] **Room-shape variety** (passed over in §4). Generated rooms are all rects.
+  `_carve_cave()` already exists in the authored builder; add caverns, L / cross / pillared
+  halls, rooms round a pond or a rubble heap. Cheap and lifts every floor at once, but it
+  is texture, not play.
+- [ ] **Landmarks** (passed over in §4). One or two set pieces a floor that make it a
+  *place* — a lake you walk round, a collapsed bridge, a great tree, a ruined tower.
+  `GameMap.landmarks` already labels named places on **M**, so a cleared floor is
+  remembered as "the one with the broken bridge".
+- [ ] **Floor shapes, not just floor content.** Not every floor is field → labyrinth →
+  boss; the generator picks a shape per floor:
+  - *Open field* — no labyrinth; the boss roams the overworld, or holds an arena you can
+    see from a distance.
+  - *Pure dungeon* — all labyrinth, or several shorter mazes chained.
+  - *Tower / vertical* — several small maps joined by stairs.
+  - *Settlement* — **superseded by Floor 1's town and the adventurers' camps, below**:
+    every floor gets a camp, so a settlement is not a shape.
+
+  The biggest single lever: floors start to *play* differently. Every shape still needs
+  the floor test's completability walk and formation sweep, and the authored floors'
+  multi-map walk already handles stairs between maps.
+- [ ] **Floor modifiers.** A seeded twist on some floors, stackable: fog everywhere (the
+  `Darkness` over the whole floor, not just the maze), night, flooded, an elite hunting
+  you, double treasure but no camp. Cheap, and it gives a floor a headline.
+- [ ] **Things happening on the floor.** SAO encounters: a stranded player to escort, a
+  player-killer ambush, a field boss guarding a treasure room (passed over in §4), a rival
+  party racing you to the door. Most content per floor, and what makes a floor a story
+  rather than a layout.
+
+**Decided 2026-10-05: the Town of Beginnings is the hub.** In the source, most players
+never leave Floor 1 for years, so it stays the central town for the whole climb, rather
+than the generator learning to build towns on generated floors. It wants to be **more
+built** than today's town — more streets and buildings, and the things you come back for.
+Candidates, none chosen yet: M5.6's shops and the smith's enhancement, an inn, Argo's
+information, a quest board, and the Black Iron Palace's **Monument of Life** (every
+player's name, the dead crossed out — the most Floor 1 thing there is). Ashlow and the
+Lanternfall camp keep their own NPCs and quests; the campfire merchant still stands. The
+**open dependency** is getting back: today the only floor travel is up (`FloorStairs`,
+`BossGate`), so a hub at the bottom needs a way down — SAO's answer is a *teleport gate*
+in each floor's town, live once the floor is reached — and the town has to be worth the
+trip at floor 60 as well as floor 2.
+
+**Decided 2026-10-06: one city, camps everywhere else — and floors settle behind you.**
+A hub city *and* a town on every floor pull against each other, and the source never
+says how the upper floors are lived in. So:
+
+- **Above Floor 1, a floor's settlement is an adventurers' camp**: tents, a fire, a few
+  players, *local* quests. It is where you arrive and where the teleport gate stands.
+  The Town of Beginnings stays the biggest city and the only place with the full set
+  of services. Ashlow and Lanternfall are their floors' settlements, and grow like any
+  other (capitals, below).
+- **Floors settle as you climb.** Once you are a few floors above a floor, its camp
+  grows: new NPCs show up with new quests, so a floor you go back to feels *lived in*
+  and has new things to do. That is also what makes the teleport worth using. Rules
+  this needs:
+  - Settling is keyed on **progression**, not the seed: stages unlocked by how far
+    above the floor you have cleared.
+  - Its content comes from **its own seeded stream** (`hash("<seed>:settle")`, like the
+    puzzles), so the floor's layout and every number measured on it stay identical.
+  - The camp needs **room reserved at the arrival point** in the generated layout.
+  - Ninety generated floors cannot each get hand-written quests, so local quests want
+    **templates** (hunt, gather, find a lost player, clear a room) filled in from the
+    floor's biome and bestiary. The quest test's objective-target sweep has to cover
+    whatever the templates can emit.
+  - Settling must not change `FloorTuning.monster_count(n)`, which is the boss's
+    balance.
+- **The camp grows: camp → village → town → city** *(decided 2026-10-06)*. Each
+  settling stage is visible, and some loot is sold only on some floors. Notes:
+  - **Not every camp reaches city, and the ceiling is fixed, not seeded.** Ninety-nine
+    cities would undo "one city" and repeat themselves.
+    - **Capitals are the authored floors**: 10, 25, 40, 50, 60, 74, 80 and 90 grow to
+      city. Floor 1 is already the city and stays the biggest. Floor 100 never settles,
+      because clearing it ends the game.
+    - **Generated floors top out at village.** *Open:* which, if any, reach town; it
+      will still be a fixed rule.
+    - **An authored capital's tiers are hand-built**, like the rest of the floor: its
+      `build_floor_NN.gd` lays out all four, and progression picks which one shows.
+      Ashlow starts as an NPC village rather than a camp, so its first tier is already
+      village. The capitals are where the authored floors' extra cost buys the most.
+  - **Reserve the plot.** The layout keeps the *final* tier's plot from the start, and
+    each tier fills it in: tents, then the pack's houses, then streets and a wall. The
+    floor's layout never changes as it grows, so seeds and the floor test still hold.
+    This is the settlement generator we avoided, kept in one box.
+  - **Floor-exclusive loot extends M5.6's floor-unlocked stock.** A shop sells what its
+    biome makes: furs on the ice, glass on the desert. It should be specialities and
+    sidegrades, not required power, or the teleport becomes errands. Remembering who
+    sells what is a job for Argo.
+- **Teleport gates, decided — built 2026-10-06.** One stands in each floor's camp, and
+  one in the Town of Beginnings' plaza. Each goes live once its floor is reached, and
+  from any gate you can go to **any floor you have visited**. Built:
+  - [x] a per-floor *visited* record in `GameState` (`visit_floor()` /
+    `visited_floors()`, plus a `floor_<n>_visited` flag), marked by `GameMap._ready()`
+    on arrival — **the M7 save has to keep it**;
+  - [x] a `gate` spawn on every floor's entry map, for `SceneRouter.enter_floor(n, &"gate")`;
+  - [x] `TeleportGate` (`scenes/world/teleport_gate.tscn`, the pack's crystal from
+    `TilesetTowers.png`): on a generated floor beside the entrance (`GATE_OFFSET`, off
+    the room's centre lines so its three-cell base never narrows a corridor below
+    two, placed by rule so no floor's rng moved), on Ashlow's square, in Lanternfall's
+    camp and on the town plaza's north-east corner. Touched with only one floor
+    visited, it says so instead of opening;
+  - [x] the floor picker (`ui/gate_menu.tscn`), opened by `EventBus.teleport_requested`:
+    visited floors lowest first in a scrolling window of ten, ←/→ a band at a time,
+    the current floor listed but refused, starting on the highest floor that isn't
+    here (from the town, the front line);
+  - [x] the floor test's `_audit_teleport_gate` on all 100 floors (gate on the entry
+    map, for its own floor, arrival in front of it and standable, and its solid base
+    cutting nothing off — the walls-only flood fills can't see it), and a smoke-test
+    round trip floor 2 → town → floor 2 through the real menu.
+  - *Not yet:* gates stand where a floor is entered because generated floors have no
+    camp yet; when the camp plot is reserved (above), the gate moves into it. The old
+    one-floor `FloorStairs` stay for now — the gate makes them redundant, so decide
+    whether they go when the camps land.
 
 #### Floor 10 — Ashlow Wood ✅
 
@@ -1570,7 +1694,7 @@ what M4 actually landed; the rest are still open and cross-referenced from
 
 **Exploration & encounters**
 - ◐ **Visible enemies on the map**, not random encounters — in, and avoidable: monsters have no collision, so you can always walk past. *Pre-emptive strikes are in (M5.5 §2): **E** on a monster that hasn't noticed you wins round 1, being run down from behind loses it.* Monsters wander, notice you by line of sight and chase — sneaking is keeping out of their sight; a real stealth stat is still open.
-- ◐ **Floor-based structure** (very SAO): themed zone, dungeon and boss gate per floor are in. *Town hubs on generated floors are the missing piece — see M6.*
+- ◐ **Floor-based structure** (very SAO): themed zone, dungeon and boss gate per floor are in. *What's missing is floors that play differently, and a hub to come back to — the Town of Beginnings, decided 2026-10-05; see M6's "Floor variety".*
 
 **Systems that reward mastery**
 - **Skill-tree / build variety** instead of linear stats — one-handed vs. dual-wield vs. rapier playstyles (nod to Kirito's dual-blades, Asuna's rapier). *Today `SkillLibrary.for_level()` is a pure function of level.*
@@ -1691,8 +1815,8 @@ and statues in the lower workings.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 134-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 136-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 142-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 138-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 87-check combat test
@@ -1737,7 +1861,13 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    statues, cracked wall -- 2026-10-04). **The authored-floor revisit is done too**
    (2026-10-04): Floors 1, 10 and 25 end in labyrinths grown by the generator's code,
    with camps, gilded chests and hand-placed puzzles. M5.5 is complete bar playtesting
-   it; Floor 40 can be laid out on the same builder.
+   it; Floor 40 can be laid out on the same builder. **Its open finding (2026-10-05):
+   floors play the same** — the levers (floor shapes, modifiers, on-floor events, room
+   shapes, landmarks) and the decision that the Town of Beginnings becomes the hub are
+   under M6's "Floor variety". **First lever built (2026-10-06): teleport gates** —
+   every floor has one where it is entered, the town's plaza has one, and any visited
+   floor is a touch away. Next on that track: camps on generated floors (the reserved
+   plot the gate moves into) and settling.
 3. **M5.6 — Col.** Decided 2026-10-04: Col from monsters, materials, chests and quests;
    spent on smith enhancement, Argo's boss-door information and shops (with a merchant
    at some campfires); fixed prices, stock unlocked by floor; your Col drops where you
@@ -1751,7 +1881,7 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 5. **M7 save/load is the one thing getting more expensive with every milestone.**
    `QuestLog` just added a third autoload's worth of state to serialise
    (`_active`/`_completed`/`_order`/`_tracked`), on top of `GameState` and
-   `Inventory`. `world_seed` **must** be in the save or every generated floor
+   `Inventory` — and `GameState._visited_floors`, which the teleport gates read. `world_seed` **must** be in the save or every generated floor
    reshuffles on load. M5.6 adds the purse and the dropped Col, and Death Game mode
    is built on it.
 

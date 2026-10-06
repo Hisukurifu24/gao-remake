@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="2_hud"]
@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://ui/quest_journal.tscn" id="7_journal"]
 [ext_resource type="PackedScene" path="res://ui/map_screen.tscn" id="8_map"]
 [ext_resource type="PackedScene" path="res://ui/battle_hud.tscn" id="9_battle_hud"]
+[ext_resource type="PackedScene" path="res://ui/gate_menu.tscn" id="10_gate"]
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
@@ -25,5 +26,7 @@ script = ExtResource("1_main")
 [node name="QuestJournal" parent="." instance=ExtResource("7_journal")]
 
 [node name="MapScreen" parent="." instance=ExtResource("8_map")]
+
+[node name="GateMenu" parent="." instance=ExtResource("10_gate")]
 
 [node name="DialogueBox" parent="." instance=ExtResource("3_dialogue")]

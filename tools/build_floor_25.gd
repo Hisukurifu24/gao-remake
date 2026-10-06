@@ -117,6 +117,9 @@ const BRANCHES := [
 ]
 
 const STAIRS_CELL := Vector2i(5, 12)
+## The teleport gate, in the camp's east end, clear of the tents and the road.
+const TELEPORT_CELL := Vector2i(27, 9)
+const TELEPORT_ARRIVAL := Vector2i(27, 10)
 const SPAWN_CELL := Vector2i(9, 12)
 
 ## The bottom of the shaft, in the Breach, and where it lets you off in the camp.
@@ -238,7 +241,7 @@ func _build() -> Node2D:
 	var chest_cells: Array[Vector2i] = []
 	for entry in CHESTS:
 		chest_cells.append(entry["at"])
-	var keep_out: Array[Vector2i] = [SPAWN_CELL, STAIRS_CELL, LIFT_CELL, LIFT_TOP]
+	var keep_out: Array[Vector2i] = [SPAWN_CELL, STAIRS_CELL, TELEPORT_CELL, LIFT_CELL, LIFT_TOP]
 	for entry in NPCS:
 		keep_out.append(entry["at"])
 	_new_puzzles(chest_cells, keep_out)
@@ -252,9 +255,11 @@ func _build() -> Node2D:
 	# down them, or waking up here after losing to Karvos.
 	_add_spawns(map, {
 		&"default": SPAWN_CELL, &"from_below": SPAWN_CELL, &"from_above": SPAWN_CELL,
+		&"gate": TELEPORT_ARRIVAL,
 		&"from_lift": LIFT_TOP,
 	})
 	_add_stairs(map, STAIRS_CELL)
+	_add_teleport_gate(map, TELEPORT_CELL)
 	for entry in NPCS:
 		_add_npc(map, entry)
 	for index in CHESTS.size():

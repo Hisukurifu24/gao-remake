@@ -64,6 +64,12 @@ const BOSS_GATE_SCENE := preload("res://scenes/world/boss_gate.tscn")
 const STAIRS_SCENE := preload("res://scenes/world/floor_stairs.tscn")
 const MONSTER_SCENE := preload("res://scenes/world/monster.tscn")
 const CAMPFIRE_SCENE := preload("res://scenes/world/campfire.tscn")
+const TELEPORT_GATE_SCENE := preload("res://scenes/world/teleport_gate.tscn")
+## Where the teleport gate stands from the entrance room's centre, and where you
+## arrive through it: off the centre's row and column, which is where the room's
+## three-wide corridors run, so the gate's base never narrows one below two.
+const GATE_OFFSET := Vector2i(2, -2)
+const GATE_ARRIVAL := Vector2i(2, -1)
 
 ## What a floor cache can hold. Consumables are the staple -- they are what makes
 ## walking off the main line worth the monsters in the way. Gear is the rarer
@@ -207,6 +213,7 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	MapDresser.dress(map, _biome, _ground, _walls, generation_seed)
 
 	_add_spawns(map, _center(entry))
+	_add_teleport_gate(map, _center(entry))
 	for index in chest_cells.size():
 		_add_chest(map, chest_cells[index], index, index < field_chests, deep)
 	_add_monsters(map, rooms, entry, boss_room, lab)
@@ -733,6 +740,20 @@ func _add_spawns(map: Node2D, entry: Vector2i) -> void:
 		marker.name = spawn_name
 		marker.position = _world(entry)
 		holder.add_child(marker)
+	var gate := Marker2D.new()
+	gate.name = "gate"
+	gate.position = _world(entry + GATE_ARRIVAL)
+	holder.add_child(gate)
+
+
+## The floor's teleport gate, beside where you arrive. Placed by rule rather than
+## by the rng, so adding it moved nothing else on any floor.
+func _add_teleport_gate(map: Node2D, entry: Vector2i) -> void:
+	var gate := TELEPORT_GATE_SCENE.instantiate()
+	gate.name = "TeleportGate"
+	gate.position = _world(entry + GATE_OFFSET)
+	gate.set(&"floor_number", _definition.floor_number)
+	map.add_child(gate)
 
 
 ## [param may_gild] for a chest in the field; [param deep] is where a teleport

@@ -27,6 +27,7 @@ const STAIRS_SCENE := "res://scenes/world/floor_stairs.tscn"
 const MONSTER_SCENE := "res://scenes/world/monster.tscn"
 const EXIT_SCENE := "res://scenes/world/map_exit.tscn"
 const CAMPFIRE_SCENE := "res://scenes/world/campfire.tscn"
+const TELEPORT_GATE_SCENE := "res://scenes/world/teleport_gate.tscn"
 ## Loaded when used, never named as a class: naming one compiles it with this
 ## script, before the autoloads exist, and with it every scene it preloads -- whose
 ## scripts then fail on [code]EventBus[/code].
@@ -59,6 +60,7 @@ const PREVIEW_MARKS := {
 	MONSTER_SCENE: "m",
 	EXIT_SCENE: "E",
 	CAMPFIRE_SCENE: "f",
+	TELEPORT_GATE_SCENE: "T",
 	"res://scenes/world/wisp.tscn": "w",
 	"res://scenes/world/wisp_shrine.tscn": "s",
 	"res://scenes/world/brazier.tscn": "b",
@@ -493,6 +495,17 @@ func _add_stairs(map: Node2D, cell: Vector2i) -> void:
 	stairs.set(&"target_floor", floor_number - 1)
 	stairs.set(&"display_name", "the stairs down")
 	_add(map, stairs)
+
+
+## The floor's teleport gate. Its base is three cells wide, so stand it where a
+## street keeps two clear beside it; its map wants a [code]gate[/code] spawn in
+## front of it, where you arrive through it.
+func _add_teleport_gate(map: Node2D, cell: Vector2i) -> void:
+	var gate := (load(TELEPORT_GATE_SCENE) as PackedScene).instantiate()
+	gate.name = "TeleportGate"
+	gate.position = _world(cell)
+	gate.set(&"floor_number", floor_number)
+	_add(map, gate)
 
 
 ## [param entry] is one row of a floor's NPC table: [code]at[/code], [code]name[/code],

@@ -22,6 +22,7 @@ const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const NPC_SCENE := "res://scenes/world/npc.tscn"
 const CHEST_SCENE := "res://scenes/world/chest.tscn"
 const EXIT_SCENE := "res://scenes/world/map_exit.tscn"
+const TELEPORT_GATE_SCENE := "res://scenes/world/teleport_gate.tscn"
 const CHARACTER_SHEET := "res://assets/ninja_adventure/Actor/Character/%s/SpriteSheet.png"
 
 const TILE := 16
@@ -45,6 +46,9 @@ const TOWN_HOUSES: Array[Rect2i] = [
 const TOWN_GROVES: Array[Rect2i] = [
 	Rect2i(42, 11, 5, 3), Rect2i(12, 29, 4, 3), Rect2i(2, 12, 3, 4),
 ]
+## The teleport gate, on the plaza's north-east corner, clear of both roads -- the
+## one gate every floor's gate can reach, which is what keeps the town the hub.
+const TOWN_GATE := Vector2i(27, 15)
 ## Fixed, so rebuilding the town never reshuffles its trees and flowers.
 const TOWN_SEED := 1001
 
@@ -87,6 +91,7 @@ func _build_town(biome: BiomeKit) -> Node2D:
 	_add_spawns(map, {
 		"default": Vector2(392, 296),
 		"from_field": Vector2(392, 536),
+		"gate": _world(TOWN_GATE + Vector2i.DOWN),
 	})
 
 	_add(map, _npc(
@@ -97,6 +102,7 @@ func _build_town(biome: BiomeKit) -> Node2D:
 		Vector2(504, 344), "Nezha", "Nezha the smith", [], &"met_nezha", "Hunter",
 		"res://resources/dialogue/nezha.tres"
 	))
+	_add(map, _teleport_gate(_world(TOWN_GATE)))
 	_add(map, _chest(Vector2(648, 472), &"small_potion", 3, &"chest_town_square"))
 	_add(map, _exit(Vector2(392, TOWN_H * TILE - 8), Vector2(2, 1), FIELD_PATH, &"from_town", true))
 
@@ -187,6 +193,18 @@ func _chest(at: Vector2, item_id: StringName, amount: int, flag: StringName) -> 
 	node.set(&"amount", amount)
 	node.set(&"opened_flag", flag)
 	return node
+
+
+func _teleport_gate(at: Vector2) -> Node:
+	var node := (load(TELEPORT_GATE_SCENE) as PackedScene).instantiate()
+	node.name = "TeleportGate"
+	node.position = at
+	node.set(&"floor_number", 1)
+	return node
+
+
+func _world(cell: Vector2i) -> Vector2:
+	return Vector2(cell.x * TILE + TILE / 2.0, cell.y * TILE + TILE / 2.0)
 
 
 func _exit(at: Vector2, zone_scale: Vector2, target: String, spawn: StringName, auto: bool) -> Node:

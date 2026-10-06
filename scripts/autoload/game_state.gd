@@ -37,6 +37,9 @@ var current_map_path := ""
 var world_seed := 0
 
 var _cleared_floors: Dictionary[int, bool] = {}
+## Every floor the player has set foot on: where a teleport gate can take them.
+## The M7 save has to keep it.
+var _visited_floors: Dictionary[int, bool] = {}
 var _flags: Dictionary[StringName, Variant] = {}
 ## What the player has seen of each map, by map id: cell -> true. Fog of war
 ## writes it ([GameMap]), the map screen draws it, and the M7 save has to keep it
@@ -164,6 +167,27 @@ func is_floor_cleared(floor_number: int) -> bool:
 ## Floor 1 is always open; every other floor needs the one below it cleared.
 func is_floor_unlocked(floor_number: int) -> bool:
 	return floor_number <= 1 or is_floor_cleared(floor_number - 1)
+
+
+## A floor's teleport gate goes live once the player has stood on the floor, and
+## from any gate they can go to any floor that has. [GameMap] calls this on arrival.
+func visit_floor(floor_number: int) -> void:
+	if floor_number < 1 or _visited_floors.has(floor_number):
+		return
+	_visited_floors[floor_number] = true
+	set_flag(StringName("floor_%d_visited" % floor_number))
+
+
+func has_visited(floor_number: int) -> bool:
+	return _visited_floors.has(floor_number)
+
+
+## Every floor set foot on, lowest first.
+func visited_floors() -> Array[int]:
+	var floors: Array[int] = []
+	floors.assign(_visited_floors.keys())
+	floors.sort()
+	return floors
 
 
 func highest_floor_reached() -> int:

@@ -70,6 +70,9 @@ const CORRIDORS := [
 ## The way round to the fourth glade, bending so it isn't seen from the north one.
 const TO_GLADE_D := [Vector2i(46, 10), Vector2i(52, 10), Vector2i(52, 16), Vector2i(59, 16)]
 
+## The teleport gate, on the square's north-east corner, clear of both streets.
+const TELEPORT_CELL := Vector2i(18, 10)
+const TELEPORT_ARRIVAL := Vector2i(18, 11)
 const SPAWN_CELL := Vector2i(16, 20)
 const STAIRS_CELL := Vector2i(12, 20)
 
@@ -185,7 +188,7 @@ func _build() -> Node2D:
 	var chest_cells: Array[Vector2i] = []
 	for entry in CHESTS:
 		chest_cells.append(entry["at"])
-	var keep_out: Array[Vector2i] = [SPAWN_CELL, STAIRS_CELL]
+	var keep_out: Array[Vector2i] = [SPAWN_CELL, STAIRS_CELL, TELEPORT_CELL]
 	for entry in NPCS:
 		keep_out.append(entry["at"])
 	_new_puzzles(chest_cells, keep_out)
@@ -199,8 +202,10 @@ func _build() -> Node2D:
 	# up the stairs, back down them, or woke up here after losing to the Warden.
 	_add_spawns(map, {
 		&"default": SPAWN_CELL, &"from_below": SPAWN_CELL, &"from_above": SPAWN_CELL,
+		&"gate": TELEPORT_ARRIVAL,
 	})
 	_add_stairs(map, STAIRS_CELL)
+	_add_teleport_gate(map, TELEPORT_CELL)
 	for entry in NPCS:
 		_add_npc(map, entry)
 	for index in CHESTS.size():
