@@ -29,7 +29,8 @@ enum Kind {
 
 ## Dialogue is the one target kind with no library to ask -- nothing else in the
 ## game ever needs to find a conversation by id, so building one for a single
-## validation check would be the wrong trade. See [method target_is_valid].
+## validation check would be the wrong trade. See [method target_is_valid]. A
+## settled floor's lost player is the exception, built in code by [LocalQuests].
 const DIALOGUE_PATH := "res://resources/dialogue/%s.tres"
 
 ## Unique within its quest. This is what [signal EventBus.quest_objective_updated]
@@ -112,7 +113,8 @@ func target_is_valid() -> bool:
 		Kind.COLLECT:
 			return ItemLibrary.exists(target)
 		Kind.TALK:
-			return target != &"" and ResourceLoader.exists(DIALOGUE_PATH % target)
+			return target != &"" and (ResourceLoader.exists(DIALOGUE_PATH % target)
+					or LocalQuests.is_conversation(target))
 		Kind.REACH:
 			return number >= 1 and number <= FloorTuning.TOP_FLOOR
 	return false

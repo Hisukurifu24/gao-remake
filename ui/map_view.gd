@@ -213,6 +213,8 @@ func _draw_markers(walls: TileMapLayer, seen: Dictionary) -> void:
 				if wanted.has(node):
 					quest_marks.append(at)
 		elif node is Npc:
+			if not (node as Npc).is_available():
+				continue
 			_mark(at, MapGlyph.Kind.PERSON, UiPalette.MAP_PERSON)
 			if wanted.has(node):
 				quest_marks.append(at)

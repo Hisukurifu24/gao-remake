@@ -186,6 +186,13 @@ const PACK_BIOMES := {
 			["TilesetHouse.png", Rect2i(0, 0, 4, 3)],
 			["TilesetHouse.png", Rect2i(4, 0, 4, 3)],
 		],
+		# The village a generated floor's camp grows into (FloorCamp): the town's two
+		# houses, and a straw hut for the tent a small plot rebuilds as a cabin.
+		"village": [
+			["TilesetHouse.png", Rect2i(0, 0, 4, 3)],
+			["TilesetHouse.png", Rect2i(4, 0, 4, 3)],
+			["TilesetHouse.png", Rect2i(3, 7, 3, 3)],
+		],
 	},
 	"forest": {
 		"walls": "trees",
@@ -287,6 +294,11 @@ const PACK_BIOMES := {
 			["tileset_camp.png", Rect2i(7, 0, 3, 3)],
 			["tileset_camp.png", Rect2i(10, 0, 3, 3)],
 		],
+		# The village a generated floor's camp grows into (FloorCamp). Miners' huts: the tents above are Lanternfall's houses.
+		"village": [
+			["TilesetHouse.png", Rect2i(0, 7, 3, 3)],
+			["TilesetHouse.png", Rect2i(3, 7, 3, 3)],
+		],
 	},
 	"ruins": {
 		# Sandstone: the relief sheet's orange block, laid out as the grey one the cave
@@ -323,6 +335,11 @@ const PACK_BIOMES := {
 			["TilesetFloorDetail.png", Vector2i(14, 0)],
 		],
 		"decor_density": 0.05,
+		# The village a generated floor's camp grows into (FloorCamp). Moved back into the ruins: the pack's overgrown houses.
+		"village": [
+			["TilesetVillageAbandoned.png", Rect2i(0, 0, 4, 3)],
+			["TilesetVillageAbandoned.png", Rect2i(11, 3, 3, 3)],
+		],
 	},
 	"swamp": {
 		"walls": "trees",
@@ -367,6 +384,12 @@ const PACK_BIOMES := {
 			["TilesetFloorDetail.png", Vector2i(14, 0)],
 		],
 		"decor_density": 0.05,
+		# The village a generated floor's camp grows into (FloorCamp). Stilt huts and mossy cabins, up out of the bog.
+		"village": [
+			["TilesetVillageAbandoned.png", Rect2i(14, 0, 3, 5)],
+			["TilesetVillageAbandoned.png", Rect2i(11, 0, 3, 3)],
+			["TilesetVillageAbandoned.png", Rect2i(12, 6, 4, 5)],
+		],
 	},
 	"desert": {
 		# Mesas: the ruins' sandstone cliffs, standing in the dunes they were drawn for.
@@ -413,6 +436,12 @@ const PACK_BIOMES := {
 			["TilesetDesert.png", Vector2i(19, 11)],
 		],
 		"decor_density": 0.04,
+		# The village a generated floor's camp grows into (FloorCamp). Domes and sandstone, from the pack's desert sheet.
+		"village": [
+			["TilesetDesert.png", Rect2i(0, 0, 3, 3)],
+			["TilesetDesert.png", Rect2i(6, 0, 4, 3)],
+			["TilesetDesert.png", Rect2i(3, 0, 3, 5)],
+		],
 	},
 	"ice": {
 		# A snowbound pine wood: the outdoor bands wall with trees, and the pack draws
@@ -467,6 +496,12 @@ const PACK_BIOMES := {
 			["TilesetNature.png", Vector2i(6, 12)], ["TilesetNature.png", Vector2i(7, 12)],
 		],
 		"decor_density": 0.05,
+		# The village a generated floor's camp grows into (FloorCamp). Igloos.
+		"village": [
+			["TilesetHouse.png", Rect2i(0, 11, 3, 3)],
+			["TilesetHouse.png", Rect2i(3, 11, 3, 3)],
+			["TilesetHouse.png", Rect2i(6, 11, 3, 3)],
+		],
 	},
 	"volcanic": {
 		# The sandstone cliffs with their tops burnt the black of the pack's pits:
@@ -516,6 +551,12 @@ const PACK_BIOMES := {
 			["TilesetFloorDetail.png", Vector2i(13, 0)],
 		],
 		"decor_density": 0.05,
+		# The village a generated floor's camp grows into (FloorCamp). A kiln, a stone dome and a tiled roof: a forge town.
+		"village": [
+			["TilesetHouse.png", Rect2i(29, 4, 3, 4)],
+			["TilesetHouse.png", Rect2i(23, 0, 3, 3)],
+			["TilesetHouse.png", Rect2i(12, 0, 4, 3)],
+		],
 	},
 	"sky": {
 		# Gardens in the clouds: the rooms are lawns, and past their edges the ground
@@ -571,6 +612,12 @@ const PACK_BIOMES := {
 			["TilesetNature.png", Vector2i(2, 11)],
 		],
 		"decor_density": 0.06,
+		# The village a generated floor's camp grows into (FloorCamp). Bright roofs for the lawns.
+		"village": [
+			["TilesetHouse.png", Rect2i(19, 0, 4, 3)],
+			["TilesetHouse.png", Rect2i(8, 0, 4, 3)],
+			["TilesetHouse.png", Rect2i(16, 0, 3, 3)],
+		],
 	},
 	"castle": {
 		# Halls walled in dressed stone: the pack's interior walls, a band of masonry
@@ -613,6 +660,11 @@ const PACK_BIOMES := {
 			["TilesetFloorDetail.png", Vector2i(13, 0)], ["TilesetFloorDetail.png", Vector2i(14, 0)],
 		],
 		"decor_density": 0.04,
+		# The village a generated floor's camp grows into (FloorCamp). Red tile, for the Ruby Palace.
+		"village": [
+			["TilesetHouse.png", Rect2i(12, 0, 4, 3)],
+			["TilesetHouse.png", Rect2i(16, 0, 3, 3)],
+		],
 	},
 }
 
@@ -884,6 +936,23 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 		_stand_up(source.get_tile_data(coords, 0), size)
 		houses.append(coords)
 		column += size.x
+	# A band with no village of its own builds its camp up out of its houses.
+	var village: Array[Vector2i] = houses.duplicate()
+	if spec.has("village"):
+		village.clear()
+		for entry: Array in spec["village"]:
+			# One of the band's own houses is cut once and shared.
+			var shared: int = spec.get("houses", []).find(entry)
+			if shared >= 0:
+				village.append(houses[shared])
+				continue
+			var size: Vector2i = (entry[1] as Rect2i).size
+			var coords := Vector2i(column, ROW_HOUSES)
+			source.create_tile(coords, size)
+			_stand_up(source.get_tile_data(coords, 0), size)
+			village.append(coords)
+			column += size.x
+	assert(column <= PACK_COLUMNS, "%s: houses and village overrun the atlas" % id)
 
 	var camp: Array[Vector2i] = []
 	column = 0
@@ -923,6 +992,7 @@ func _build_pack(id: String, info: Dictionary, spec: Dictionary) -> void:
 	biome.decor_density = spec.get("decor_density", 0.06)
 	biome.house_tiles = houses
 	biome.camp_tiles = camp
+	biome.village_tiles = village
 	if spec.has("backdrop"):
 		var backdrop := PortableCompressedTexture2D.new()
 		backdrop.keep_compressed_buffer = true
@@ -995,7 +1065,9 @@ func _compose(spec: Dictionary) -> Image:
 		var piece: Array = spec["decor"][index]
 		_blit(atlas, piece[0], Rect2i(piece[1], Vector2i.ONE), Vector2i(index, ROW_DECOR))
 	var column := 0
-	for entry: Array in spec.get("houses", []):
+	for entry: Array in spec.get("houses", []) + spec.get("village", []):
+		if entry in spec.get("houses", []) and column >= _width(spec.get("houses", [])):
+			continue  # a village entry that is one of the houses, cut once
 		var cells: Rect2i = entry[1]
 		_blit(atlas, entry[0], cells, Vector2i(column, ROW_HOUSES))
 		column += cells.size.x
@@ -1005,6 +1077,14 @@ func _compose(spec: Dictionary) -> Image:
 		_blit(atlas, entry[0], cells, Vector2i(column, _camp_row(spec)))
 		column += cells.size.x
 	return atlas
+
+
+## How many atlas columns [param entries] take, side by side.
+func _width(entries: Array) -> int:
+	var total := 0
+	for entry: Array in entries:
+		total += (entry[1] as Rect2i).size.x
+	return total
 
 
 ## A 47-tile wall blob put together from the pack's raised-ground autotile, so rock

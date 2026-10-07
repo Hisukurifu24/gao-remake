@@ -13,6 +13,10 @@ class_name QuestLibrary
 ## Adding a quest is a .tres in [code]resources/quests/[/code], an entry in
 ## [constant QUESTS], and a dialogue branch that offers it. The quest test fails
 ## if an objective in one names an enemy, item or conversation that isn't there.
+##
+## A settled floor's jobs are the exception: they are named, not stored --
+## [code]local_<floor>_<kind>[/code] -- and built by [LocalQuests] from the floor
+## they belong to. They are not in [method all], which is the shipped content.
 
 const QUEST_PATH := "res://resources/quests/%s.tres"
 
@@ -41,6 +45,12 @@ static func get_quest(id: StringName) -> Quest:
 		return null
 	if _cache.has(id):
 		return _cache[id]
+	if String(id).begins_with("local_"):
+		# Built afresh, not cached: the same id names a different job in another save.
+		var local := LocalQuests.build(id)
+		if local == null:
+			push_error("QuestLibrary: no such local quest '%s'" % id)
+		return local
 	var path := QUEST_PATH % id
 	if not ResourceLoader.exists(path):
 		push_error("QuestLibrary: no such quest '%s'" % id)
@@ -54,6 +64,8 @@ static func get_quest(id: StringName) -> Quest:
 
 
 static func exists(id: StringName) -> bool:
+	if String(id).begins_with("local_"):
+		return LocalQuests.owns(id)
 	return id != &"" and ResourceLoader.exists(QUEST_PATH % id)
 
 

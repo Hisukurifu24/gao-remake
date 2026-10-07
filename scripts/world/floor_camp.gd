@@ -17,6 +17,14 @@ extends RefCounted
 ## Two passes, like [FloorPuzzles]: [method plan] on the layout before it is
 ## dressed (tents are solid, so the wall pass draws round them and the puzzles walk
 ## round them), [method place] once the map's nodes are going down.
+##
+## [b]The camp settles[/b] once the floor [constant LocalQuests.SETTLE_AFTER] above
+## it is cleared: the players who camped there have gone up with the front line,
+## houses of the band's own look go up round the tents they left, and a settler
+## stands outside each of two of them with a job ([LocalQuests]). Where they go is
+## planned on every floor, settled or not, and kept out of what the puzzles see --
+## so a floor that settles moves nothing but the houses going up. Which houses
+## comes from a stream of its own ([code]hash("<seed>:village")[/code]).
 
 const TILE := 16
 const SOURCE_ID := 0
@@ -34,6 +42,19 @@ const PEOPLE := Vector2i(2, 3)
 const GATHER := 4.5
 ## How many spots for the fire are tried, nearest the plot's middle first.
 const FIRE_TRIES := 24
+## How many houses a village wants, and how far from the fire they stand, in
+## tiles, middle to middle: round the camp rather than on top of it.
+const HOUSES := 3
+## Fewer than this and a tent is rebuilt as a cabin (see [method _plan_village]).
+const MIN_HOUSES := 2
+const HOUSE_RING := 6.0
+## How far from a house's door its settler may stand, in tiles: a free cell
+## between them, since nothing solid in the camp stands against anything else.
+const DOORSTEP := 3.5
+
+## Whether the camp is a village: -1 asks [method LocalQuests.is_settled], 0 and 1
+## force it. The floor test's, as [member FloorGenerator.with_puzzles] is.
+static var settle_override := -1
 
 const NPC_SCENE := preload("res://scenes/world/npc.tscn")
 const CAMPFIRE_SCENE := preload("res://scenes/world/campfire.tscn")
@@ -118,9 +139,23 @@ var tent_variants: Array[int] = []
 var fire := Rect2i()
 ## Where the camp's people stand, in tiles.
 var people: Array[Vector2i] = []
+## Whether the camp has grown into a village (see the class docs).
+var village := false
+## Each house's whole rect, in tiles, and which of the band's village tiles it
+## is; planned whether or not the camp has settled, built only once it has.
+var houses: Array[Rect2i] = []
+var house_variants: Array[int] = []
+## The tents a small plot's village rebuilds as cabins, by index: in [member houses]
+## too, and drawn as houses rather than tents once the camp has settled.
+var cabins: Array[int] = []
+## Where each job's settler stands, in tiles, outside a house.
+var settlers: Array[Vector2i] = []
+## Where the floor's lost player waits, in tiles: a dead end in the labyrinth.
+var lost_cell := Vector2i(-1, -1)
 
 var floor_number := 0
 var _rng := RandomNumberGenerator.new()
+var _village_rng := RandomNumberGenerator.new()
 var _biome: BiomeKit
 var _ground: TileMapLayer
 var _walls: TileMapLayer
@@ -137,6 +172,11 @@ func _init(number: int, generation_seed: int, biome: BiomeKit, ground: TileMapLa
 		walls: TileMapLayer, open: Dictionary[Vector2i, bool]) -> void:
 	floor_number = number
 	_rng.seed = hash("%d:camp" % generation_seed)
+	_village_rng.seed = hash("%d:village" % generation_seed)
+	if settle_override >= 0:
+		village = settle_override == 1
+	else:
+		village = LocalQuests.is_settled(number)
 	_biome = biome
 	_ground = ground
 	_walls = walls
@@ -252,12 +292,147 @@ func plan(arrival: Vector2i, lanes: Dictionary[Vector2i, bool], keep: Array[Rect
 	for spot: Rect2i in best[2]:
 		people.append(spot.position)
 		_open.erase(spot.position)
+	_plan_village(best)
 	# Trodden earth round the fire.
 	for y in range(fire.position.y - 2, fire.end.y + 2):
 		for x in range(fire.position.x - 2, fire.end.x + 2):
 			var cell := Vector2i(x, y)
 			if plot.has_point(cell) and _walls.get_cell_source_id(cell) == -1:
 				_ground.set_cell(cell, SOURCE_ID, Vector2i(_biome.path_tile, 0))
+
+
+## Where the village goes, round the fire and tents of [param layout]
+## ([method _around]'s) -- its people will have gone:
+## up to [constant HOUSES] houses about [constant HOUSE_RING] from the fire, each
+## with its free cell all round, and a settler outside the first
+## [constant LocalQuests.PER_FLOOR] of them. Planned on every floor and taken out
+## of the open cells either way, so the puzzles, planned next, never use a cell a
+## house may one day stand on; built -- solid, on the walls -- only in a village.
+func _plan_village(layout: Array) -> void:
+	if _biome.village_tiles.is_empty():
+		return
+	# Round the fire and the tents, not the camp's people: by the time a floor has
+	# settled, the players who camped on it have gone up with the front line.
+	var taken: Dictionary[Vector2i, bool] = {}
+	_mark(taken, layout[0], true)
+	for tent: Rect2i in layout[1]:
+		_mark(taken, tent, true)
+	for cell in people:
+		_open[cell] = true
+	var hearth := _middle(layout[0])
+	var source := _biome.tile_set.get_source(SOURCE_ID) as TileSetAtlasSource
+	var order: Array[int] = []
+	for i in _biome.village_tiles.size():
+		order.append(i)
+	for i in range(order.size() - 1, 0, -1):
+		var j := _village_rng.randi_range(0, i)
+		var held := order[i]
+		order[i] = order[j]
+		order[j] = held
+
+	# Under a roof: walked behind, so not solid -- but nothing else may stand there.
+	var roofs: Dictionary[Vector2i, bool] = {}
+	for n in HOUSES:
+		# The next house in the shuffled order first, then whichever of the others
+		# fits -- a small plot still gets its houses, just smaller ones.
+		for k in order.size():
+			var variant := order[(n + k) % order.size()]
+			var size := source.get_tile_size_in_atlas(_biome.village_tiles[variant])
+			var spot := _house_spot(size, hearth, taken, roofs)
+			if spot.has_area():
+				houses.append(spot)
+				house_variants.append(variant)
+				for x in range(spot.position.x, spot.end.x):
+					roofs[Vector2i(x, spot.position.y)] = true
+				break
+	# A plot with no room for its houses rebuilds a tent as a cabin -- the same
+	# footprint, so it moves nothing -- but always leaves one standing.
+	var cabin := -1
+	for i in _biome.village_tiles.size():
+		if source.get_tile_size_in_atlas(_biome.village_tiles[i]) == Vector2i(3, 3):
+			cabin = i
+			break
+	var tent := tents.size() - 1
+	while houses.size() < MIN_HOUSES and cabin >= 0 and tent >= 1:
+		houses.append(tents[tent])
+		house_variants.append(cabin)
+		cabins.append(tent)
+		for x in range(tents[tent].position.x, tents[tent].end.x):
+			roofs[Vector2i(x, tents[tent].position.y)] = true
+		tent -= 1
+
+	# Outside their own door if there is room, else by the fire.
+	for i in LocalQuests.PER_FLOOR:
+		var near := hearth
+		var reach := GATHER
+		if i < houses.size():
+			near = Vector2(houses[i].position.x + houses[i].size.x / 2.0, houses[i].end.y + 0.5)
+			reach = DOORSTEP
+		var spot := _person_spot(near, reach, taken, roofs)
+		if spot.x < 0 and reach != GATHER:
+			spot = _person_spot(hearth, GATHER, taken, roofs)
+		if spot.x >= 0:
+			settlers.append(spot)
+
+	for house in houses:
+		for y in range(house.position.y, house.end.y):
+			for x in range(house.position.x, house.end.x):
+				var cell := Vector2i(x, y)
+				_open.erase(cell)
+				# The roof's top row is walked behind; the rest stands.
+				if village and y > house.position.y:
+					_walls.set_cell(cell, SOURCE_ID, Vector2i(_biome.wall_alt_tile, 0))
+	# The camp's people and the village's both: the puzzles keep off either.
+	for cell in settlers + people:
+		_open.erase(cell)
+
+
+## The free cell nearest [param near] and within [param reach] of it, under no
+## roof, that leaves the plot in one piece -- taken in [param taken] -- or
+## (-1, -1).
+func _person_spot(near: Vector2, reach: float, taken: Dictionary[Vector2i, bool],
+		roofs: Dictionary[Vector2i, bool]) -> Vector2i:
+	for spot in _ranked(Vector2i.ONE, near, Vector2.ZERO, taken):
+		if _middle(spot).distance_to(near) > reach:
+			break
+		if not roofs.has(spot.position) and _fits(spot, taken):
+			return spot.position
+	return Vector2i(-1, -1)
+
+
+## Where a [param size] house goes, nearest [constant HOUSE_RING] from
+## [param hearth]; empty if nowhere. Its solid rows -- all but the roof's top one --
+## are a free rect that leaves the plot in one piece, taken in [param taken]; the
+## roof row hangs over open plot floor with nothing standing in it (a corridor
+## will do: you walk behind it), and the row in front of the door is plot floor
+## too, never the rock at its edge. [param roofs] are the roofs already up.
+func _house_spot(size: Vector2i, hearth: Vector2, taken: Dictionary[Vector2i, bool],
+		roofs: Dictionary[Vector2i, bool]) -> Rect2i:
+	var solid := Vector2i(size.x, size.y - 1)
+	var spots: Array[Rect2i] = []
+	var keys: Dictionary[Rect2i, float] = {}
+	for spot in _ranked(solid, hearth, Vector2.ZERO, taken):
+		var house := Rect2i(spot.position - Vector2i(0, 1), size)
+		if house.position.y < plot.position.y or spot.end.y >= plot.end.y:
+			continue
+		var clear := true
+		for x in range(house.position.x, house.end.x):
+			for cell: Vector2i in [Vector2i(x, house.position.y), Vector2i(x, spot.end.y)]:
+				if roofs.has(cell) or _keep.has(cell) or taken.has(cell) or not _open.has(cell):
+					clear = false
+			for y in range(spot.position.y, spot.end.y):
+				clear = clear and not roofs.has(Vector2i(x, y))
+		if clear:
+			spots.append(house)
+			keys[house] = absf(_middle(house).distance_to(hearth) - HOUSE_RING)
+	spots.sort_custom(func(a: Rect2i, b: Rect2i) -> bool:
+		if keys[a] != keys[b]:
+			return keys[a] < keys[b]
+		return a.position.y < b.position.y or (a.position.y == b.position.y and a.position.x < b.position.x))
+	for house in spots:
+		if _fits(Rect2i(house.position + Vector2i(0, 1), solid), taken):
+			return house
+	return Rect2i()
 
 
 ## The camp round a fire at [param hearth_rect]: [code][fire, tents, people][/code],
@@ -373,13 +548,21 @@ func _mark(taken: Dictionary[Vector2i, bool], rect: Rect2i, on: bool) -> void:
 
 
 ## Puts the camp on [param map]: the tents on its props layer, the cookfire, and
-## its people with what they have to say. [param side] is the labyrinth's
-## ([enum FloorGenerator.Side]), which the scout knows.
-func place(map: Node2D, side: int, boss_name: String) -> void:
+## its people with what they have to say -- and, in a village, its houses, its
+## settlers and their jobs. [param side] is the labyrinth's
+## ([enum FloorGenerator.Side]), which the scout knows. [param dead_ends] are the
+## labyrinth's free dead ends, as [code][cell, the way out][/code] in tiles, for
+## a lost player to wait in.
+func place(map: Node2D, side: int, boss_name: String, dead_ends: Array = []) -> void:
 	if not tents.is_empty() and not _biome.camp_tiles.is_empty():
 		var props := MapDresser.props_layer(map, _biome)
 		for i in tents.size():
-			props.set_cell(MapDresser.anchor_for(tents[i]), SOURCE_ID, _biome.camp_tiles[tent_variants[i]])
+			if not (village and i in cabins):
+				props.set_cell(MapDresser.anchor_for(tents[i]), SOURCE_ID, _biome.camp_tiles[tent_variants[i]])
+	# Drawn on every floor so the stream does not depend on the tier.
+	var lost_pick := _village_rng.randi() % maxi(1, dead_ends.size())
+	if village:
+		_place_village(map, dead_ends[lost_pick] if not dead_ends.is_empty() else [])
 	if fire.has_area():
 		var hearth := CAMPFIRE_SCENE.instantiate()
 		hearth.name = "Cookfire"
@@ -394,7 +577,8 @@ func place(map: Node2D, side: int, boss_name: String) -> void:
 	_shuffle(sheets)
 	_shuffle(handles)
 	var words := _words(side, boss_name)
-	for i in people.size():
+	# A village's campers have moved on up; their ground is the houses'.
+	for i in (0 if village else people.size()):
 		var role: String = ROLE_ORDER[i % ROLE_ORDER.size()]
 		var sheet: String = sheets[i % sheets.size()]
 		var handle: String = handles[i % handles.size()]
@@ -410,6 +594,47 @@ func place(map: Node2D, side: int, boss_name: String) -> void:
 				else (3 if to_fire.x > 0 else 2)
 		(npc.get_node("Sprite2D") as Sprite2D).frame = column
 		map.add_child(npc)
+
+
+## The village's houses, the settlers outside them with their jobs, and the
+## floor's lost player -- in the labyrinth until their job is taken (hidden till
+## then), and gone once they have been found.
+func _place_village(map: Node2D, dead_end: Array) -> void:
+	var props := MapDresser.props_layer(map, _biome)
+	for i in houses.size():
+		props.set_cell(MapDresser.anchor_for(houses[i]), SOURCE_ID, _biome.village_tiles[house_variants[i]])
+	var jobs := LocalQuests.ids_for(floor_number)
+	for i in mini(settlers.size(), jobs.size()):
+		var who := LocalQuests.giver(jobs[i])
+		var npc := _person(settlers[i], who["sheet"], who["name"], LocalQuests.giver_dialogue(jobs[i]))
+		npc.name = "Settler%d" % i
+		map.add_child(npc)
+	var lost := LocalQuests.lost_person(floor_number)
+	var job := LocalQuests.talk_quest(floor_number)
+	if lost.is_empty() or dead_end.is_empty() \
+			or GameState.has_flag(QuestLog.flag_for(job, "ready")) \
+			or GameState.has_flag(QuestLog.flag_for(job, "done")):
+		return
+	lost_cell = dead_end[0]
+	var npc := _person(lost_cell, lost["sheet"], lost["name"], LocalQuests.lost_dialogue(floor_number))
+	npc.name = "LostPlayer"
+	npc.set(&"hidden_until", QuestLog.flag_for(job, "started"))
+	# Looking back the way they came in, which is the way you come.
+	var out: Vector2i = dead_end[1]
+	(npc.get_node("Sprite2D") as Sprite2D).frame = 0 if out.y > 0 else 1 if out.y < 0 \
+			else 3 if out.x > 0 else 2
+	map.add_child(npc)
+
+
+## Someone standing at [param cell], drawn from the pack's [param sheet], facing
+## down, who says [param talk].
+func _person(cell: Vector2i, sheet: String, who: String, talk: Dialogue) -> Node2D:
+	var npc := NPC_SCENE.instantiate()
+	npc.position = Vector2(cell.x * TILE + TILE / 2.0, cell.y * TILE + TILE / 2.0)
+	npc.set(&"sprite_sheet", load(CHARACTERS % [sheet, "SpriteSheet"]))
+	npc.set(&"display_name", who)
+	npc.set(&"dialogue", talk)
+	return npc
 
 
 ## What the camp's people fill their lines in with.

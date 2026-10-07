@@ -22,11 +22,29 @@ extends Interactable
 ## set *after* the talk, not before: a dialogue whose first line is gated on
 ## "have we met?" must still see the answer the player would expect.
 @export var met_flag: StringName = &""
+## Not there -- not drawn, not solid, not offered -- until this flag is set, and
+## then fades in where they stand: a settled floor's lost player, who is only in
+## the labyrinth once somebody has asked you to go and find them.
+@export var hidden_until: StringName = &""
+
+## How long a hidden NPC takes to appear once their flag is set.
+const APPEAR_TIME := 0.6
 
 
 func _ready() -> void:
 	if sprite_sheet != null:
 		($Sprite2D as Sprite2D).texture = sprite_sheet
+	if is_hidden():
+		_set_present(false)
+		EventBus.flag_changed.connect(_on_flag_changed)
+
+
+func is_available() -> bool:
+	return not is_hidden()
+
+
+func is_hidden() -> bool:
+	return hidden_until != &"" and not GameState.has_flag(hidden_until)
 
 
 func interact(by: Node) -> void:
@@ -37,3 +55,19 @@ func interact(by: Node) -> void:
 		await DialogueRunner.say(speaker, lines)
 	if met_flag != &"":
 		GameState.set_flag(met_flag)
+
+
+func _on_flag_changed(flag: StringName, _value: Variant) -> void:
+	if flag != hidden_until or is_hidden():
+		return
+	EventBus.flag_changed.disconnect(_on_flag_changed)
+	_set_present(true)
+	modulate.a = 0.0
+	create_tween().tween_property(self, ^"modulate:a", 1.0, APPEAR_TIME)
+
+
+## Drawn and solid, or neither.
+func _set_present(present: bool) -> void:
+	visible = present
+	for shape in $Solid.get_children():
+		(shape as CollisionShape2D).set_deferred(&"disabled", not present)

@@ -58,6 +58,11 @@ enum WallStyle {
 ## The adventurers' camp's tents, the same in every biome: standing 3x3 tiles,
 ## pitched by [FloorCamp] on a footprint of [member wall_alt_tile].
 @export var camp_tiles: Array[Vector2i] = []
+## The houses a generated floor's camp grows into a village with ([FloorCamp]):
+## standing tiles of the band's own look, built like [member house_tiles] on a
+## footprint of [member wall_alt_tile] -- and the same tiles, where the band's
+## authored houses already suit a village.
+@export var village_tiles: Array[Vector2i] = []
 
 @export_group("Backdrop")
 ## Drawn repeating behind the map, where a see-through wall mass shows it -- the

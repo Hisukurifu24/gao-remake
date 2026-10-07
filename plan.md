@@ -1549,7 +1549,64 @@ the stairs stay. Built:
   monsters won't enter would contradict the labyrinth's safe zone. Revisit if
   arriving into a chase feels wrong.
 - *Next*: settling — the camp → village stage keyed on how far above the floor you
-  have cleared, filling the same plot; then local-quest templates.
+  have cleared, filling the same plot; then local-quest templates. **Both built
+  2026-10-06, below.**
+
+**Settling: the village tier and local quests — built 2026-10-06.** Asked, the user
+chose: a floor's camp becomes a village once **the floor three above it is cleared**;
+the village is **houses beside the tents, in the band's own look**; and the slice
+ships **with the quest templates**, so the new people have something for you to do.
+Built:
+- [x] **Houses for every band** (`BiomeKit.village_tiles`, a `"village"` list per
+  biome in `build_biomes.gd`, cut into the houses row): the town's houses and a straw
+  hut on the meadow, the forest's own, miners' huts in the caves, the pack's overgrown
+  houses in the ruins, stilt huts and mossy cabins in the swamp, domes and sandstone in
+  the desert, igloos on the ice, a kiln, a stone dome and a tiled roof on the volcanic
+  band, bright roofs in the sky, red tile in the Ruby Palace. Every band has a 3×3
+  one (see cabins, below).
+- [x] **`FloorCamp` plans the village on every floor and builds it only on a settled
+  one** (`LocalQuests.is_settled()`; `FloorCamp.settle_override` for the tests).
+  Up to three houses about six tiles from the fire, each a free footprint — its roof
+  row walked behind, its door onto plot floor, never the plot's rock — then a settler
+  outside each of two doors (by the fire if there is no room). Their cells come out
+  of what the puzzles see whether or not the camp has settled, so **settling moves
+  nothing but the houses going up: fingerprinted over 190 floors on two seeds, the
+  camp tier is byte-for-byte what it was and the village tier changes only its
+  camp.** Which houses comes from `hash("<seed>:village")`.
+- [x] **The campers move on.** By the time a floor has settled, the players who camped
+  on it have gone up with the front line, so a village's campers are gone and their
+  ground is the houses'. Without that a third of plots had no room for a house.
+- [x] **Cabins.** A plot too small for two houses rebuilds its second tent as a 3×3
+  house on the same footprint — moving nothing — and always leaves one tent standing.
+  83 of 94 settling floors grow a whole village (a house at least, and both
+  settlers); 62 have two houses or more (169 of 188 whole over two seeds). The plot
+  is the limit: half are shrunk by neighbouring rooms.
+- [x] **Local quests** (`LocalQuests`, `scripts/quests/local_quests.gd`): two jobs a
+  village, from three templates — **hunt** (KILL 4–6 of a monster in the floor's
+  pool), **gather** (COLLECT 3 of what one drops) and **lost** (TALK to a player who
+  went into the labyrinth to map it). Named, not stored: `local_<floor>_<kind>`,
+  which `QuestLibrary` hands to `LocalQuests.build()`, everything about it drawn from
+  `hash("<seed>:settle")` — so the id is the whole quest and the M7 save gets them
+  for free. Prerequisite: the floor three above cleared, the same condition the offer
+  is gated on. Pay: 2–4 of the floor's monsters' worth of XP and a potion, whetstones,
+  antidotes or a piece of cache gear — on top of the curve, never a second one.
+- [x] **The lost player** stands in a free dead end of the labyrinth (never the
+  chest's, never where a teleport trap lands you), `Npc.hidden_until` the job's
+  started flag — not drawn, not solid, not offered until you are asked — and is gone
+  the next time you come once they have been found. The map's `!` finds them like any
+  TALK target.
+- [x] The plot is named "Village" on **M** once it has settled.
+- [x] Tests: the floor test builds every settling floor a second time, settled, and
+  holds it to `_audit_camp` again plus `_audit_village` (nothing outside the plot
+  moved, every settler gives the job `LocalQuests` says, the lost player in a free,
+  reachable dead end with the right conversation, fights staged round it all, 80%
+  whole). The quest test sweeps all 376 jobs over two saves (targets, rewards, text
+  with nothing unfilled, offer gated on the prerequisite) and plays one of each kind
+  through the settler's real conversation; the inventory test covers the jobs' pay;
+  the smoke test settles a real floor 2 and finds its lost player.
+  `tools/screenshot.gd -- --villages` frames one per band.
+- *Not built:* the higher tiers (generated floors top out at village, decided), and
+  floor-exclusive stock, which waits on M5.6's shops.
 
 #### Floor 10 — Ashlow Wood ✅
 
@@ -1862,15 +1919,22 @@ one knows the boss by name and what level you'll want, one warns you about what 
 the field — and they have something new to say once you've found the door, and again
 once the floor is cleared.
 
+And the floors you leave behind fill in. Three floors further up, go back through the
+gate and the camp has become a village: the adventurers have moved on with the front
+line, houses in the band's own style stand round the tents they left — igloos on the
+ice, stilt huts over the bog — and the people who stopped climbing have jobs for you.
+Thin out the boars at the door, bring in three wolf fangs, or go back into the
+labyrinth after the mapmaker who never came out.
+
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 142-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 139-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 148-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 140-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
-"$GODOT" --headless --path . res://test/inventory_test.tscn # 126-check inventory test
+"$GODOT" --headless --path . res://test/inventory_test.tscn # 127-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 87-check combat test
-"$GODOT" --headless --path . res://test/quest_test.tscn     # 173-check quest test
+"$GODOT" --headless --path . res://test/quest_test.tscn     # 193-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -1917,8 +1981,10 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    under M6's "Floor variety". **First lever built (2026-10-06): teleport gates** —
    every floor has one where it is entered, the town's plaza has one, and any visited
    floor is a touch away. **Camps on generated floors (the camp tier) are built too**
-   (2026-10-06). Next on that track: settling, then local-quest templates — was: camps on generated floors (the reserved
-   plot the gate moves into) and settling.
+   (2026-10-06), and **so is settling** (2026-10-06): three floors behind the front
+   line a camp becomes a village with houses, settlers and local quests. Next on that
+   track: the other "Floor variety" levers (floor shapes, modifiers, events, room shapes,
+   landmarks), or M5.6's shops, which the villages' floor-exclusive stock waits on.
 3. **M5.6 — Col.** Decided 2026-10-04: Col from monsters, materials, chests and quests;
    spent on smith enhancement, Argo's boss-door information and shops (with a merchant
    at some campfires); fixed prices, stock unlocked by floor; your Col drops where you

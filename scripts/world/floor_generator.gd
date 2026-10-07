@@ -204,10 +204,12 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	var deep: Array[Vector2i] = []
 	for dead_end in lab.dead_ends:
 		deep.append(_cell_rect(lab, dead_end).end - Vector2i.ONE)
+	var free_ends := lab.dead_ends.duplicate()
 	if lab_chest:
 		var pick := _rng.randi() % lab.dead_ends.size()
 		chest_cells.append(_cell_rect(lab, lab.dead_ends[pick]).position)
 		deep.remove_at(pick)
+		free_ends.remove_at(pick)
 	_scatter_decor(rooms, entry, boss_room)
 
 	var must_reach: Array[Vector2i] = chest_cells.duplicate()
@@ -240,12 +242,14 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 		_add_campfire(map, lab.camp_room)
 	if _definition.floor_number > 1:
 		_add_stairs(map, _center(entry) + STAIRS_OFFSET)
-	camp.place(map, lab.side if lab.has_maze() else -1, _definition.boss_name)
+	camp.place(map, lab.side if lab.has_maze() else -1, _definition.boss_name,
+			_lost_spots(lab, free_ends))
 
 	if lab.has_maze():
 		# Inside the labyrinth you see only what is in line of sight.
 		map.set(&"dark_area", lab.rect)
-		var places: Dictionary[String, Rect2i] = {"The Labyrinth": lab.rect, "Camp": camp.plot}
+		var places: Dictionary[String, Rect2i] = {"The Labyrinth": lab.rect,
+				"Village" if camp.village else "Camp": camp.plot}
 		if lab.camp_room.has_area():
 			places["Safe Zone"] = lab.camp_room
 			map.set(&"safe_zones", [lab.camp_room] as Array[Rect2i])
@@ -256,6 +260,10 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 		map.set_meta(&"labyrinth_mouth", lab.mouth)
 		map.set_meta(&"boss_room", lab.boss_room)
 	map.set_meta(&"camp", camp.plot)
+	if camp.village:
+		map.set_meta(&"village", camp.houses)
+	if camp.lost_cell.x >= 0:
+		map.set_meta(&"lost_player", camp.lost_cell)
 
 	var player := PLAYER_SCENE.instantiate()
 	player.name = "Player"
@@ -662,6 +670,25 @@ func _open_mouth(lab: Labyrinth) -> void:
 			doorstep = Vector2i(lab.mouth.position.x, lab.mouth.end.y + 1)
 	_carve(lab.mouth, _biome.floor_tile)
 	lab.doorstep = doorstep
+
+
+## Where a lost player may wait in each of [param ends]: as
+## [code][cell, the way out][/code], in tiles, the cell against the dead end's back
+## wall that leaves the other three of its passage joined -- and never the corner
+## a teleport trap lands you in, which is the passage's bottom right.
+func _lost_spots(lab: Labyrinth, ends: Array[Vector2i]) -> Array:
+	var spots: Array = []
+	for end in ends:
+		if lab.links.get(end, []).size() != 1:
+			continue
+		var out: Vector2i = lab.links[end][0] - end
+		var at := _cell_rect(lab, end).position
+		if out == Vector2i.LEFT:
+			at += Vector2i.RIGHT
+		elif out == Vector2i.UP:
+			at += Vector2i.DOWN
+		spots.append([at, out])
+	return spots
 
 
 func _cell_rect(lab: Labyrinth, cell: Vector2i) -> Rect2i:

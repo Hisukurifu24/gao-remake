@@ -6,6 +6,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --cracks    # the cracked walls only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --gates     # the teleport gates only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --camps     # the adventurers' camps only
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --villages  # the camps settled into villages
 ##
 ## Dev aid for checking how a change actually looks without sitting through the
 ## game. Needs a real window, so it can't run with --headless.
@@ -65,6 +66,11 @@ func _ready() -> void:
 		return
 	if "--camps" in OS.get_cmdline_user_args():
 		await _capture_camps(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--villages" in OS.get_cmdline_user_args():
+		await _capture_villages(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1040,6 +1046,52 @@ func _capture_camps(main: Node) -> void:
 				DialogueRunner.advance()
 				await _frames(2)
 		await _capture_map(main, "04z_camp_map")
+
+
+## The same camps settled into villages, three floors behind the front line; a
+## settler offering their job; the lost player it sends you after, waiting in the
+## labyrinth; and the village on the map.
+func _capture_villages(main: Node) -> void:
+	for floor_number: int in CAMP_FLOORS:
+		GameState.clear_floor(floor_number - 1)
+		GameState.clear_floor(floor_number + LocalQuests.SETTLE_AFTER)
+		SceneRouter.enter_floor(floor_number, &"default")
+		var map := await _arrived(floor_number)
+		await _wait(0.3)
+		await _capture("04zv_village_floor%02d" % floor_number)
+		if floor_number != CAMP_FLOORS[0]:
+			continue
+		var player := map.get_node("Player") as Player
+		var settler := map.get_node_or_null("Settler0") as Npc
+		if settler != null:
+			_stand_by(map, player, settler)
+			await _frames(6)
+			settler.interact(player)
+			await _typed(main)
+			await _capture("04zv_village_talk")
+			while DialogueRunner.is_running():
+				if DialogueRunner.is_choosing():
+					DialogueRunner.choose(DialogueRunner.offered_choices().size() - 1)
+				else:
+					DialogueRunner.advance()
+				await _frames(2)
+		await _capture_map(main, "04zv_village_map")
+		var lost := map.get_node_or_null("LostPlayer") as Npc
+		if lost != null:
+			QuestLog.start(LocalQuests.talk_quest(floor_number))
+			_stand_by(map, player, lost)
+			await _wait(1.0)
+			await _capture("04zv_village_lost")
+
+
+## Puts [param player] on a free cell beside [param npc], facing them.
+func _stand_by(map: GameMap, player: Player, npc: Node2D) -> void:
+	for offset: Vector2 in [Vector2(0, 16), Vector2(0, -16), Vector2(16, 0), Vector2(-16, 0)]:
+		var cell := map.get_node("Walls").local_to_map(npc.position + offset) as Vector2i
+		if map.is_standable(cell):
+			player.position = npc.position + offset
+			player.facing = -offset.normalized()
+			return
 
 
 ## The map screen over whatever has been explored so far. Opened directly, since

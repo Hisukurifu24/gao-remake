@@ -69,6 +69,14 @@ var _teleport_gates := 0
 var _camps := 0
 var _whole_camps := 0
 var _full_plots := 0
+## Gathered by [method _audit_village] across every floor that settles.
+var _settling := 0
+var _villages := 0
+var _whole_villages := 0
+## Villages with [constant FloorCamp.MIN_HOUSES] houses or more.
+var _streets := 0
+var _lost_jobs := 0
+var _lost_players := 0
 
 
 func _ready() -> void:
@@ -310,11 +318,22 @@ func _run() -> void:
 			continue
 		generated += 1
 		var map := FloorGenerator.generate(definition, FloorRegistry.seed_for(floor_number))
+		# Before the audit breaks its cracked wall and opens its vault.
+		var unsettled := _outside(map, map.get_meta(&"camp", Rect2i()))
 		var problem := _audit(map, definition)
 		if not problem.is_empty():
 			broken.append(problem)
+		elif LocalQuests.settles(floor_number):
+			# And again once it has settled, beside the camp it grew from.
+			FloorCamp.settle_override = 1
+			var settled := FloorGenerator.generate(definition, FloorRegistry.seed_for(floor_number))
+			FloorCamp.settle_override = -1
+			problem = _audit_village(settled as GameMap, map.get_meta(&"camp"), unsettled, floor_number)
+			if not problem.is_empty():
+				broken.append(problem)
+			settled.free()
 		map.free()
-	_check(broken.is_empty(), "all %d generated floors are completable%s" % [generated,
+	_check(broken.is_empty(), "all %d generated floors are completable, settled or not%s" % [generated,
 			"" if broken.is_empty() else " -- " + ", ".join(broken)])
 	# The door is somewhere in the far third of the maze, not in its farthest corner
 	# every time -- or the labyrinth is a corridor with a known end.
@@ -334,6 +353,14 @@ func _run() -> void:
 	_check(_camps == generated and _whole_camps * 100 >= _camps * 80,
 			"every generated floor has an adventurers' camp, and %d of %d are whole (%d at full size)" % [
 				_whole_camps, _camps, _full_plots])
+	# Every floor that can settle grows a village, and most grow the whole of one:
+	# a house at least and both its settlers with their jobs. What falls short is
+	# the plot a crowded arrival room left the camp. Measured at 83 of 94 on this
+	# seed, 60 of them with two houses or more.
+	_check(_villages == _settling and _whole_villages * 100 >= _villages * 80
+			and _lost_players == _lost_jobs,
+			"%d of %d settling floors grow a whole village (%d with %d houses or more), and all %d lost players wait in a dead end" % [
+				_whole_villages, _settling, _streets, FloorCamp.MIN_HOUSES, _lost_jobs])
 	# A gilded chest is a gamble only if all three outcomes turn up somewhere.
 	var plain: int = _gilded.get(Chest.Trap.NONE, 0)
 	var alarms: int = _gilded.get(Chest.Trap.ALARM, 0)
@@ -1063,14 +1090,15 @@ func _steps_between(map: GameMap, from: Array[Vector2i], to: Array[Vector2i]) ->
 ## The contact side rotates with the cell, so every axis gets asked first
 ## somewhere; existence doesn't depend on it, since the solver tries all four.
 func _audit_formations(map: Node2D, walls: TileMapLayer, start: Vector2i, reachable: Dictionary,
-		label: String) -> void:
-	var problem := _formation_problem(map, walls, start, reachable, label)
+		label: String, within: Array[Rect2i] = []) -> void:
+	var problem := _formation_problem(map, walls, start, reachable, label, within)
 	if not problem.is_empty():
 		_unstaged.append(problem)
 
 
+## [param within], when given, sweeps only the cells inside those rects.
 func _formation_problem(map: Node2D, walls: TileMapLayer, start: Vector2i, reachable: Dictionary,
-		label: String) -> String:
+		label: String, within: Array[Rect2i] = []) -> String:
 	var game_map := map as GameMap
 	if game_map == null:
 		return "%s is not a GameMap" % label
@@ -1083,6 +1111,8 @@ func _formation_problem(map: Node2D, walls: TileMapLayer, start: Vector2i, reach
 	var sides: Array[Vector2i] = [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP]
 	var slide := GameMap.FORMATION_SLIDE
 	for cell: Vector2i in standing:
+		if not within.is_empty() and not within.any(func(rect: Rect2i) -> bool: return rect.has_point(cell)):
+			continue
 		var field := game_map.formation(cell, sides[posmod(cell.x + cell.y, 4)], 1)
 		if field == null:
 			return "%s cannot stage a fight at %s" % [label, cell]
@@ -1519,11 +1549,13 @@ func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_numbe
 		return "%s's camp runs into the labyrinth" % label
 	if not walls.get_used_rect().grow(-1).encloses(plot):
 		return "%s's camp runs into the outer wall" % label
-	if map.landmarks.get("Camp", Rect2i()) != plot:
+	if map.landmarks.get("Village" if map.has_meta(&"village") else "Camp", Rect2i()) != plot:
 		return "%s's camp is not named on the map" % label
 
 	var fire := map.get_node_or_null("Cookfire") as Campfire
 	var campers: Array[Npc] = []
+	# A village's settlers stand in the camp too, and are held to what campers are.
+	var settlers: Array[Npc] = []
 	for child in map.get_children():
 		var node := child as Node2D
 		if node == null:
@@ -1532,9 +1564,12 @@ func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_numbe
 			return "%s has %s in its camp" % [label, node.name]
 		if node is Npc and String(node.name).begins_with("Camper"):
 			campers.append(node)
+		if node is Npc and String(node.name).begins_with("Settler"):
+			settlers.append(node)
 	if fire != null and fire.rests:
 		return "%s's cookfire rests you" % label
-	# The plot was carved whole, so anything on the walls in it is a tent's footprint.
+	# The plot was carved whole, so anything on the walls in it is a tent's or a
+	# house's footprint.
 	var tent_cells: Array[Vector2i] = []
 	for y in range(plot.position.y, plot.end.y):
 		for x in range(plot.position.x, plot.end.x):
@@ -1544,7 +1579,7 @@ func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_numbe
 
 	# Everything solid the camp put down, gone and back.
 	var shapes: Array[CollisionShape2D] = []
-	for node: Node2D in ([fire] if fire != null else []) + campers:
+	for node: Node2D in ([fire] if fire != null else []) + campers + settlers:
 		shapes.append(node.get_node("Solid/CollisionShape2D") as CollisionShape2D)
 	var atlas: Array[Vector2i] = []
 	for cell in tent_cells:
@@ -1579,7 +1614,7 @@ func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_numbe
 				continue
 			return "%s's camp has something solid against %d,%d" % [label, next.x, next.y]
 
-	for camper in campers:
+	for camper in campers + settlers:
 		var at := walls.local_to_map(camper.position)
 		if not plot.has_point(at):
 			return "%s's %s stands outside the camp" % [label, camper.name]
@@ -1595,23 +1630,142 @@ func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_numbe
 		if not reached:
 			return "%s's %s can't be walked up to" % [label, camper.name]
 
-	# A footprint with no tent drawn over it is an invisible wall.
+	# A footprint with no tent or house drawn over it is an invisible wall -- and a
+	# house drawn where nothing stands is one you walk through.
 	var biome := FloorRegistry.get_floor(floor_number).biome
 	var props := map.get_node_or_null("Props") as TileMapLayer
+	var source := biome.tile_set.get_source(0) as TileSetAtlasSource
 	var tents := 0
+	var houses := 0
+	var drawn: Dictionary[Vector2i, bool] = {}
 	if props != null:
 		for anchor in props.get_used_cells():
-			if props.get_cell_atlas_coords(anchor) in biome.camp_tiles:
+			var coords := props.get_cell_atlas_coords(anchor)
+			if not (coords in biome.camp_tiles or coords in biome.village_tiles):
+				continue
+			if coords in biome.camp_tiles:
 				tents += 1
-	if tents * 6 != tent_cells.size():
-		return "%s's camp has %d tents drawn over %d cells of footprint" % [label, tents, tent_cells.size()]
+			else:
+				houses += 1
+			var rect := MapDresser.footprint(anchor, source.get_tile_size_in_atlas(coords))
+			for y in range(rect.position.y + 1, rect.end.y):
+				for x in range(rect.position.x, rect.end.x):
+					drawn[Vector2i(x, y)] = true
+	var planned: Array = map.get_meta(&"village", [])
+	if houses != planned.size():
+		return "%s's camp has %d houses drawn for %d planned" % [label, houses, planned.size()]
+	if drawn.size() != tent_cells.size():
+		return "%s's camp has %d cells of tent and house drawn over %d cells of footprint" % [
+				label, drawn.size(), tent_cells.size()]
+	for cell in tent_cells:
+		if not drawn.has(cell):
+			return "%s's camp has an invisible wall at %d,%d" % [label, cell.x, cell.y]
 
+	if map.has_meta(&"village"):
+		return ""
 	_camps += 1
 	if fire != null and tents >= FloorCamp.TENTS and campers.size() >= 2:
 		_whole_camps += 1
 	if plot.size == FloorCamp.PLOT:
 		_full_plots += 1
 	return ""
+
+
+## A settled floor is the camp tier's floor with a village in its plot: nothing
+## outside the plot moved -- no wall, chest, monster, door or puzzle piece -- the
+## houses and settlers cut nothing off ([method _audit_camp] again, on this map),
+## every settler offers the job [LocalQuests] says they have, and the lost player
+## waits in a free dead end of the labyrinth with the conversation the job asks
+## for. A fight can be staged round all of it.
+func _audit_village(map: GameMap, camp_plot: Rect2i, unsettled: String, floor_number: int) -> String:
+	var label := "settled floor %d" % floor_number
+	_settling += 1
+	var walls := map.get_node("Walls") as TileMapLayer
+	var plot: Rect2i = map.get_meta(&"camp")
+	if not map.has_meta(&"village") or plot != camp_plot:
+		return "%s grows no village in its camp's plot" % label
+	if _outside(map, plot) != unsettled:
+		return "%s moved something outside its camp" % label
+	var start: Vector2i = walls.local_to_map((map.get_node("SpawnPoints").get_child(0) as Node2D).position)
+	var problem := _audit_camp(map, walls, start, floor_number)
+	if not problem.is_empty():
+		return problem.replace("floor %d" % floor_number, label)
+	_villages += 1
+
+	var jobs := LocalQuests.ids_for(floor_number)
+	var settlers := 0
+	for i in jobs.size():
+		var settler := map.get_node_or_null("Settler%d" % i) as Npc
+		if settler == null:
+			continue
+		settlers += 1
+		var quest := QuestLibrary.get_quest(jobs[i])
+		if quest == null or not settler.display_name.begins_with(quest.giver):
+			return "%s's %s is not the giver of %s" % [label, settler.name, jobs[i]]
+		var offers := false
+		for line in settler.dialogue.lines:
+			for choice in line.choices:
+				for effect in choice.effects:
+					offers = offers or (effect.kind == DialogueEffect.Kind.START_QUEST and effect.id == jobs[i])
+		if not offers:
+			return "%s's %s never offers %s" % [label, settler.name, jobs[i]]
+	var houses: Array = map.get_meta(&"village")
+	if not houses.is_empty() and settlers == jobs.size():
+		_whole_villages += 1
+	if houses.size() >= FloorCamp.MIN_HOUSES:
+		_streets += 1
+
+	var job := LocalQuests.talk_quest(floor_number)
+	if not jobs.has(job):
+		return ""
+	_lost_jobs += 1
+	var lost := map.get_node_or_null("LostPlayer") as Npc
+	if lost == null:
+		return "%s's lost player is nowhere" % label
+	var at := walls.local_to_map(lost.position)
+	var lab: Rect2i = map.get_meta(&"labyrinth")
+	if not lab.has_point(at) or at != map.get_meta(&"lost_player", Vector2i(-1, -1)):
+		return "%s's lost player is not in the labyrinth" % label
+	var talk: StringName = QuestLibrary.get_quest(job).objectives[0].target
+	if lost.dialogue == null or lost.dialogue.id != talk or lost.hidden_until != QuestLog.flag_for(job, "started"):
+		return "%s's lost player is not the one their job asks for" % label
+	for child in map.get_children():
+		if child is Chest and walls.local_to_map((child as Chest).trap_target) == at:
+			return "%s teleports you onto its lost player" % label
+	# In a dead end: one way out of the passage it stands in, and the rest of the
+	# passage still reachable round it.
+	map.refresh_solids()
+	var standing := _flood_standable(map, start)
+	var beside := 0
+	for step: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+		if standing.has(at + step):
+			beside += 1
+	if beside == 0:
+		return "%s's lost player can't be walked up to" % label
+	_lost_players += 1
+	var reachable := _flood(walls, start)
+	_audit_formations(map, walls, start, reachable, label,
+			[plot.grow(2), Rect2i(at, Vector2i.ONE).grow(4)] as Array[Rect2i])
+	return ""
+
+
+## Everything on [param map] outside [param plot], as one string: the walls and
+## where every node but the people stands.
+func _outside(map: Node2D, plot: Rect2i) -> String:
+	var walls := map.get_node("Walls") as TileMapLayer
+	var parts := PackedStringArray()
+	for cell in walls.get_used_cells():
+		if not plot.has_point(cell):
+			parts.append("%s=%s" % [cell, walls.get_cell_atlas_coords(cell)])
+	for child in map.get_children():
+		var node := child as Node2D
+		# People are the village's to change: the campers leave, settlers arrive.
+		if node == null or node is TileMapLayer or node is Npc:
+			continue
+		var script := node.get_script() as Script
+		parts.append("%s@%s" % [script.get_global_name() if script else node.get_class(), node.position])
+	parts.sort()
+	return ",".join(parts)
 
 
 ## What the player's camera shows, in world pixels.

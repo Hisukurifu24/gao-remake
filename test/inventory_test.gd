@@ -107,6 +107,17 @@ func _test_content() -> void:
 			chest_orphans.append(String(id))
 	_check(chest_orphans.is_empty(), "every generated-chest item exists (%s)" % chest_orphans)
 
+	# A settled floor's jobs pay from tables of their own (LocalQuests), and its
+	# gathering asks for whatever the floor's monsters drop -- the loot above.
+	var job_orphans := PackedStringArray()
+	var pay: Array[StringName] = LocalQuests.LOST_GEAR.duplicate()
+	for entry: Array in LocalQuests.HUNT_ITEMS + LocalQuests.GATHER_ITEMS:
+		pay.append(entry[0])
+	for id in pay:
+		if not ItemLibrary.exists(id):
+			job_orphans.append(String(id))
+	_check(job_orphans.is_empty(), "every item a settled floor's job pays exists (%s)" % job_orphans)
+
 	# Authored floors fill their chests from a layout table rather than the pools
 	# above, and a typo there is just as silent -- the chest opens onto nothing.
 	var authored_orphans := PackedStringArray()

@@ -222,6 +222,7 @@ func _run() -> void:
 	await _test_roaming(floor_two, floor_two_player as Player)
 	await _test_teleport(main, world_root)
 	await _test_puzzles(world_root)
+	await _test_village(world_root)
 
 
 ## The hidden door on a real generated floor: not there until you walk into its
@@ -705,6 +706,49 @@ func _test_puzzles(world_root: Node2D) -> void:
 	_check(again != map and not again_crack.is_available()
 			and (again.get_node("Walls") as TileMapLayer).get_cell_source_id(face) == -1,
 			"and it is still broken when you come back")
+
+
+## Floor 2 once Floor 5 falls: its camp has settled into a village, with settlers
+## where the campers were -- and the lost player its job sends you after is in the
+## labyrinth only once you have taken the job, and gone once you have found them.
+## Picks a seed whose floor 2 has a lost player and both settlers.
+func _test_village(world_root: Node2D) -> void:
+	var job := LocalQuests.talk_quest(2)
+	var picked := 0
+	GameState.clear_floor(5)
+	for candidate in range(1, 400):
+		GameState.new_world_seed(candidate)
+		if not LocalQuests.ids_for(2).has(job):
+			continue
+		var probe := FloorRegistry.build_floor(2)
+		var whole := probe.get_node_or_null("LostPlayer") != null and probe.get_node_or_null("Settler1") != null
+		probe.free()
+		if whole:
+			picked = candidate
+			break
+	_check(picked > 0, "some world seed's floor 2 settles with both settlers and a lost player")
+	if picked == 0:
+		return
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	var map := world_root.get_child(0) as GameMap
+	var player := map.get_node("Player") as Player
+	_check(map.get_node_or_null("Settler0") != null and map.get_node_or_null("Camper0") == null,
+			"a settled floor's camp has settlers in it, and its campers have gone up")
+	var lost := map.get_node("LostPlayer") as Npc
+	_check(not lost.visible and not lost.is_available(), "nobody is lost in the labyrinth until you are asked")
+	QuestLog.start(job)
+	await _idle(2)
+	_check(lost.visible and lost.is_available(), "taking the job puts them there")
+	player.global_position = lost.global_position + Vector2(0, 16)
+	lost.interact(player)
+	await _close_dialogue()
+	_check(QuestLog.is_ready(job), "and finding them is the job done")
+	await _idle(2)
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	_check(world_root.get_child(0).get_node_or_null("LostPlayer") == null,
+			"and they have found their own way out by the time you come back")
 
 
 ## Opens a sealed chest and says whether it paid out -- its item into the bag

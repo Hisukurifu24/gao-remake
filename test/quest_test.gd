@@ -70,6 +70,7 @@ func _run() -> void:
 	_test_flags_and_dialogue()
 	_test_ashlow()
 	_test_lanternfall()
+	_test_settled_floors()
 	_test_journal_ordering()
 
 
@@ -649,6 +650,156 @@ func _test_lanternfall() -> void:
 	QuestLog.turn_in(BREACH)
 	_check(QuestLog.is_completed(BREACH), "Lanternfall's second job closes out")
 	_check(Inventory.count(&"foremans_lantern") == 1, "and the lantern is in the bag")
+
+
+# --- settled floors' jobs ---------------------------------------------------
+
+## A settled floor's jobs are built, not shipped, so the sweep above never sees
+## them: this is the same sweep over everything [LocalQuests] can emit, on every
+## floor that settles and on two saves -- and then one job of each kind, taken,
+## done and handed in through the settler's real conversation.
+func _test_settled_floors() -> void:
+	print("\n-- settled floors' jobs --")
+	_reset()
+
+	var problems := PackedStringArray()
+	var kinds: Dictionary[String, int] = {}
+	var jobs := 0
+	for world: int in [12345, 999]:
+		GameState.new_world_seed(world)
+		for n in range(1, FloorTuning.TOP_FLOOR + 1):
+			var ids := LocalQuests.ids_for(n)
+			if not LocalQuests.settles(n):
+				if not ids.is_empty():
+					problems.append("floor %d never settles but has jobs" % n)
+				continue
+			if ids.size() != LocalQuests.PER_FLOOR:
+				problems.append("floor %d has %d jobs" % [n, ids.size()])
+			for id in ids:
+				jobs += 1
+				var problem := _local_problem(id, n)
+				if not problem.is_empty():
+					problems.append(problem)
+				kinds[String(id).get_slice("_", 2)] = kinds.get(String(id).get_slice("_", 2), 0) + 1
+	GameState.new_world_seed(12345)
+	_check(problems.is_empty(), "every settled floor's job names something real, says something whole and is offered on its own prerequisite (%d jobs; %s)" % [
+			jobs, "; ".join(problems.slice(0, 5))])
+	_check(kinds.size() == LocalQuests.KINDS.size(),
+			"every kind of job turns up somewhere (%s)" % kinds)
+	_check(not QuestLibrary.exists(&"local_10_hunt") and not QuestLibrary.exists(&"local_99_hunt")
+			and not QuestLibrary.exists(&"local_7_bake") and not QuestLibrary.exists(&"local_x_hunt"),
+			"an authored floor, a floor too high to settle, an unknown job and a garbled id are not jobs")
+	_check(LocalQuests.is_conversation(LocalQuests.lost_talk_id(_floor_with("lost")))
+			and not LocalQuests.is_conversation(&"local_7_lost_found_again")
+			and not LocalQuests.is_conversation(&"argo"),
+			"only a real lost player's conversation is one")
+
+	# One of each, the way the player does it.
+	for kind: String in ["hunt", "gather", "lost"]:
+		_reset()
+		var n := _floor_with(kind)
+		var id := LocalQuests.quest_id(n, kind)
+		var giver := LocalQuests.giver_dialogue(id)
+		_check(QuestLog.state_of(id) == QuestLog.State.LOCKED and not _offers(giver, "I'll do it."),
+				"floor %d's %s job is locked, and not offered, until it settles" % [n, kind])
+		GameState.clear_floor(n + LocalQuests.SETTLE_AFTER)
+		_check(_offers(giver, "I'll do it.") == QuestLog.can_start(id) and QuestLog.can_start(id),
+				"and offered exactly when it can be taken, once floor %d is cleared" % [n + LocalQuests.SETTLE_AFTER])
+		_pick(giver, "I'll do it.")
+		_check(QuestLog.is_active(id), "taking floor %d's %s job puts it in the journal" % [n, kind])
+		var quest := QuestLibrary.get_quest(id)
+		var objective := quest.objectives[0]
+		match kind:
+			"hunt":
+				for i in objective.required:
+					EventBus.enemy_defeated.emit(objective.target)
+			"gather":
+				Inventory.add_id(objective.target, objective.required)
+			"lost":
+				_offers(LocalQuests.lost_dialogue(n), "")
+		_check(QuestLog.is_ready(id), "doing it makes it ready (%s)" % objective.label())
+		var level_before := GameState.level
+		var xp_before := GameState.xp
+		_pick(giver, "Here.")
+		var item: DialogueEffect = quest.rewards[1]
+		_check(QuestLog.is_completed(id) and Inventory.count(item.id) >= item.amount
+				and (GameState.level > level_before or GameState.xp > xp_before),
+				"and %s takes it back and pays %s" % [quest.giver, quest.reward_summary()])
+		if kind == "gather":
+			_check(Inventory.count(objective.target) == 0, "spending what was gathered")
+
+
+## What is wrong with job [param id] on floor [param n], or "".
+func _local_problem(id: StringName, n: int) -> String:
+	if not QuestLibrary.exists(id):
+		return "%s does not exist" % id
+	var quest := QuestLibrary.get_quest(id)
+	if quest == null or quest.id != id or quest.title.is_empty() or quest.summary.is_empty() \
+			or quest.giver.is_empty() or quest.reward_summary().is_empty():
+		return "%s is missing its title, summary, giver or pay" % id
+	for text in [quest.title, quest.summary]:
+		if "{" in text:
+			return "%s says \"%s\"" % [id, text]
+	for objective in quest.listed_objectives():
+		if not objective.target_is_valid() or objective.label().strip_edges().is_empty():
+			return "%s/%s names %s" % [id, objective.id, objective.target]
+	for reward in quest.rewards:
+		if reward.kind == DialogueEffect.Kind.GIVE_ITEM and not ItemLibrary.exists(reward.id):
+			return "%s pays %s" % [id, reward.id]
+	var talks: Array[Dialogue] = [LocalQuests.giver_dialogue(id)]
+	if String(id).ends_with("_lost"):
+		talks.append(LocalQuests.lost_dialogue(n))
+	for talk in talks:
+		if talk == null or talk.entry_index() < 0 or talk.default_portrait == null:
+			return "%s has nobody to say it" % id
+		for line in talk.lines:
+			if line.text.is_empty() or "{" in line.text:
+				return "%s's %s says \"%s\"" % [id, talk.id, line.text]
+	# The offer and the prerequisite gated on the same thing, as Quest asks.
+	for line in talks[0].lines:
+		for choice in line.choices:
+			for effect in choice.effects:
+				if effect.kind != DialogueEffect.Kind.START_QUEST:
+					continue
+				var floors: Array[int] = []
+				for condition in choice.conditions:
+					if condition.test == DialogueCondition.Test.FLOOR_CLEARED:
+						floors.append(condition.number)
+				var wanted: Array[int] = []
+				for condition in quest.prerequisites:
+					wanted.append(condition.number)
+				if floors != wanted:
+					return "%s is offered on %s but needs %s" % [id, floors, wanted]
+	return ""
+
+
+## The lowest floor whose village offers a [param kind] job, on this save.
+func _floor_with(kind: String) -> int:
+	for n in range(2, FloorTuning.TOP_FLOOR + 1):
+		if LocalQuests.quest_id(n, kind) in LocalQuests.ids_for(n):
+			return n
+	return -1
+
+
+## Talks [param dialogue] through to its menu, picks [param text], and talks it
+## out to the end.
+func _pick(dialogue: Dialogue, text: String) -> void:
+	DialogueRunner.start(dialogue)
+	for i in 12:
+		if DialogueRunner.is_choosing():
+			break
+		DialogueRunner.advance()
+	var choices := DialogueRunner.offered_choices()
+	for i in choices.size():
+		if choices[i].text == text:
+			DialogueRunner.choose(i)
+			break
+	for i in 12:
+		if not DialogueRunner.is_running():
+			break
+		DialogueRunner.advance()
+	if DialogueRunner.is_running():
+		DialogueRunner.cancel()
 
 
 # --- the journal's view ---------------------------------------------------
