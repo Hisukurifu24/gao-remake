@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/dropped_col.gd" id="1_col"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Items/Object/MoneyBag.png" id="2_bag"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_area"]
+radius = 9.0
+
+[node name="DroppedCol" type="Area2D"]
+collision_layer = 8
+collision_mask = 0
+monitoring = false
+script = ExtResource("1_col")
+prompt_verb = "Pick up"
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_bag")
+offset = Vector2(0, -6)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -4)
+shape = SubResource("CircleShape2D_area")

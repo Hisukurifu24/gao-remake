@@ -82,6 +82,27 @@ func _test_conditions() -> void:
 	var empty: Array[DialogueCondition] = []
 	_check(DialogueCondition.all_met(empty), "no conditions means always available")
 
+	# Col: a line can cost money, and say so before you pick it.
+	GameState.reset_col()
+	var purse := _condition(DialogueCondition.Test.MIN_COL, &"")
+	purse.number = 50
+	_check(not purse.is_met(), "MIN_COL fails with too little in the purse")
+	var give := DialogueEffect.new()
+	give.kind = DialogueEffect.Kind.GIVE_COL
+	give.amount = 50
+	give.apply()
+	_check(purse.is_met() and GameState.col() == 50, "GIVE_COL pays, and MIN_COL passes at the price")
+	_check(give.summary() == "50 col", "and reads as a reward (%s)" % give.summary())
+	var take := DialogueEffect.new()
+	take.kind = DialogueEffect.Kind.TAKE_COL
+	take.amount = 80
+	take.apply()
+	_check(GameState.col() == 50, "TAKE_COL refuses a charge the purse can't cover, whole")
+	take.amount = 30
+	take.apply()
+	_check(GameState.col() == 20 and not purse.is_met(), "and takes one it can")
+	GameState.reset_col()
+
 
 # --- plain text ------------------------------------------------------------
 

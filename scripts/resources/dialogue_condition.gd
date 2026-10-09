@@ -12,6 +12,7 @@ enum Test {
 	FLAG_SET,       ## GameState.has_flag(flag)
 	FLOOR_CLEARED,  ## GameState.is_floor_cleared(number)
 	MIN_LEVEL,      ## GameState.level >= number
+	MIN_COL,        ## GameState.col() >= number -- "(Requires 500 col)"
 }
 
 @export var test: Test = Test.FLAG_SET
@@ -19,7 +20,7 @@ enum Test {
 @export var negate := false
 
 @export var flag: StringName = &""
-## Floor number for FLOOR_CLEARED, level for MIN_LEVEL.
+## Floor number for FLOOR_CLEARED, level for MIN_LEVEL, Col for MIN_COL.
 @export var number := 0
 
 
@@ -32,6 +33,8 @@ func is_met() -> bool:
 			result = GameState.is_floor_cleared(number)
 		Test.MIN_LEVEL:
 			result = GameState.level >= number
+		Test.MIN_COL:
+			result = GameState.can_afford(number)
 	return result != negate
 
 

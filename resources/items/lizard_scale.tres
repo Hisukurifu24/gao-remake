@@ -11,3 +11,4 @@ description = "Overlapping plate off a Lizardman Soldier. Tough enough to work i
 icon = ExtResource("icon")
 kind = 4
 rarity = 1
+price = 30

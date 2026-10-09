@@ -11,3 +11,4 @@ description = "What is left of a Ruin Wraith once it stops arguing. Weighs nothi
 icon = ExtResource("icon")
 kind = 4
 rarity = 1
+price = 40

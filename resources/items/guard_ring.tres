@@ -13,3 +13,5 @@ kind = 3
 rarity = 0
 defense_bonus = 2
 max_hp_bonus = 10
+price = 250
+shop_floor = 3

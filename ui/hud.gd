@@ -30,6 +30,7 @@ func _ready() -> void:
 	EventBus.interact_target_changed.connect(_on_interact_target_changed)
 	EventBus.dialogue_started.connect(_on_dialogue_started)
 	EventBus.dialogue_finished.connect(_on_dialogue_finished)
+	EventBus.input_lock_changed.connect(func(_locked: bool) -> void: _refresh())
 	EventBus.hp_changed.connect(_on_hp_changed)
 	EventBus.leveled_up.connect(_on_leveled_up)
 	CombatManager.combat_began.connect(_on_combat_began)

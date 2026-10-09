@@ -11,3 +11,4 @@ description = "Thin membrane from a cave bat, torn more often than cut."
 icon = ExtResource("icon")
 kind = 4
 rarity = 0
+price = 10

@@ -8,6 +8,9 @@ extends Interactable
 
 ## Wins over [member lines] when set.
 @export var dialogue: Dialogue
+## A shopkeeper: talking to them opens the counter instead of a conversation.
+## Wins over both of the above -- what they say is the shop's greeting.
+@export var shop: Shop
 
 ## Their walk sheet, in the Ninja Adventure layout (4 columns by 7 rows). Empty
 ## keeps the scene's default villager.
@@ -49,7 +52,9 @@ func is_hidden() -> bool:
 
 func interact(by: Node) -> void:
 	super.interact(by)
-	if dialogue != null:
+	if shop != null:
+		EventBus.shop_requested.emit(shop)
+	elif dialogue != null:
 		await DialogueRunner.start(dialogue)
 	elif not lines.is_empty():
 		await DialogueRunner.say(speaker, lines)

@@ -148,6 +148,12 @@ func _test_content() -> void:
 			unpaid.append(String(quest.id))
 	_check(unpaid.is_empty(), "every quest pays something the journal can show (%s)" % unpaid)
 
+	var no_col := PackedStringArray()
+	for quest in QuestLibrary.all():
+		if _col_paid(quest) <= 0:
+			no_col.append(String(quest.id))
+	_check(no_col.is_empty(), "every quest pays Col (%s)" % no_col)
+
 	_check(QuestLibrary.get_quest(&"no_such_quest") == null, "an unknown id yields null")
 	_check(not QuestLibrary.exists(&"no_such_quest"), "exists() agrees about an unknown id")
 
@@ -720,13 +726,29 @@ func _test_settled_floors() -> void:
 		_check(QuestLog.is_ready(id), "doing it makes it ready (%s)" % objective.label())
 		var level_before := GameState.level
 		var xp_before := GameState.xp
+		var col_before := GameState.col()
 		_pick(giver, "Here.")
-		var item: DialogueEffect = quest.rewards[1]
-		_check(QuestLog.is_completed(id) and Inventory.count(item.id) >= item.amount
+		var item: DialogueEffect = null
+		var col := 0
+		for reward in quest.rewards:
+			if reward.kind == DialogueEffect.Kind.GIVE_ITEM:
+				item = reward
+			elif reward.kind == DialogueEffect.Kind.GIVE_COL:
+				col += reward.amount
+		_check(QuestLog.is_completed(id) and item != null and Inventory.count(item.id) >= item.amount
+				and col > 0 and GameState.col() == col_before + col
 				and (GameState.level > level_before or GameState.xp > xp_before),
 				"and %s takes it back and pays %s" % [quest.giver, quest.reward_summary()])
 		if kind == "gather":
 			_check(Inventory.count(objective.target) == 0, "spending what was gathered")
+
+
+func _col_paid(quest: Quest) -> int:
+	var total := 0
+	for reward in quest.rewards:
+		if reward != null and reward.kind == DialogueEffect.Kind.GIVE_COL:
+			total += reward.amount
+	return total
 
 
 ## What is wrong with job [param id] on floor [param n], or "".
@@ -746,6 +768,8 @@ func _local_problem(id: StringName, n: int) -> String:
 	for reward in quest.rewards:
 		if reward.kind == DialogueEffect.Kind.GIVE_ITEM and not ItemLibrary.exists(reward.id):
 			return "%s pays %s" % [id, reward.id]
+	if _col_paid(quest) <= 0:
+		return "%s pays no Col" % id
 	var talks: Array[Dialogue] = [LocalQuests.giver_dialogue(id)]
 	if String(id).ends_with("_lost"):
 		talks.append(LocalQuests.lost_dialogue(n))
@@ -853,6 +877,7 @@ func _test_journal_ordering() -> void:
 func _reset() -> void:
 	QuestLog.clear()
 	Inventory.clear()
+	GameState.reset_col()
 	GameState.level = 1
 	GameState.xp = 0
 	GameState._cleared_floors.clear()

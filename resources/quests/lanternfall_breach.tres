@@ -37,6 +37,11 @@ kind = 3
 id = &"foremans_lantern"
 amount = 1
 
+[sub_resource type="Resource" id="reward_col"]
+script = ExtResource("effect")
+kind = 6
+amount = 350
+
 [resource]
 script = ExtResource("quest")
 id = &"lanternfall_breach"
@@ -45,4 +50,4 @@ giver = "Maren"
 summary = "Lanternfall dug straight down for two years looking for iron and broke into a labyrinth door instead. The kobolds came up through the hole, and the thing behind the door sent the Army home. Maren sends nobody down there under level thirty -- the Army went at twenty-six."
 objectives = Array[ExtResource("objective")]([SubResource("obj_kobolds"), SubResource("obj_giant")])
 prerequisites = Array[ExtResource("condition")]([SubResource("cond_level_30")])
-rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_lantern")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_col"), SubResource("reward_lantern")])

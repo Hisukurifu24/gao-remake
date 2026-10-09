@@ -1286,7 +1286,7 @@ a place, not tactics); a party (formation has room for it — spots are a list �
 party is one); pulling nearby monsters into a fight they could see (tempting, and it
 would make the labyrinth's monsters much more dangerous; weigh after it plays).
 
-### M5.6 — Economy: Col *(decided 2026-10-04)*
+### M5.6 — Economy: Col *(decided 2026-10-04; first slice built 2026-10-07)*
 The climb has nothing to earn and nothing to lose. M3 left out currency and shops on
 purpose; materials have one buyer (Nezha's whetstones), Argo "sells" a map for a flag,
 and losing costs a walk: a monster knocks you to 35% HP where you stand
@@ -1309,7 +1309,7 @@ in sealed puzzle chests.
   is already public for exactly this. Pricing it is the design question: it should save
   the walk on a floor you're tired of, not skip the labyrinth on every floor.
 - [ ] **Shops, and a merchant at the campfire.** Shops in the authored hubs (Floor 1's
-  town, Ashlow, the Lanternfall camp); a travelling merchant in the labyrinth's safe zone
+  town, Ashlow, the Lanternfall camp) — **built 2026-10-07**; a travelling merchant in the labyrinth's safe zone
   on *some* generated floors, which gives the camp a second reason to exist without
   waiting for M6's town hubs.
 
@@ -1320,7 +1320,7 @@ potion heals a percentage, so a Small Potion stays useful and gets cheap as inco
 floor, so it reads `FloorTuning` / cleared floors, never a shop's own table of levels.
 
 *Losing* (taken):
-- [ ] **Your Col drops where you fall.** Lose a fight and the Col you carry is left on
+- [x] **Your Col drops where you fall.** *(Built 2026-10-07.)* Lose a fight and the Col you carry is left on
   that spot, marked on the **M** map; walk back to it to pick it up. Lose again first and
   it is gone. Items and gear are never dropped. A boss defeat drops it at the door, which
   is the walk back the floor already makes you take.
@@ -1345,6 +1345,69 @@ Col (flatter than dropping it); banking Col in towns.
   unlocks — and the item-id sweep covers every shop's stock.
 - **The dropped Col is state the M7 save must keep** (where, how much, which map), beside
   `world_seed` and the fog.
+
+**First slice — built 2026-10-07.** Asked what to build next, the user chose this slice
+over the "Floor variety" levers: the purse and every source, shops in the three hubs,
+and the dropped purse. Built:
+- [x] **The purse is in `GameState`** (`col()`, `can_afford()`, `spend_col()`), beside
+  XP, rather than in `Inventory`: `MIN_COL` then asks `GameState` like every other
+  dialogue condition, so there is still one condition language. `EventBus.col_granted`
+  (the world paying) and `col_charged` (a dialogue line costing money) are requests
+  whose only listener is the purse; `col_changed` is its reply, and nothing else emits
+  it. Spending is all-or-nothing.
+- [x] **Monsters carry Col** — `EnemyType.col_reward` / `col_growth`, defaulting to
+  `FloorTuning.KILL_COL` (6) + `KILL_COL_GROWTH` (2) a level, linear as XP is; bosses
+  carry `Bestiary.BOSS_COL` (×5). `CombatResult.col` is granted with the XP, and
+  "Victory! 52 XP, 30 col." says so. Deterministic: no fight's rng moved.
+- [x] **Chests hold Col beside their item**: `FloorTuning.chest_col(n, tier)`, 3 / 6 /
+  15 kills' worth for plain / gilded / sealed, read off the floor when the lid opens
+  (`Chest.col` = -1), so no floor's rng was asked for it and no scene was rebuilt.
+- [x] **Quests pay Col**: `DialogueEffect.GIVE_COL` / `TAKE_COL` and
+  `DialogueCondition.MIN_COL`. All seven shipped quests pay about half their XP in Col;
+  a settled floor's jobs pay the same monsters' worth in Col as in XP, without a draw
+  from the settle stream.
+- [x] **Prices are the item's**: `Item.price` (fixed) and `Item.shop_floor` (the floor
+  that must be reached before any shelf carries it; 0 = found, never sold). Selling
+  fetches half (`sell_price()`); key items never sell. Every item is priced — a boss's
+  blade can be sold off, not bought.
+- [x] **`Shop`** (`scripts/resources/shop.gd`, `resources/shops/`, `ShopLibrary`) only
+  lists the wares it carries; `stock()` is those whose floor
+  `GameState.highest_floor_reached()` has reached. `buy()` checks the shelf, the purse
+  and the bag before anything moves; `refusal()` is that check in words, and the screen
+  greys rows on it. Every counter buys anything sellable.
+- [x] **Three shopkeepers**: Tomas the outfitter on the town plaza (the full range),
+  Hesk the trader in Ashlow, Odile the quartermaster at Lanternfall's third tent — an
+  `Npc` with a `shop` opens the counter (`EventBus.shop_requested`) instead of talking.
+  `ui/shop_screen.tscn`: one cursor, ←/→ buy or sell, the purse in the header, a
+  refused row locked and the reason on the detail line. The bag's header shows the
+  purse, and a material's details what it sells for.
+- [x] **The dropped purse**: a real defeat (not a flight, not a stalemate) calls
+  `GameMap.player_fell()`; `GameState.drop_col()` keeps one pile (map, position,
+  amount) and loses the last one, even on an empty purse. `GameMap` puts a
+  `DroppedCol` pouch (the pack's money bag, not solid) wherever the pile is, on arrival
+  and as it falls; **E** picks it up. **M** marks it with a purse glyph and the header
+  says "N col dropped" — not in the legend, which is full and the pile is rare.
+- [x] **`EventBus.input_lock_changed`**, emitted as the lock goes on and comes off, so
+  the HUD's prompt steps aside under any screen that holds it (the shop showed it was
+  drawing through the backdrop; the gate menu had the same bug).
+- [x] **Tests**: the purse, shops (shelf by floor, refusals, a full bag keeping the Col,
+  key and worn items unsellable), the dropped pile and its pouch, chest Col, every
+  shop's wares in the item-id sweep, and **the balance check** — on kills alone
+  (`monster_count(n)` at the pool's average, plus the boss), every ware is affordable
+  once the floor it unlocks on is cleared; measured 96 col through floor 1, 2.4k
+  through 10, 12.8k through 25, 53k through 50, 251k through 100. Dialogue covers the
+  effects and condition, quests that every quest pays Col, combat a won fight's Col,
+  and the smoke test buys and sells at Tomas's real counter and loses a real fight on
+  floor 2 for its purse and walks back to it. `tools/screenshot.gd -- --shops`.
+- *A call of mine, flag if wrong:* **against a monster the pouch lands at your feet**,
+  so a single loss costs nothing you can't pick straight back up — the purse is only
+  really at risk if you lose again first, or to a boss, whose door is a floor's walk
+  from the entrance. The decision said "where you fall", and a monster knocks you down
+  where you stand. Moving you, or having the monster guard the pouch, would give it
+  teeth.
+- *Not built:* smith enhancement, Argo's information, the campfire merchant,
+  floor-exclusive stock in villages, Death Game mode (needs M7). With ten stocked items
+  the shelf climbs only to floor 25; it grows as items are added.
 
 ### M6 — World depth & floor content
 The 100-floor architecture is in (see *Floors of Aincrad* below); this is the pass that
@@ -1606,7 +1669,8 @@ Built:
   the smoke test settles a real floor 2 and finds its lost player.
   `tools/screenshot.gd -- --villages` frames one per band.
 - *Not built:* the higher tiers (generated floors top out at village, decided), and
-  floor-exclusive stock, which waits on M5.6's shops.
+  floor-exclusive stock — M5.6's shops are in (2026-10-07), so a settler's counter is
+  a `Shop` and an `Npc.shop` away.
 
 #### Floor 10 — Ashlow Wood ✅
 
@@ -1919,6 +1983,14 @@ one knows the boss by name and what level you'll want, one warns you about what 
 the field — and they have something new to say once you've found the door, and again
 once the floor is cleared.
 
+And the climb pays now. Monsters carry **Col**, chests hold it beside their loot — the
+blue sealed ones most — and every quest pays some. Tomas the outfitter keeps a stall on
+the town plaza, Hesk a store in Ashlow and Odile the quartermaster's crates at
+Lanternfall: potions and steel on the shelf, more of it the higher you have climbed,
+and they buy back whatever you drag home. Lose a fight and your purse stays where you
+fell — a pouch on the floor, marked on the map — and lose again before you go back for
+it and it is gone.
+
 And the floors you leave behind fill in. Three floors further up, go back through the
 gate and the camp has become a village: the adventurers have moved on with the front
 line, houses in the band's own style stand round the tents they left — igloos on the
@@ -1929,12 +2001,12 @@ labyrinth after the mapmaker who never came out.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 148-check game loop test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 160-check game loop test
 "$GODOT" --headless --path . res://test/floor_test.tscn     # 140-check floor system test
-"$GODOT" --headless --path . res://test/dialogue_test.tscn  # 56-check dialogue test
-"$GODOT" --headless --path . res://test/inventory_test.tscn # 127-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 87-check combat test
-"$GODOT" --headless --path . res://test/quest_test.tscn     # 193-check quest test
+"$GODOT" --headless --path . res://test/dialogue_test.tscn  # 61-check dialogue test
+"$GODOT" --headless --path . res://test/inventory_test.tscn # 163-check inventory test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 88-check combat test
+"$GODOT" --headless --path . res://test/quest_test.tscn     # 194-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -1984,18 +2056,19 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    (2026-10-06), and **so is settling** (2026-10-06): three floors behind the front
    line a camp becomes a village with houses, settlers and local quests. Next on that
    track: the other "Floor variety" levers (floor shapes, modifiers, events, room shapes,
-   landmarks), or M5.6's shops, which the villages' floor-exclusive stock waits on.
-3. **M5.6 — Col.** Decided 2026-10-04: Col from monsters, materials, chests and quests;
-   spent on smith enhancement, Argo's boss-door information and shops (with a merchant
-   at some campfires); fixed prices, stock unlocked by floor; your Col drops where you
-   fall. The sealed puzzle chest's reward waits on it, so it may want to land before or
-   alongside the puzzles.
+   landmarks), or the villages' floor-exclusive stock, now that M5.6's shops exist.
+3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
+   monsters, chests (the most in sealed ones), quests and selling; shops in the town,
+   Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where
+   you fall. Still to build: smith enhancement (the deep sink), Argo's boss-door
+   information, the campfire merchant, and villages' floor-exclusive stock.
 4. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
    a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest
    each and an authored boss — Lanternfall took that from a design job to a content job, and
    the suite checks everything a hand-built floor tends to get wrong. Forty opens the swamp
    band; Ashlow was a loop and Lanternfall a chain, so it wants a third shape.
 5. **M7 save/load is the one thing getting more expensive with every milestone.**
+   M5.6 added the purse (`GameState._col`) and the dropped pile (`_dropped_col`).
    `QuestLog` just added a third autoload's worth of state to serialise
    (`_active`/`_completed`/`_order`/`_tracked`), on top of `GameState` and
    `Inventory` — and `GameState._visited_floors`, which the teleport gates read. `world_seed` **must** be in the save or every generated floor

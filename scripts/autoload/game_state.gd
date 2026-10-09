@@ -51,10 +51,20 @@ var _explored: Dictionary[StringName, Dictionary] = {}
 var _walked: Dictionary[StringName, Dictionary] = {}
 var _input_locks := 0
 
+## Col, SAO's money. Private, and moved only by the methods under "The purse":
+## spending is all-or-nothing and nothing but this file announces the balance.
+var _col := 0
+## The Col left where the player last fell: [code]map[/code], [code]position[/code]
+## (map-local) and [code]amount[/code], or empty. One at a time -- fall again
+## before picking it up and it is gone. The M7 save has to keep it.
+var _dropped_col: Dictionary = {}
+
 
 func _ready() -> void:
 	if world_seed == 0:
 		new_world_seed()
+	EventBus.col_granted.connect(_on_col_granted)
+	EventBus.col_charged.connect(_on_col_charged)
 
 
 func new_world_seed(value := 0) -> void:
@@ -146,6 +156,89 @@ func is_down() -> bool:
 ## third number to balance by hand.
 func max_poise() -> int:
 	return 30 + level * 3 + total_defense() * 2
+
+
+# --- The purse ---
+## Col comes in on [signal EventBus.col_granted] and nowhere else, the same way
+## items come in on [signal EventBus.item_granted]: a kill, a chest, a quest, a
+## sale. Out goes through [method spend_col], which a shop calls, or a dialogue's
+## TAKE_COL through [signal EventBus.col_charged].
+
+func col() -> int:
+	return _col
+
+
+func can_afford(amount: int) -> bool:
+	return amount <= _col
+
+
+## Takes [param amount] out of the purse. [b]All or nothing[/b], like
+## [method Inventory.remove]: not enough refuses the whole of it and returns
+## false, so a caller that checks the result can never half-pay.
+func spend_col(amount: int) -> bool:
+	if amount < 0 or amount > _col:
+		return false
+	if amount == 0:
+		return true
+	_col -= amount
+	EventBus.col_changed.emit(_col)
+	return true
+
+
+func _on_col_granted(amount: int) -> void:
+	if amount <= 0:
+		return
+	_col += amount
+	EventBus.col_changed.emit(_col)
+
+
+func _on_col_charged(amount: int) -> void:
+	spend_col(amount)
+
+
+## The player fell at [param position] on [param map_id], and everything in the
+## purse falls with them. Whatever was lying from the last fall is gone -- even
+## when the purse is empty this time, since losing again before going back for it
+## is what loses it. Returns how much was dropped.
+func drop_col(map_id: StringName, position: Vector2) -> int:
+	var amount := _col
+	var lost := _dropped_col
+	_dropped_col = {}
+	if not lost.is_empty():
+		EventBus.col_dropped.emit(lost["map"], lost["position"], 0)
+	if amount <= 0:
+		return 0
+	_col = 0
+	_dropped_col = {"map": map_id, "position": position, "amount": amount}
+	EventBus.col_changed.emit(_col)
+	EventBus.col_dropped.emit(map_id, position, amount)
+	return amount
+
+
+## What is lying where the player last fell, or an empty dictionary.
+func dropped_col() -> Dictionary:
+	return _dropped_col
+
+
+## Picks up what was dropped. Returns how much came back.
+func recover_col() -> int:
+	if _dropped_col.is_empty():
+		return 0
+	var pile := _dropped_col
+	_dropped_col = {}
+	EventBus.col_dropped.emit(pile["map"], pile["position"], 0)
+	EventBus.col_granted.emit(pile["amount"])
+	return pile["amount"]
+
+
+## Empties the purse and forgets any dropped pile. For tests and a new game.
+func reset_col() -> void:
+	var pile := _dropped_col
+	_col = 0
+	_dropped_col = {}
+	if not pile.is_empty():
+		EventBus.col_dropped.emit(pile["map"], pile["position"], 0)
+	EventBus.col_changed.emit(_col)
 
 
 # --- Floor progression ---
@@ -261,10 +354,16 @@ func _mark(store: Dictionary[StringName, Dictionary], map_id: StringName,
 
 func push_input_lock() -> void:
 	_input_locks += 1
+	if _input_locks == 1:
+		EventBus.input_lock_changed.emit(true)
 
 
 func pop_input_lock() -> void:
-	_input_locks = maxi(0, _input_locks - 1)
+	if _input_locks <= 0:
+		return
+	_input_locks -= 1
+	if _input_locks == 0:
+		EventBus.input_lock_changed.emit(false)
 
 
 func is_input_locked() -> bool:

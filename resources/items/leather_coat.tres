@@ -12,3 +12,5 @@ icon = ExtResource("icon")
 kind = 2
 rarity = 0
 defense_bonus = 3
+price = 70
+shop_floor = 1

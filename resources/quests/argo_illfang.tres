@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Quest" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="Quest" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
 [ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
@@ -27,6 +27,11 @@ script = ExtResource("effect")
 kind = 3
 id = &"guard_ring"
 
+[sub_resource type="Resource" id="reward_col"]
+script = ExtResource("effect")
+kind = 6
+amount = 60
+
 [resource]
 script = ExtResource("quest")
 id = &"argo_illfang"
@@ -35,4 +40,4 @@ giver = "Argo"
 summary = "Argo has been selling information about Illfang all week. She would rather be selling news of his death, and she will pay for the privilege of breaking it first."
 objectives = Array[ExtResource("objective")]([SubResource("obj_illfang")])
 prerequisites = Array[ExtResource("condition")]([SubResource("cond_errand_done")])
-rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_ring")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_col"), SubResource("reward_ring")])

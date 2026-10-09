@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Shop" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/shop.gd" id="shop"]
+
+[resource]
+script = ExtResource("shop")
+id = &"lanternfall_quartermaster"
+display_name = "Quartermaster's Crates"
+keeper = "Odile"
+greeting = "Camp rations at camp prices. I buy anything you bring back up the lift."
+wares = Array[StringName]([&"small_potion", &"health_potion", &"antidote", &"whetstone", &"kobold_blade", &"guard_ring", &"blackwyrm_coat"])

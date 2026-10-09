@@ -7,6 +7,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --gates     # the teleport gates only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --camps     # the adventurers' camps only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --villages  # the camps settled into villages
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
 ##
 ## Dev aid for checking how a change actually looks without sitting through the
 ## game. Needs a real window, so it can't run with --headless.
@@ -74,6 +75,11 @@ func _ready() -> void:
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
+	if "--shops" in OS.get_cmdline_user_args():
+		await _capture_shops(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
 	if "--world" in OS.get_cmdline_user_args():
 		await _capture_world(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
@@ -111,6 +117,7 @@ func _ready() -> void:
 
 	await _capture_world(main)
 	await _capture_gates(main)
+	await _capture_shops(main)
 
 	# One floor per biome band worth showing off, and the authored ones past the
 	# first -- 24 and 25 side by side are the same band generated and built.
@@ -1011,6 +1018,54 @@ func _capture_gates(main: Node) -> void:
 		await _press(&"move_up")
 	await _capture("04y2_gate_menu_scrolled")
 	menu.call(&"close")
+	await _frames(2)
+
+
+## Each hub's counter -- standing at it, buying, selling -- then the purse: the
+## bag's header, and a fall's dropped pouch on the floor and on the map.
+const SHOP_SPOTS := [[1, "Tomas", "town"], [10, "Hesk", "ashlow"], [25, "Odile", "lanternfall"]]
+
+
+func _capture_shops(main: Node) -> void:
+	for floor_number in range(1, 31):
+		if floor_number > 1:
+			GameState.clear_floor(floor_number - 1)
+		GameState.visit_floor(floor_number)
+	GameState.reset_col()
+	EventBus.col_granted.emit(640)
+	Inventory.add_id(&"boar_hide", 4)
+	Inventory.add_id(&"wolf_fang", 2)
+	Inventory.add_id(&"anneal_blade", 1)
+	var screen := main.get_node("ShopScreen")
+	for spot: Array in SHOP_SPOTS:
+		SceneRouter.enter_floor(spot[0], &"gate")
+		var map := await _arrived(spot[0])
+		var player := map.get_node("Player") as Player
+		var keeper := map.get_node(String(spot[1])) as Npc
+		_stand_by(map, player, keeper)
+		await _wait(0.3)
+		await _capture("04s_%s_counter" % spot[2])
+		keeper.interact(player)
+		await _wait(0.2)
+		await _press(&"move_down")
+		await _capture("04s_%s_buy" % spot[2])
+		await _press(&"move_right")
+		await _capture("04s_%s_sell" % spot[2])
+		screen.call(&"close")
+		await _frames(2)
+
+	var town := main.get_node("WorldRoot").get_child(0) as GameMap
+	var player := town.get_node("Player") as Player
+	GameState.drop_col(town.map_id, town.to_local(player.global_position) + Vector2(0, 24))
+	await _wait(0.3)
+	await _capture("04s_dropped_col")
+	await _capture_map(main, "04s_dropped_col_map")
+	GameState.recover_col()
+	var bag := main.get_node("InventoryScreen")
+	bag.call(&"open")
+	await _wait(0.2)
+	await _capture("04s_bag_purse")
+	bag.call(&"close")
 	await _frames(2)
 
 

@@ -31,6 +31,7 @@ const BOSS_STEP := 3
 ## How far a boss fight may walk the player back from the door, in steps. Further
 ## than a monster fight's slide: a boss needs more room, and the room is there.
 const BOSS_WALK := 6
+const DROPPED_COL_SCENE := preload("res://scenes/world/dropped_col.tscn")
 
 @export var map_id: StringName = &""
 @export var display_name := ""
@@ -88,6 +89,31 @@ func _ready() -> void:
 		add_child(_darkness)
 	set_physics_process(tracks)
 	set_process(_darkness != null)
+	var pile := GameState.dropped_col()
+	if not pile.is_empty():
+		_on_col_dropped(pile["map"], pile["position"], pile["amount"])
+	EventBus.col_dropped.connect(_on_col_dropped)
+
+
+## The player has lost a fight on this map: the purse falls where they stand.
+## Returns how much fell. Called by whoever decides what a defeat means -- a
+## [Monster], a [BossGate] -- and only for a real defeat, never a flight.
+func player_fell() -> int:
+	if _player == null or map_id == &"":
+		return 0
+	return GameState.drop_col(map_id, to_local(_player.global_position))
+
+
+## Puts the pouch down when the pile is on this map. A pile picked up or lost
+## reports an amount of 0, and the old pouch takes itself away.
+func _on_col_dropped(on_map: StringName, at: Vector2, amount: int) -> void:
+	if on_map != map_id or amount <= 0:
+		return
+	var pouch := DROPPED_COL_SCENE.instantiate() as DroppedCol
+	pouch.name = "DroppedCol"
+	pouch.amount = amount
+	pouch.position = at
+	add_child.call_deferred(pouch)
 
 
 ## Fog of war: whatever the player can see from the cell they are standing in is

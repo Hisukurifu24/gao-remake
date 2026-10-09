@@ -55,6 +55,13 @@ extends Resource
 ## Item ids handed to Inventory (M3) via [signal EventBus.item_added].
 @export var loot: Array[StringName] = []
 @export_range(0.0, 1.0) var loot_chance := 0.3
+## Col carried, grown like XP and for the same reason: linear in level, because
+## an income that outgrows linear payouts stalls the climb the way an exponential
+## XP curve did. The defaults are [FloorTuning]'s going rate for a kill, which is
+## what chests and quests are priced against; override for a monster that should
+## carry more or less than its floor.
+@export var col_reward := FloorTuning.KILL_COL
+@export var col_growth := FloorTuning.KILL_COL_GROWTH
 
 
 func label() -> String:
@@ -89,3 +96,7 @@ func poise_at(level: int) -> int:
 
 func xp_at(level: int) -> int:
 	return stat_at(xp_reward, xp_growth, level)
+
+
+func col_at(level: int) -> int:
+	return stat_at(col_reward, col_growth, level)

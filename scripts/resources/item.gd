@@ -78,6 +78,18 @@ const RARITY_NAMES: PackedStringArray = [
 @export var usable_in_battle := true
 @export var usable_in_field := true
 
+@export_group("Trade")
+## What a shop charges, in Col. [b]Fixed[/b]: the same on every floor. A potion
+## heals a percentage, so it stays worth carrying and simply gets cheap as income
+## grows -- the climb shows on the shelf, not on the price tag. 0 is worthless:
+## no shop sells it and none will buy it. Selling fetches half (see
+## [method sell_price]).
+@export var price := 0
+## The floor the player must have reached before a shop shelves this -- stock
+## climbs with progression, read from [method GameState.highest_floor_reached].
+## 0 is never sold, only found: a boss's blade can be sold off but not bought.
+@export var shop_floor := 0
+
 
 func label() -> String:
 	return display_name if not display_name.is_empty() else String(id)
@@ -114,6 +126,21 @@ func heal_amount(max_hp: int) -> int:
 	if heal_percent <= 0:
 		return 0
 	return maxi(1, roundi(max_hp * heal_percent / 100.0))
+
+
+## What a shop pays for one. Half the price, the usual shopkeeper's cut.
+func sell_price() -> int:
+	return price / 2
+
+
+## Whether a shop will take it off your hands. Key items are never sold.
+func is_sellable() -> bool:
+	return kind != Kind.KEY and sell_price() > 0
+
+
+## Whether it can be on a shelf once its floor is reached.
+func is_stocked() -> bool:
+	return shop_floor > 0 and price > 0
 
 
 func rarity_color() -> Color:

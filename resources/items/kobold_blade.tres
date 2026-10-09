@@ -13,3 +13,5 @@ kind = 1
 rarity = 1
 attack_bonus = 6
 speed_bonus = -1
+price = 400
+shop_floor = 5

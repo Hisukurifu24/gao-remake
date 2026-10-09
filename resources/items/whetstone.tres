@@ -16,3 +16,5 @@ max_stack = 5
 applies = ExtResource("status")
 usable_in_battle = true
 usable_in_field = false
+price = 60
+shop_floor = 3

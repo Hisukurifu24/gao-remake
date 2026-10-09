@@ -11,3 +11,4 @@ description = "Still sharp. Wolves in the forest bands drop them by the handful.
 icon = ExtResource("icon")
 kind = 4
 rarity = 0
+price = 12

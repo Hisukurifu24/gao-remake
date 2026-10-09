@@ -489,10 +489,13 @@ func _end(result: CombatResult) -> void:
 	if result.victory:
 		for enemy in _enemies:
 			result.xp += enemy.xp_reward
+			result.col += enemy.col_reward
 			if not enemy.loot.is_empty() and _rng.randf() < enemy.loot_chance:
 				result.loot.append(enemy.loot[_rng.randi() % enemy.loot.size()])
 		if result.xp > 0:
 			GameState.grant_xp(result.xp)
+		if result.col > 0:
+			EventBus.col_granted.emit(result.col)
 		for item_id in result.loot:
 			EventBus.item_granted.emit(item_id, 1)
 

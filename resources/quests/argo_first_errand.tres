@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Quest" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="Quest" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
 [ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
@@ -30,6 +30,11 @@ kind = 3
 id = &"small_potion"
 amount = 2
 
+[sub_resource type="Resource" id="reward_col"]
+script = ExtResource("effect")
+kind = 6
+amount = 30
+
 [resource]
 script = ExtResource("quest")
 id = &"argo_first_errand"
@@ -37,4 +42,4 @@ title = "What's Still Moving"
 giver = "Argo"
 summary = "Walk the fields south of the gate and tell Argo what is still moving out there. She wants the smith's gossip while you are at it -- information is the only thing she trades in."
 objectives = Array[ExtResource("objective")]([SubResource("obj_boars"), SubResource("obj_smith")])
-rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_potions")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_col"), SubResource("reward_potions")])

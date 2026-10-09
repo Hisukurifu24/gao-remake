@@ -169,7 +169,7 @@ func _engage(opening: Encounter.Opening) -> void:
 		queue_free()
 		return
 	if not result.fled:
-		_knock_out()
+		_knock_out(result.defeated())
 	# Either way you are standing on it. Give you the room to leave.
 	_stun = GRACE_SECONDS
 	_set_state(State.STUNNED)
@@ -215,13 +215,19 @@ func _level() -> int:
 	return FloorTuning.enemy_level(maxi(1, floor_number))
 
 
-## Losing to a roaming monster costs HP and nothing else -- no reload, no lost
-## progress. The monster is still standing there, which is punishment enough.
-func _knock_out() -> void:
+## Losing to a roaming monster costs HP and your purse -- no reload, no lost
+## progress. The purse spills where you fell ([method GameMap.player_fell]), and
+## the monster that beat you is still standing over it.
+func _knock_out(defeated: bool) -> void:
 	GameState.set_hp(maxi(1, roundi(GameState.total_max_hp() * 0.35)))
-	EventBus.message_requested.emit("", PackedStringArray([
+	var lines := PackedStringArray([
 		"%s knocks you flat. You crawl out of reach." % display_name,
-	]))
+	])
+	var map := get_parent() as GameMap
+	var spilled := map.player_fell() if defeated and map != null else 0
+	if spilled > 0:
+		lines.append("Your purse spills as you go -- %d col lies where you fell." % spilled)
+	EventBus.message_requested.emit("", lines)
 
 
 # --- behaviour -------------------------------------------------------------

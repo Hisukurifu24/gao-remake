@@ -11,3 +11,4 @@ description = "The lump of ore a Stone Golem keeps where a heart would go. Still
 icon = ExtResource("icon")
 kind = 4
 rarity = 2
+price = 60

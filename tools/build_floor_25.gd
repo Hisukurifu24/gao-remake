@@ -142,6 +142,8 @@ const NPCS := [
 		"flag": &"met_dorran", "dialogue": "res://resources/dialogue/dorran.tres"},
 	{"at": Vector2i(22, 9), "name": "Maren", "display": "Maren the foreman", "look": "Villager2",
 		"flag": &"met_maren", "dialogue": "res://resources/dialogue/maren.tres"},
+	{"at": Vector2i(23, 17), "name": "Odile", "display": "Odile the quartermaster",
+		"look": "Villager3", "flag": &"", "shop": "lanternfall_quartermaster"},
 	{"at": Vector2i(12, 15), "name": "Miner", "display": "a miner", "look": "Caveman2", "flag": &"",
 		"lines": [
 			"Two years digging for iron. Found a door instead. Nobody pays for doors.",

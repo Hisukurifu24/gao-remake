@@ -14,3 +14,5 @@ rarity = 2
 defense_bonus = 7
 speed_bonus = -1
 max_hp_bonus = 20
+price = 2400
+shop_floor = 25

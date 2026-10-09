@@ -15,3 +15,5 @@ max_stack = 10
 cures_debuffs = true
 usable_in_battle = true
 usable_in_field = false
+price = 25
+shop_floor = 1

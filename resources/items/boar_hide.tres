@@ -11,3 +11,4 @@ description = "Coarse hide off a Frenzy Boar. A tailor on Floor One will want th
 icon = ExtResource("icon")
 kind = 4
 rarity = 0
+price = 10

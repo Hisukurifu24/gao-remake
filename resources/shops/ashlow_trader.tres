@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Shop" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/shop.gd" id="shop"]
+
+[resource]
+script = ExtResource("shop")
+id = &"ashlow_trader"
+display_name = "Woodcutters' Store"
+keeper = "Hesk"
+greeting = "Tonics, bandages, a charm the loggers swear by. I'll take hides off you too."
+wares = Array[StringName]([&"small_potion", &"antidote", &"health_potion", &"whetstone", &"leather_coat", &"guard_ring", &"swift_charm"])

@@ -221,6 +221,8 @@ func _draw_markers(walls: TileMapLayer, seen: Dictionary) -> void:
 		elif node is Interactable and ("target_floor" in node or "target_map" in node):
 			if (node as Interactable).is_available():
 				_mark(at, MapGlyph.Kind.EXIT, UiPalette.MAP_EXIT)
+		elif node is DroppedCol:
+			_mark(at, MapGlyph.Kind.COL, UiPalette.MAP_COL)
 		elif node is Campfire:
 			_mark(at, MapGlyph.Kind.CAMP, UiPalette.MAP_CAMP)
 		elif node is Chest:

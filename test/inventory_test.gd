@@ -27,6 +27,8 @@ var _removed: Array[StringName] = []
 var _used: Array[StringName] = []
 var _equipped: Array[StringName] = []
 var _overflowed: Array[StringName] = []
+var _col_changes: Array[int] = []
+var _drops: Array[int] = []
 
 
 func _ready() -> void:
@@ -40,6 +42,9 @@ func _ready() -> void:
 		_equipped.append(id))
 	EventBus.inventory_full.connect(func(id: StringName, _n: int) -> void:
 		_overflowed.append(id))
+	EventBus.col_changed.connect(func(col: int) -> void: _col_changes.append(col))
+	EventBus.col_dropped.connect(func(_m: StringName, _p: Vector2, n: int) -> void:
+		_drops.append(n))
 
 	await _run()
 
@@ -65,6 +70,10 @@ func _run() -> void:
 	_test_equipment()
 	await _test_items_in_battle()
 	_test_chest()
+	_test_purse()
+	await _test_dropped_col()
+	_test_shops()
+	_test_economy()
 
 
 # --- content ---------------------------------------------------------------
@@ -124,6 +133,17 @@ func _test_content() -> void:
 	for floor_number in FloorRegistry.AUTHORED:
 		authored_orphans.append_array(_authored_chest_orphans(floor_number))
 	_check(authored_orphans.is_empty(), "every authored-floor chest item exists (%s)" % authored_orphans)
+
+	# Shops name items too, and a ware with no price can't be put on a shelf.
+	var shop_errors := PackedStringArray()
+	for shop in ShopLibrary.all():
+		for ware in shop.wares:
+			if not ItemLibrary.exists(ware):
+				shop_errors.append("%s sells %s" % [shop.id, ware])
+			elif not ItemLibrary.get_item(ware).is_stocked():
+				shop_errors.append("%s sells %s, which has no price or floor" % [shop.id, ware])
+	_check(ShopLibrary.all().size() == ShopLibrary.SHOPS.size() and shop_errors.is_empty(),
+			"every shop loads and every ware is a priced item (%s)" % shop_errors)
 
 	_check(ItemLibrary.exists(&"map_floor_2"),
 			"the item Argo sells exists (dialogue's only GIVE_ITEM)")
@@ -562,8 +582,234 @@ func _test_chest() -> void:
 	_check(Inventory.has(&"anneal_blade"), "and hands over its contents")
 	DialogueRunner.cancel()
 
+	# Col rides along at the floor's going rate for the chest's tier -- read off
+	# the floor, never rolled, so no floor's rng moved to pay it.
+	_check(FloorTuning.chest_col(1, 0) > 0
+			and FloorTuning.chest_col(30, 0) > FloorTuning.chest_col(1, 0)
+			and FloorTuning.chest_col(30, 2) > FloorTuning.chest_col(30, 1)
+			and FloorTuning.chest_col(30, 1) > FloorTuning.chest_col(30, 0),
+			"a chest's Col climbs with the floor, and sealed > gilded > plain")
+	GameState.reset_col()
+	GameState.set_flag(&"test_chest_3", false)
+	var sealed := (load("res://scenes/world/chest.tscn") as PackedScene).instantiate()
+	sealed.set(&"item_id", &"small_potion")
+	sealed.set(&"opened_flag", &"test_chest_3")
+	sealed.set(&"sealed", true)
+	sealed.set(&"floor_number", 30)
+	add_child(sealed)
+	Inventory.clear()
+	sealed.interact(self)
+	_check(GameState.col() == FloorTuning.chest_col(30, 2),
+			"a sealed chest on floor 30 pays its tier's Col (%d)" % GameState.col())
+	DialogueRunner.cancel()
+	sealed.queue_free()
+
 	chest.queue_free()
 	full.queue_free()
+
+
+# --- Col --------------------------------------------------------------------
+
+func _test_purse() -> void:
+	print("\n-- the purse --")
+	_reset()
+	_col_changes.clear()
+	EventBus.col_granted.emit(50)
+	_check(GameState.col() == 50 and _col_changes == [50], "col_granted fills the purse and it says so")
+	EventBus.col_granted.emit(-20)
+	_check(GameState.col() == 50, "a negative grant is not a way to charge")
+	_check(not GameState.spend_col(60) and GameState.col() == 50,
+			"spending more than there is spends none of it")
+	_check(GameState.spend_col(30) and GameState.col() == 20, "spending what there is takes it")
+	EventBus.col_charged.emit(25)
+	_check(GameState.col() == 20, "a charge it can't pay is refused whole")
+	EventBus.col_charged.emit(20)
+	_check(GameState.col() == 0, "a charge it can pay is taken")
+
+	# Combat pays Col beside XP, linear in level as XP is.
+	var boar := Bestiary.get_enemy(&"frenzy_boar")
+	_check(boar.col_at(10) > boar.col_at(1)
+			and boar.col_at(21) - boar.col_at(11) == boar.col_at(11) - boar.col_at(1),
+			"a monster's Col is linear in its level")
+	var boss := Bestiary.build_boss(boar, 5, "Test Boss")
+	_check(boss.col_reward == roundi(boar.col_at(5) * Bestiary.BOSS_COL),
+			"a boss carries BOSS_COL times its template's Col")
+
+
+func _test_dropped_col() -> void:
+	print("\n-- dropped col --")
+	_reset()
+	_drops.clear()
+	EventBus.col_granted.emit(120)
+	_check(GameState.drop_col(&"test_map", Vector2(40, 56)) == 120 and GameState.col() == 0,
+			"falling drops the whole purse")
+	var pile := GameState.dropped_col()
+	_check(pile.get("map") == &"test_map" and pile.get("position") == Vector2(40, 56)
+			and pile.get("amount") == 120 and _drops.back() == 120,
+			"and remembers where, and says so")
+	EventBus.col_granted.emit(30)
+	_check(GameState.drop_col(&"test_map", Vector2(8, 8)) == 30
+			and GameState.dropped_col().get("amount") == 30 and _drops.slice(-2) == [0, 30],
+			"falling again first loses the first pile for good")
+	GameState.drop_col(&"test_map", Vector2(8, 8))
+	_check(GameState.dropped_col().is_empty(), "even falling with an empty purse loses it")
+	EventBus.col_granted.emit(75)
+	GameState.drop_col(&"test_map", Vector2(16, 16))
+	_check(GameState.recover_col() == 75 and GameState.col() == 75
+			and GameState.dropped_col().is_empty(), "walking back to it picks it all up")
+	_check(GameState.recover_col() == 0, "and there is nothing left to pick up twice")
+
+	# The pouch is the pile's view: put down by the map, gone with the pile.
+	var map := GameMap.new()
+	map.map_id = &"test_map"
+	add_child(map)
+	GameState.drop_col(&"test_map", Vector2(24, 24))
+	await get_tree().process_frame
+	var pouch := map.get_node_or_null("DroppedCol") as DroppedCol
+	_check(pouch != null and pouch.amount == 75 and pouch.position == Vector2(24, 24),
+			"the map puts a pouch down where the purse fell")
+	if pouch != null:
+		pouch.interact(self)
+		DialogueRunner.cancel()
+		await get_tree().process_frame
+		_check(GameState.col() == 75 and not is_instance_valid(pouch),
+				"picking it up empties the pouch back into the purse")
+	map.queue_free()
+
+
+func _test_shops() -> void:
+	print("\n-- shops --")
+	_reset()
+	var shop := ShopLibrary.get_shop(&"town_outfitter")
+	var potion := ItemLibrary.get_item(&"small_potion")
+	var charm := ItemLibrary.get_item(&"swift_charm")
+	GameState._cleared_floors.clear()
+	_check(potion in shop.stock() and charm not in shop.stock(),
+			"on floor 1 the outfitter shelves potions, not a floor-%d charm" % charm.shop_floor)
+	for n in range(1, charm.shop_floor):
+		GameState.clear_floor(n)
+	_check(charm in shop.stock(), "and shelves the charm once floor %d is reached" % charm.shop_floor)
+	_check(shop.refusal(charm) == "Not enough col." and not shop.buy(charm)
+			and not Inventory.has(&"swift_charm"), "a buyer with no Col is refused")
+
+	EventBus.col_granted.emit(charm.price + potion.price)
+	_check(shop.buy(charm) and Inventory.has(&"swift_charm") and GameState.col() == potion.price,
+			"buying takes the price and hands the item over")
+	_check(shop.buy(potion) and GameState.col() == 0, "down to the last coin")
+
+	var anneal := ItemLibrary.get_item(&"anneal_blade")
+	_check(shop.refusal(anneal) == "Not on the shelf." and not shop.buy(anneal),
+			"what the shop doesn't carry can't be bought")
+
+	# A full bag is refused before the purse is touched.
+	Inventory.clear()
+	Inventory.add(ItemLibrary.get_item(&"bronze_sword"), Inventory.CAPACITY)
+	EventBus.col_granted.emit(potion.price)
+	_check(shop.refusal(potion) == "No room in your bag." and not shop.buy(potion)
+			and GameState.col() == potion.price, "a full bag refuses the sale and keeps the Col")
+
+	Inventory.clear()
+	GameState.reset_col()
+	Inventory.add_id(&"boar_hide", 3)
+	Inventory.add_id(&"map_floor_2", 1)
+	var hide := ItemLibrary.get_item(&"boar_hide")
+	var offered := shop.sellable().map(func(s: ItemStack) -> StringName: return s.item.id)
+	_check(&"boar_hide" in offered and &"map_floor_2" not in offered,
+			"the counter buys hides but never a key item")
+	_check(shop.sell(hide) and Inventory.count(&"boar_hide") == 2
+			and GameState.col() == hide.sell_price(), "selling one pays half its price")
+	_check(not shop.sell(ItemLibrary.get_item(&"map_floor_2")) and Inventory.has(&"map_floor_2"),
+			"and refuses the key item outright")
+	Inventory.add_id(&"bronze_sword", 1)
+	Inventory.equip(ItemLibrary.get_item(&"bronze_sword"))
+	_check(not shop.sell(ItemLibrary.get_item(&"bronze_sword")) and Inventory.equipped(&"weapon") != null,
+			"the sword you are wearing can't be sold out from under you")
+
+	# Every hub has a counter, and every counter on a map is a listed shop.
+	var counters := {}
+	for floor_number in FloorRegistry.AUTHORED:
+		for shop_id in _authored_shops(floor_number):
+			counters[floor_number] = true
+			_check(shop_id in ShopLibrary.SHOPS,
+					"floor %d's shop '%s' is listed" % [floor_number, shop_id])
+	_check(counters.has(1) and counters.has(10) and counters.has(25),
+			"the town, Ashlow and Lanternfall each have a shop (%s)" % [counters.keys()])
+	GameState._cleared_floors.clear()
+	GameState.reset_col()
+
+
+## The measured check M5.6 asked for: a player killing the floor's
+## [method FloorTuning.monster_count] and its boss, and nothing else -- no chests,
+## no quests, no selling -- can afford any item the floor it unlocks on puts on
+## a shelf by the time that floor is cleared. Prices are fixed and income climbs,
+## so this bites low down, where the prices were set against it.
+func _test_economy() -> void:
+	print("\n-- economy --")
+	var income := 0
+	var through: Dictionary[int, int] = {}
+	var rising := true
+	var last := 0
+	for n in range(1, FloorTuning.TOP_FLOOR + 1):
+		var floor_income := _floor_col(n)
+		rising = rising and floor_income >= last
+		last = floor_income
+		income += floor_income
+		through[n] = income
+	_check(rising, "a floor never pays less than the one below it")
+	var unaffordable := PackedStringArray()
+	var stocked := {}
+	for shop in ShopLibrary.all():
+		for ware in shop.wares:
+			stocked[ware] = true
+	for ware: StringName in stocked:
+		var item := ItemLibrary.get_item(ware)
+		if item.price > through[item.shop_floor]:
+			unaffordable.append("%s (%d col, floor %d pays %d)" % [
+					ware, item.price, item.shop_floor, through[item.shop_floor]])
+	_check(unaffordable.is_empty(),
+			"every ware is affordable on kills alone once the floor it unlocks on is cleared (%s)" % unaffordable)
+	print("  kills alone, cumulative: floor 1 %d, 10 %d, 25 %d, 50 %d, 100 %d" % [
+			through[1], through[10], through[25], through[50], through[100]])
+
+
+## What one floor's kills pay: its monster count at the pool's average, plus its
+## boss and escort.
+func _floor_col(n: int) -> int:
+	var pool := Bestiary.pool_for_floor(n)
+	var level := FloorTuning.enemy_level(n)
+	var each := 0.0
+	for type in pool:
+		each += type.col_at(level)
+	each /= maxf(1.0, pool.size())
+	var total := roundi(each * FloorTuning.monster_count(n))
+	var encounter := Bestiary.boss_encounter(n)
+	for i in encounter.enemies.size():
+		if i == 0:
+			total += Bestiary.build_boss(encounter.enemies[0], encounter.level, "").col_reward
+		else:
+			total += encounter.enemies[i].col_at(encounter.level)
+	return total
+
+
+## The shop ids standing on an authored floor's maps, following exits as
+## [method _authored_chest_orphans] does.
+func _authored_shops(floor_number: int) -> PackedStringArray:
+	var found := PackedStringArray()
+	var pending: Array[String] = [FloorRegistry.get_floor(floor_number).authored_scene.resource_path]
+	var seen := {}
+	while not pending.is_empty():
+		var path: String = pending.pop_back()
+		if seen.has(path) or not ResourceLoader.exists(path):
+			continue
+		seen[path] = true
+		var map := (load(path) as PackedScene).instantiate()
+		for child in map.get_children():
+			if child is Npc and (child as Npc).shop != null:
+				found.append(String((child as Npc).shop.id))
+			if "target_map" in child and not str(child.get(&"target_map")).is_empty():
+				pending.append(str(child.get(&"target_map")))
+		map.free()
+	return found
 
 
 # --- helpers ---------------------------------------------------------------
@@ -572,6 +818,7 @@ func _test_chest() -> void:
 ## starts from here so an earlier failure can't cascade.
 func _reset() -> void:
 	Inventory.clear()
+	GameState.reset_col()
 	GameState.level = 1
 	GameState.max_hp = 60
 	GameState.attack = 8

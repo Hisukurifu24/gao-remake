@@ -143,7 +143,7 @@ func _fight() -> void:
 			"You back out of the boss chamber. The door has not moved.",
 		]))
 	else:
-		_revive()
+		_revive(result.defeated())
 
 
 ## The boss -- and its escort -- step out of the door to fight where you stand:
@@ -210,15 +210,21 @@ func _step_back(_result: CombatResult) -> void:
 
 ## A defeat drops the player at the floor entrance on their last legs. Rebuilding
 ## the floor also puts its monsters back, which is the point: the way through a
-## wall you can't clear is levels.
-func _revive() -> void:
+## wall you can't clear is levels. Your purse stays behind at the door, where you
+## fell: the walk back to it is the walk back the floor already makes you take.
+func _revive(defeated: bool) -> void:
 	# total_max_hp(), not the base stat: a coat with +HP has to count towards
 	# what "on your last legs" means.
 	GameState.set_hp(maxi(1, roundi(GameState.total_max_hp() * DEFEAT_HP_RATIO)))
-	EventBus.message_requested.emit("", PackedStringArray([
+	var map := get_parent() as GameMap
+	var spilled := map.player_fell() if defeated and map != null else 0
+	var lines := PackedStringArray([
 		"%s stands over you." % _boss_label(),
 		"You come to at the entrance to the floor, barely.",
-	]))
+	])
+	if spilled > 0:
+		lines.append("Your purse is not with you. %d col is lying at the door." % spilled)
+	EventBus.message_requested.emit("", lines)
 	SceneRouter.enter_floor(floor_number, &"default")
 
 

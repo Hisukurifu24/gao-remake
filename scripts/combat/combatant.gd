@@ -42,6 +42,7 @@ var skills: Array[Skill] = []
 var xp_reward := 0
 var loot: Array[StringName] = []
 var loot_chance := 0.0
+var col_reward := 0
 
 ## Turns remaining before each skill id can be used again.
 var cooldowns: Dictionary[StringName, int] = {}
@@ -71,6 +72,7 @@ static func from_enemy(type: EnemyType, at_level: int, override_name := "") -> C
 	c.xp_reward = type.xp_at(at_level)
 	c.loot = type.loot.duplicate()
 	c.loot_chance = type.loot_chance
+	c.col_reward = type.col_at(at_level)
 	return c
 
 

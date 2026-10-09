@@ -15,3 +15,5 @@ max_stack = 10
 heal_percent = 60
 usable_in_battle = true
 usable_in_field = true
+price = 90
+shop_floor = 5

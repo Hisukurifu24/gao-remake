@@ -40,6 +40,26 @@ signal inventory_full(item_id: StringName, lost: int)
 ## wholesale rather than tracking individual stacks.
 signal inventory_changed()
 
+# --- Col (M5.6) ---
+## Exactly the [signal item_granted] / [signal item_added] pair, for money. The
+## world paying -- a kill, a chest, a sale, a quest -- is [signal col_granted], a
+## *request* whose only listener is the purse in [GameState]; the purse answers
+## with [signal col_changed]. Nothing but the purse emits [signal col_changed].
+signal col_granted(amount: int)
+## The world charging: a dialogue line that costs money. Also a request, and the
+## purse refuses it whole if it cannot pay -- gate the line on MIN_COL.
+signal col_charged(amount: int)
+## The purse's reply to either, and to a purchase or a drop: [param col] is what
+## it holds now.
+signal col_changed(col: int)
+## The player fell and the purse fell with them, at [param position] on
+## [param map_id] -- or, with [param amount] 0, the Col lying there was picked up
+## or lost to a second fall. Emitted by the purse; [GameMap] puts the pouch down.
+signal col_dropped(map_id: StringName, position: Vector2, amount: int)
+## The player is at a shop counter. A request, like [signal teleport_requested]:
+## the shop screen is its only listener.
+signal shop_requested(shop: Shop)
+
 # --- Combat (M4) ---
 ## A fight is about to start where the player stands, and this is where
 ## everyone in it will stand. Emitted by whoever starts the fight, just before
@@ -85,6 +105,10 @@ signal quest_log_changed()
 
 # --- Progression / persistent state ---
 signal flag_changed(flag: StringName, value: Variant)
+## The input lock went on (the first push) or came off (the last pop). For views
+## that step aside while anything holds the screen -- a shop, the gate menu, a fade
+## -- without having to know what each of those is.
+signal input_lock_changed(locked: bool)
 signal hp_changed(hp: int, max_hp: int)
 signal xp_gained(amount: int)
 signal leveled_up(new_level: int)

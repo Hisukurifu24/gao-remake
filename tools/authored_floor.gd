@@ -21,6 +21,7 @@ extends SceneTree
 
 const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const NPC_SCENE := "res://scenes/world/npc.tscn"
+const SHOP_PATH := "res://resources/shops/%s.tres"
 const CHEST_SCENE := "res://scenes/world/chest.tscn"
 const BOSS_GATE_SCENE := "res://scenes/world/boss_gate.tscn"
 const STAIRS_SCENE := "res://scenes/world/floor_stairs.tscn"
@@ -517,7 +518,7 @@ func _add_npc(map: Node2D, entry: Dictionary) -> void:
 	node.position = _world(entry["at"])
 	node.set(&"speaker", entry["name"])
 	node.set(&"display_name", entry["display"])
-	node.set(&"prompt_verb", "Talk to")
+	node.set(&"prompt_verb", "Trade with" if entry.has("shop") else "Talk to")
 	node.set(&"lines", PackedStringArray(entry.get("lines", [])))
 	node.set(&"met_flag", entry["flag"])
 	# [code]look[/code] names a character folder in the Ninja Adventure pack.
@@ -525,6 +526,9 @@ func _add_npc(map: Node2D, entry: Dictionary) -> void:
 		node.set(&"sprite_sheet", load(CHARACTER_SHEET % entry["look"]))
 	if entry.has("dialogue"):
 		node.set(&"dialogue", load(entry["dialogue"]))
+	# A shopkeeper: [code]shop[/code] names a [Shop] in resources/shops/.
+	if entry.has("shop"):
+		node.set(&"shop", load(SHOP_PATH % entry["shop"]))
 	_add(map, node)
 
 

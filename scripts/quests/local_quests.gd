@@ -46,10 +46,10 @@ const LOST_SHEETS: PackedStringArray = ["NinjaLeaf", "CamouflageRed", "Master", 
 
 const HUNT_COUNT := Vector2i(4, 6)
 const GATHER_COUNT := 3
-## What each job pays in XP, in the floor's own monsters' worth: a little on top
-## of the kills it takes, never a second climb. The floor is at least
-## [constant SETTLE_AFTER] below the player by the time it is offered, so its
-## monsters are worth less than the front line's.
+## What each job pays in XP -- and in Col, by the same count -- in the floor's own
+## monsters' worth: a little on top of the kills it takes, never a second climb.
+## The floor is at least [constant SETTLE_AFTER] below the player by the time it
+## is offered, so its monsters are worth less than the front line's.
 const HUNT_XP := 2.0
 const GATHER_XP := 3.0
 const LOST_XP := 4.0
@@ -176,7 +176,10 @@ static func build(id: StringName) -> Quest:
 	item.kind = DialogueEffect.Kind.GIVE_ITEM
 	item.id = job["reward"]
 	item.amount = job["reward_amount"]
-	var rewards: Array[DialogueEffect] = [xp, item]
+	var col := DialogueEffect.new()
+	col.kind = DialogueEffect.Kind.GIVE_COL
+	col.amount = job["col"]
+	var rewards: Array[DialogueEffect] = [xp, col, item]
 	quest.rewards = rewards
 	return quest
 
@@ -339,6 +342,7 @@ static func _plan(floor_number: int) -> Dictionary:
 				job["target"] = monster.id
 				job["count"] = rng.randi_range(HUNT_COUNT.x, HUNT_COUNT.y)
 				job["xp"] = roundi(worth * HUNT_XP)
+				job["col"] = roundi(monster.col_at(level) * HUNT_XP)
 				var pay: Array = HUNT_ITEMS[rng.randi() % HUNT_ITEMS.size()]
 				job["reward"] = pay[0]
 				job["reward_amount"] = pay[1]
@@ -348,6 +352,7 @@ static func _plan(floor_number: int) -> Dictionary:
 				job["target"] = monster.loot[0] if not monster.loot.is_empty() else &""
 				job["count"] = GATHER_COUNT
 				job["xp"] = roundi(worth * GATHER_XP)
+				job["col"] = roundi(monster.col_at(level) * GATHER_XP)
 				var pay: Array = GATHER_ITEMS[rng.randi() % GATHER_ITEMS.size()]
 				job["reward"] = pay[0]
 				job["reward_amount"] = pay[1]
@@ -355,6 +360,7 @@ static func _plan(floor_number: int) -> Dictionary:
 				item = material.label() if material != null else String(job["target"])
 			"lost":
 				job["xp"] = roundi(worth * LOST_XP)
+				job["col"] = roundi(monster.col_at(level) * LOST_XP)
 				job["reward"] = LOST_GEAR[rng.randi() % LOST_GEAR.size()]
 				job["reward_amount"] = 1
 		job["lost"] = lost

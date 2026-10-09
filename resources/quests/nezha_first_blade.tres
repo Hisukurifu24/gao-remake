@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Quest" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="Quest" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
 [ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
@@ -37,6 +37,11 @@ kind = 3
 id = &"whetstone"
 amount = 2
 
+[sub_resource type="Resource" id="reward_col"]
+script = ExtResource("effect")
+kind = 6
+amount = 20
+
 [resource]
 script = ExtResource("quest")
 id = &"nezha_first_blade"
@@ -45,4 +50,4 @@ giver = "Nezha"
 summary = "The smith by the well will put an edge on your blade, but he needs something to work with -- and he will not waste one on somebody who has never been in a fight. Hide for the grip, nepent oil for the stone."
 objectives = Array[ExtResource("objective")]([SubResource("obj_hides"), SubResource("obj_ovules")])
 prerequisites = Array[ExtResource("condition")]([SubResource("cond_level_2")])
-rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_whetstones")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_col"), SubResource("reward_whetstones")])

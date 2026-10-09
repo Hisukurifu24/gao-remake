@@ -6,6 +6,14 @@ class_name FloorTuning
 
 const TOP_FLOOR := 100
 
+## What an ordinary monster carries in Col, at level 1 and per level after:
+## [EnemyType]'s defaults. Linear, like XP -- see [method EnemyType.col_at].
+const KILL_COL := 6
+const KILL_COL_GROWTH := 2.0
+## A chest's Col, in kills of its floor: plain, gilded, sealed. The sealed chest is
+## a solved puzzle and pays the most; the gilded one is a gamble and pays for it.
+const CHEST_COL_KILLS: Array[float] = [3.0, 6.0, 15.0]
+
 ## Boss names are assembled rather than authored: 10 affixes x 10 archetypes is
 ## plenty of variety for the ~88 generated floors. Milestone floors override it.
 const BOSS_AFFIXES: PackedStringArray = [
@@ -46,6 +54,18 @@ static func map_size(floor_number: int) -> Vector2i:
 ## steps -- see M5.5 §5 in plan.md.
 static func labyrinth_cells(floor_number: int) -> Vector2i:
 	return Vector2i(12 + floor_number / 12, 7 + floor_number / 20)
+
+
+## The Col an ordinary monster on [param floor_number] carries.
+static func kill_col(floor_number: int) -> int:
+	return EnemyType.stat_at(KILL_COL, KILL_COL_GROWTH, enemy_level(maxi(1, floor_number)))
+
+
+## What a chest on [param floor_number] holds in Col beside its item. [param tier]
+## is 0 plain, 1 gilded, 2 sealed. Read off the floor rather than rolled, so
+## adding Col to chests drew nothing from any floor's rng.
+static func chest_col(floor_number: int, tier: int) -> int:
+	return roundi(kill_col(floor_number) * CHEST_COL_KILLS[clampi(tier, 0, 2)])
 
 
 static func room_count(floor_number: int) -> int:

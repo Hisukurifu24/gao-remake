@@ -111,4 +111,7 @@ func _status_line(map: GameMap) -> String:
 			parts.append("door found")
 		else:
 			parts.append("door not found")
+	var pile := GameState.dropped_col()
+	if not pile.is_empty() and pile["map"] == map.map_id:
+		parts.append("%d col dropped" % pile["amount"])
 	return "   ".join(parts)

@@ -566,7 +566,8 @@ func _refresh() -> void:
 	if _stacks.is_empty() and _focus == Focus.BAG:
 		_bag_index = 0
 
-	_bag_header.text = "Bag   %d / %d" % [Inventory.used_slots(), Inventory.CAPACITY]
+	_bag_header.text = "Bag   %d / %d   %d col" % [Inventory.used_slots(), Inventory.CAPACITY,
+			GameState.col()]
 	_paint_slots()
 	_paint_gear()
 	_paint_details()
@@ -670,6 +671,10 @@ func _paint_details() -> void:
 	_detail_stats.text = item.summary()
 	_detail_stats.add_theme_color_override(&"font_color",
 			UiPalette.BAD if item.summary().contains("-") else UiPalette.GOOD)
+	# A hide does nothing on its own; what it is worth is the one thing to say.
+	if item.summary().is_empty() and item.is_sellable():
+		_detail_stats.text = "Sells for %d col" % item.sell_price()
+		_detail_stats.add_theme_color_override(&"font_color", UiPalette.DIM)
 	_detail_text.text = item.description
 	_detail_text.add_theme_color_override(&"font_color", UiPalette.TEXT)
 

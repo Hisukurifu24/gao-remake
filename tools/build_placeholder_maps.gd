@@ -49,6 +49,9 @@ const TOWN_GROVES: Array[Rect2i] = [
 ## The teleport gate, on the plaza's north-east corner, clear of both roads -- the
 ## one gate every floor's gate can reach, which is what keeps the town the hub.
 const TOWN_GATE := Vector2i(27, 15)
+## The outfitter's stall, on the plaza's south-east corner across from the gate,
+## clear of both roads and a few steps from the smith.
+const TOWN_OUTFITTER := Vector2i(28, 20)
 ## Fixed, so rebuilding the town never reshuffles its trees and flowers.
 const TOWN_SEED := 1001
 
@@ -102,6 +105,11 @@ func _build_town(biome: BiomeKit) -> Node2D:
 		Vector2(504, 344), "Nezha", "Nezha the smith", [], &"met_nezha", "Hunter",
 		"res://resources/dialogue/nezha.tres"
 	))
+	var outfitter := _npc(_world(TOWN_OUTFITTER), "Tomas", "Tomas the outfitter", [], &"",
+			"Villager5")
+	outfitter.set(&"prompt_verb", "Trade with")
+	outfitter.set(&"shop", load("res://resources/shops/town_outfitter.tres"))
+	_add(map, outfitter)
 	_add(map, _teleport_gate(_world(TOWN_GATE)))
 	_add(map, _chest(Vector2(648, 472), &"small_potion", 3, &"chest_town_square"))
 	_add(map, _exit(Vector2(392, TOWN_H * TILE - 8), Vector2(2, 1), FIELD_PATH, &"from_town", true))

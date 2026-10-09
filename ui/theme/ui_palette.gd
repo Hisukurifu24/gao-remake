@@ -80,6 +80,8 @@ const MAP_CAMP := Color("f08a3c")
 ## door -- and the sealed chest it pays out in, blue as it is drawn.
 const MAP_PUZZLE := Color("c08ee8")
 const MAP_SEALED := Color("5aa9e6")
+## The purse you dropped: coin gold, paler than a chest.
+const MAP_COL := Color("ffe18d")
 const MAP_OUTLINE := Color("141b1b")
 
 

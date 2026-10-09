@@ -22,13 +22,17 @@ enum Kind {
 	## objective is met, so the dialogue branch offering it should be gated on the
 	## quest's [code]_ready[/code] flag.
 	TURN_IN_QUEST,
+	GIVE_COL,      ## EventBus.col_granted(amount) -- the purse picks this up
+	## EventBus.col_charged(amount) -- the purse picks this up, and refuses the
+	## whole charge if it cannot pay. Gate the line on MIN_COL so it never has to.
+	TAKE_COL,
 }
 
 @export var kind: Kind = Kind.SET_FLAG
 
 ## Flag name for SET_FLAG / CLEAR_FLAG, item or quest id for the others.
 @export var id: StringName = &""
-## Amount for GRANT_XP and GIVE_ITEM.
+## Amount for GRANT_XP, GIVE_ITEM, GIVE_COL and TAKE_COL.
 @export var amount := 1
 
 
@@ -51,6 +55,10 @@ func apply() -> void:
 		Kind.TURN_IN_QUEST:
 			if id != &"":
 				EventBus.quest_turn_in_requested.emit(id)
+		Kind.GIVE_COL:
+			EventBus.col_granted.emit(amount)
+		Kind.TAKE_COL:
+			EventBus.col_charged.emit(amount)
 
 
 static func apply_all(effects: Array[DialogueEffect]) -> void:
@@ -66,6 +74,8 @@ func summary() -> String:
 	match kind:
 		Kind.GRANT_XP:
 			return "%d XP" % amount
+		Kind.GIVE_COL:
+			return "%d col" % amount
 		Kind.GIVE_ITEM:
 			var item := ItemLibrary.get_item(id) if ItemLibrary.exists(id) else null
 			var name := item.label() if item != null else String(id)

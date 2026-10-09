@@ -11,7 +11,7 @@ extends Control
 ## As a Control it draws one glyph, for the legend; [method paint] is the same
 ## drawing for [MapView], which places many.
 
-enum Kind { YOU, DOOR, EXIT, CHEST, PERSON, QUEST, CAMP, PUZZLE }
+enum Kind { YOU, DOOR, EXIT, CHEST, PERSON, QUEST, CAMP, PUZZLE, COL }
 
 const PIXEL := 0.5
 
@@ -80,6 +80,17 @@ const PUZZLE := [
 	"...#...",
 	"...#...",
 ]
+## A tied purse: the Col you dropped where you fell. Not in the legend -- it is
+## rare, and the map's status line says what it is whenever one is down.
+const COL := [
+	".+...+.",
+	"..+++..",
+	"...#...",
+	"..###..",
+	".##+##.",
+	"#######",
+	".#####.",
+]
 const QUEST := [
 	"###",
 	"###",
@@ -123,6 +134,7 @@ static func table(glyph: Kind) -> Array:
 		Kind.QUEST: return QUEST
 		Kind.CAMP: return CAMP
 		Kind.PUZZLE: return PUZZLE
+		Kind.COL: return COL
 	return YOU
 
 

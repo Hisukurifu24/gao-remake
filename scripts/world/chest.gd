@@ -51,6 +51,10 @@ static var _sealed_texture: Texture2D = null
 @export var hidden_until: StringName = &""
 ## Set as the chest opens, beside its item: one of a vault's sigils.
 @export var sigil_flag: StringName = &""
+## Col inside, beside the item. -1 is the floor's going rate for the chest's tier
+## ([method FloorTuning.chest_col]), which is what every built chest uses: read off
+## the floor at opening rather than stored, so no floor's rng was asked for it.
+@export var col := -1
 
 @onready var _sprite: Sprite2D = $Sprite2D
 
@@ -86,7 +90,12 @@ func interact(by: Node) -> void:
 
 	_open()
 	EventBus.item_granted.emit(item_id, amount)
+	var coins := col_amount()
+	if coins > 0:
+		EventBus.col_granted.emit(coins)
 	var found := "You found %s." % _found_text(item)
+	if coins > 0:
+		found = "You found %s and %d col." % [_found_text(item), coins]
 	if sigil_flag != &"":
 		found += " Under it lies a sigil, warm to the touch."
 	match trap:
@@ -98,6 +107,14 @@ func interact(by: Node) -> void:
 			await _teleport(by as Node2D)
 		_:
 			_say(found)
+
+
+## The Col this chest holds: its own [member col], or its tier's going rate.
+func col_amount() -> int:
+	if col >= 0:
+		return col
+	var tier := 2 if sealed else 1 if gilded else 0
+	return FloorTuning.chest_col(maxi(1, floor_number), tier)
 
 
 func is_opened() -> bool:

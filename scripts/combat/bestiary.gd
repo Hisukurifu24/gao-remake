@@ -62,6 +62,7 @@ const BOSS_ATTACK := 1.2
 const BOSS_DEFENSE := 1.15
 const BOSS_POISE := 2.5
 const BOSS_XP := 4.0
+const BOSS_COL := 5.0
 ## Every generated boss gets this on top of its template's skills.
 const BOSS_SKILL := "res://resources/skills/enemy/rampage.tres"
 
@@ -170,6 +171,7 @@ static func build_boss(template: EnemyType, at_level: int, boss_name: String) ->
 	boss.max_poise = roundi(boss.max_poise * BOSS_POISE)
 	boss.poise = boss.max_poise
 	boss.xp_reward = roundi(boss.xp_reward * BOSS_XP)
+	boss.col_reward = roundi(boss.col_reward * BOSS_COL)
 	if ResourceLoader.exists(BOSS_SKILL):
 		var rampage: Skill = load(BOSS_SKILL)
 		if rampage not in boss.skills:

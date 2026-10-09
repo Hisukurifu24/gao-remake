@@ -118,7 +118,10 @@ func _run() -> void:
 	await _idle()
 	_check(GameState.has_flag(&"chest_town_square"), "opening a chest sets its flag")
 	_check(not chest.is_available(), "an opened chest is no longer interactable")
+	_check(GameState.col() == FloorTuning.chest_col(1, 0), "and pays its Col into the purse")
 	await _close_dialogue()
+
+	await _test_shop(main, town, player)
 
 	# --- map transition ---
 	SceneRouter.change_map("res://scenes/world/field.tscn", &"from_town")
@@ -220,6 +223,7 @@ func _run() -> void:
 	await _test_safe_zone(floor_two, floor_two_player as Player)
 	await _test_traps(floor_two, floor_two_player as Player)
 	await _test_roaming(floor_two, floor_two_player as Player)
+	await _test_fallen_purse(main, floor_two as GameMap, floor_two_player as Player)
 	await _test_teleport(main, world_root)
 	await _test_puzzles(world_root)
 	await _test_village(world_root)
@@ -875,6 +879,79 @@ func _test_roaming(map: Node2D, player: Player) -> void:
 	_check(CombatManager.is_running() and hud.visible,
 			"a fight started during the last one's outro keeps its menu")
 	await _auto_battle()
+
+
+## Tomas's counter on the plaza, through the real screen: talking to him opens
+## it, E buys the top of the shelf, left/right turns it to selling, Esc closes it.
+func _test_shop(main: Node, town: Node2D, player: Node2D) -> void:
+	var screen := main.get_node("ShopScreen")
+	var tomas := town.get_node_or_null("Tomas") as Npc
+	_check(tomas != null and tomas.shop != null, "the town has an outfitter keeping a shop")
+	if tomas == null or tomas.shop == null:
+		return
+	EventBus.col_granted.emit(100)
+	var col := GameState.col()
+	var potions := Inventory.count(&"small_potion")
+	tomas.interact(player)
+	await _idle()
+	_check(screen.is_open() and GameState.is_input_locked(),
+			"talking to him opens the counter and holds the lock")
+	var first: Item = screen.selected_item()
+	_check(first != null and first.id == &"small_potion", "starting on the top of the shelf")
+	await _tap(&"interact")
+	_check(Inventory.count(&"small_potion") == potions + 1 and GameState.col() == col - first.price,
+			"E buys one for its price (%d col left)" % GameState.col())
+	await _tap(&"move_right")
+	_check(screen.mode() == 1 and screen.selected_item() != null, "right turns the counter to selling")
+	var selling: Item = screen.selected_item()
+	var before := GameState.col()
+	await _tap(&"interact")
+	_check(GameState.col() == before + selling.sell_price(),
+			"and E sells one back for half (%s)" % selling.label())
+	await _tap(&"ui_cancel")
+	_check(not screen.is_open() and not GameState.is_input_locked(),
+			"Esc closes the counter and lets go of the lock")
+
+
+## Losing a real fight on a real floor: the purse spills where you fell, a pouch
+## lies there and the map says so, and walking back to it gets it all back.
+func _test_fallen_purse(main: Node, map: GameMap, player: Player) -> void:
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	await _physics(2)
+	GameState.reset_col()
+	EventBus.col_granted.emit(250)
+	var attack := GameState.attack
+	GameState.attack = 1
+	GameState.set_hp(1)
+	var brute := _spawn_monster(map, player.global_position + Vector2(20, 0))
+	brute.level = 60
+	brute._engage(Encounter.Opening.ENEMIES_FIRST)
+	await _auto_battle()
+	GameState.attack = attack
+	# Where the fight stood them, which is where they fell.
+	var fell_at := map.to_local(player.global_position)
+	_check(GameState.col() == 0 and GameState.dropped_col().get("amount", 0) == 250
+			and GameState.dropped_col().get("map") == map.map_id,
+			"losing a fight spills the whole purse on the map you lost on")
+	await _close_dialogue()
+	var pouch := map.get_node_or_null("DroppedCol") as DroppedCol
+	_check(pouch != null and pouch.position.is_equal_approx(fell_at),
+			"and a pouch of it lies where you fell")
+	_check(main.get_node("MapScreen")._status_line(map).contains("250 col dropped"),
+			"the map says where it is")
+	if pouch != null:
+		pouch.interact(player)
+		await _close_dialogue()
+		await _idle(2)
+	_check(GameState.col() == 250 and GameState.dropped_col().is_empty()
+			and not is_instance_valid(pouch), "walking back to it picks it all up")
+	if is_instance_valid(brute):
+		brute.queue_free()
+	GameState.heal_to_full()
+	# The box just closed, and interaction stays deaf for a beat after one does.
+	await get_tree().create_timer(Player.INTERACT_GRACE + 0.1).timeout
 
 
 func _spawn_monster(map: Node2D, at: Vector2) -> Monster:

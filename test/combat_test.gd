@@ -284,6 +284,7 @@ func _test_one_fight() -> void:
 
 	CombatManager.set_seed(4242)
 	var xp_before := GameState.xp
+	var col_before := GameState.col()
 	# Walk in already hurt, so the write-back is observable whether or not the
 	# fight lands a single hit on the player.
 	GameState.set_hp(GameState.max_hp - 10)
@@ -296,6 +297,9 @@ func _test_one_fight() -> void:
 	_check(not GameState.is_input_locked(), "combat releases the input lock")
 	_check(_defeated.has(&"little_nepent"), "a kill is announced on EventBus")
 	_check(result.xp > 0 and GameState.xp > xp_before, "victory pays XP into GameState")
+	_check(result.col == Bestiary.get_enemy(&"little_nepent").col_at(2)
+			and GameState.col() == col_before + result.col,
+			"and the nepent's Col into the purse (%d)" % result.col)
 	_check(GameState.hp <= GameState.max_hp - 10,
 			"HP carries into the fight and back out of it (%d/%d)" % [
 				GameState.hp, GameState.max_hp])

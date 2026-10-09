@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Shop" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/shop.gd" id="shop"]
+
+[resource]
+script = ExtResource("shop")
+id = &"town_outfitter"
+display_name = "Outfitter's Stall"
+keeper = "Tomas"
+greeting = "Potions on the left, steel on the right. And I buy whatever you drag home."
+wares = Array[StringName]([&"small_potion", &"antidote", &"whetstone", &"health_potion", &"bronze_sword", &"leather_coat", &"guard_ring", &"kobold_blade", &"swift_charm", &"blackwyrm_coat"])

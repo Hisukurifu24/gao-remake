@@ -99,6 +99,8 @@ const NPCS := [
 		"flag": &"met_rue", "dialogue": "res://resources/dialogue/rue.tres"},
 	{"at": Vector2i(20, 15), "name": "Sable", "display": "Sable the cartographer",
 		"look": "Inspector", "flag": &"met_sable", "dialogue": "res://resources/dialogue/sable.tres"},
+	{"at": Vector2i(8, 9), "name": "Hesk", "display": "Hesk the trader", "look": "Woman",
+		"flag": &"", "shop": "ashlow_trader"},
 	{"at": Vector2i(8, 14), "name": "Logger", "display": "a logger", "look": "Villager",
 		"flag": &"", "lines": [
 			"Nine floors up and the trees still win.",
