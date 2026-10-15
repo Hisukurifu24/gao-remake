@@ -20,7 +20,13 @@ extends CanvasLayer
 @onready var _poise_bar: ProgressBar = $Vitals/Rows/Bar/Gauges/Poise
 @onready var _statuses: Label = $Vitals/Rows/Statuses
 
+## How long "Saved" stays up, fading for the last third.
+const SAVED_TIME := 1.2
+
 var _target: Interactable = null
+## "Saved", bottom-right, for a moment after the game is written.
+var _saved: Label = null
+var _saved_fade: Tween = null
 ## The player in the fight on now; null on the map.
 var _fighter: Combatant = null
 
@@ -37,7 +43,35 @@ func _ready() -> void:
 	CombatManager.command_requested.connect(_on_command_requested)
 	CombatManager.action_resolved.connect(_on_action_resolved)
 	CombatManager.combat_finished.connect(_on_combat_finished)
+	EventBus.game_saved.connect(_on_game_saved)
+	EventBus.game_loaded.connect(func(_slot: int) -> void: _refresh_vitals())
+	_build_saved_note()
 	_refresh_vitals()
+
+
+## Made here rather than in the scene: one shadowed word in a corner, nothing to
+## lay out.
+func _build_saved_note() -> void:
+	_saved = Label.new()
+	_saved.name = "Saved"
+	_saved.text = "Saved"
+	_saved.theme_type_variation = &"FieldLabel"
+	_saved.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_saved.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_saved.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_saved.offset_right = -4.0
+	_saved.offset_bottom = -2.0
+	_saved.modulate.a = 0.0
+	add_child(_saved)
+
+
+func _on_game_saved(_slot: int, _auto: bool) -> void:
+	if _saved_fade != null:
+		_saved_fade.kill()
+	_saved.modulate.a = 1.0
+	_saved_fade = create_tween()
+	_saved_fade.tween_interval(SAVED_TIME * 2.0 / 3.0)
+	_saved_fade.tween_property(_saved, "modulate:a", 0.0, SAVED_TIME / 3.0)
 
 
 func _on_interact_target_changed(target: Node) -> void:

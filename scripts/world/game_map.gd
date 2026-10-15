@@ -78,6 +78,7 @@ func _ready() -> void:
 	_player = get_node_or_null("Player") as Player
 	if _player:
 		_player.global_position = _resolve_spawn(SceneRouter.consume_spawn())
+		_resume_at(SceneRouter.consume_placement())
 		_apply_camera_limits(_player)
 	var tracks := _player != null and _walls != null and map_id != &""
 	if tracks and dark_area.has_area():
@@ -95,6 +96,39 @@ func _ready() -> void:
 	if not pile.is_empty():
 		_on_col_dropped(pile["map"], pile["position"], pile["amount"])
 	EventBus.col_dropped.connect(_on_col_dropped)
+
+
+## A loaded game puts the player back on the spot they saved on, facing the way
+## they were -- unless the map has changed under that spot since (a rebuilt
+## authored floor), when the spawn they were just put on will do. The monsters
+## are back, as on any visit, and are calm for a moment, so one that came back
+## beside the player does not open the game with a fight.
+func _resume_at(place: Dictionary) -> void:
+	if place.is_empty():
+		return
+	var at: Vector2 = place["position"]
+	if not can_stand_at(at):
+		push_warning("GameMap '%s': nowhere to stand at %s; using the spawn" % [map_id, at])
+		return
+	_player.position = at
+	_player.facing = place["facing"]
+	for child in get_children():
+		var monster := child as Monster
+		if monster:
+			monster.calm()
+
+
+## Whether [param at] (map-local) is open ground: painted, and no wall, water,
+## house or tree in its cell.
+func can_stand_at(at: Vector2) -> bool:
+	if _walls == null:
+		return false
+	var ground := get_node_or_null("Ground") as TileMapLayer
+	var cell := _walls.local_to_map(_walls.to_local(to_global(at)))
+	if ground != null and ground.get_cell_source_id(
+			ground.local_to_map(ground.to_local(to_global(at)))) == -1:
+		return false
+	return _walls.get_cell_source_id(cell) == -1
 
 
 ## A hidden door that is already found -- walked into, or bought from Argo -- has

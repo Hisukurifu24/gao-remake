@@ -1,0 +1,252 @@
+extends Node
+## M7's save: three slots on disk, written whenever the player asks and on the
+## way into every map, read back to the very spot the player stood on.
+##
+## Each autoload owns the shape of its own state -- [method GameState.to_save],
+## [method Inventory.to_save], [method QuestLog.to_save] and their
+## [code]from_save[/code] -- and this file owns everything around it: which slot,
+## the file and its version, when to autosave, and putting the player back.
+##
+## What is not saved is not lost by accident. Everything that stays done -- an
+## opened chest, a solved puzzle, a found door, a broken wall -- is a flag, and
+## flags are saved. Monsters come back on a load as they do on any visit, and a
+## statue ring left half-turned starts over, as it does when you walk away from it.
+## Generated floors are not saved at all: [member GameState.world_seed] is, and
+## every floor grows back from it exactly as it was.
+##
+## The file is JSON, so it can be read, diffed and fixed by hand. Cell sets go in
+## as bitmaps ([SaveCodec]).
+
+const VERSION := 1
+const SLOTS := 3
+const DIRECTORY := "user://saves"
+
+## Where the slots live. The save test points it somewhere else, so running the
+## suite never touches a player's saves.
+var directory := DIRECTORY
+## The slot this game saves into, 1 to [constant SLOTS]; 0 for a run that is never
+## saved -- a debug start, a test, a tool.
+var slot := 0
+
+## Set by anything that should autosave; written as soon as nothing is in the way
+## (a fade, a fight's outro, an open box).
+var _autosave_pending := false
+
+
+func _ready() -> void:
+	SceneRouter.map_changed.connect(func(_path: String) -> void: request_autosave())
+	EventBus.floor_cleared.connect(func(_floor_number: int) -> void: request_autosave())
+	set_process(false)
+
+
+# --- when ------------------------------------------------------------------
+
+## Whether the game can be written right now: a player on a map, and nothing
+## half-done that a save would cut in two -- a fight, a conversation, a menu, a
+## fade. The input lock covers the last three without this file knowing them.
+func can_save() -> bool:
+	return _player() != null and not GameState.is_input_locked() \
+			and not CombatManager.is_running() and not DialogueRunner.is_running()
+
+
+## Asks for an autosave into the current slot at the next moment [method can_save]
+## allows. Arriving on a map and clearing a floor ask; a run with no slot ignores it.
+func request_autosave() -> void:
+	if slot <= 0:
+		return
+	_autosave_pending = true
+	set_process(true)
+
+
+func _process(_delta: float) -> void:
+	if not _autosave_pending:
+		set_process(false)
+	elif can_save():
+		_autosave_pending = false
+		set_process(false)
+		save_game(slot, true)
+
+
+## Until the pause menu exists, F5 saves and F9 goes back to the last save.
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"quick_save"):
+		if slot <= 0:
+			EventBus.message_requested.emit("", PackedStringArray([
+				"This run isn't being saved -- it was started from a debug floor."]))
+		elif can_save():
+			save_game(slot)
+	elif event.is_action_pressed(&"quick_load"):
+		if slot > 0 and exists(slot) and can_save():
+			load_slot(slot)
+
+
+# --- writing ---------------------------------------------------------------
+
+## Writes the game to [param to_slot] and makes it the slot this game saves into.
+## Refused -- false, nothing written -- when [method can_save] says no or the slot
+## is out of range. [param auto] only tells the view which kind of save it was.
+func save_game(to_slot := slot, auto := false) -> bool:
+	if to_slot < 1 or to_slot > SLOTS or not can_save():
+		return false
+	var data := snapshot()
+	if data.is_empty() or not _write(to_slot, data):
+		return false
+	slot = to_slot
+	EventBus.game_saved.emit(to_slot, auto)
+	return true
+
+
+## Everything a save holds, as it would be written. Empty with no player on a map.
+func snapshot() -> Dictionary:
+	var player := _player()
+	if player == null:
+		return {}
+	var map := SceneRouter.current_map() as GameMap
+	return {
+		"version": VERSION,
+		"meta": {
+			"saved_at": int(Time.get_unix_time_from_system()),
+			"name": GameState.player_name,
+			"level": GameState.level,
+			"floor": GameState.current_floor,
+			"place": map.display_name if map != null else "",
+		},
+		"game": GameState.to_save(),
+		"quests": QuestLog.to_save(),
+		"inventory": Inventory.to_save(),
+		"place": {
+			"map": GameState.current_map_path,
+			"x": player.position.x,
+			"y": player.position.y,
+			"facing": [player.facing.x, player.facing.y],
+		},
+	}
+
+
+## Writes beside the slot and renames over it, so a crash mid-write leaves the
+## old save whole rather than half a new one.
+func _write(to_slot: int, data: Dictionary) -> bool:
+	var error := DirAccess.make_dir_recursive_absolute(directory)
+	if error != OK:
+		push_error("SaveGame: can't make %s (%s)" % [directory, error_string(error)])
+		return false
+	var path := path_for(to_slot)
+	var partial := path + ".partial"
+	var file := FileAccess.open(partial, FileAccess.WRITE)
+	if file == null:
+		push_error("SaveGame: can't write %s (%s)" % [partial, error_string(FileAccess.get_open_error())])
+		return false
+	file.store_string(JSON.stringify(data, "\t"))
+	file.close()
+	error = DirAccess.rename_absolute(partial, path)
+	if error != OK:
+		push_error("SaveGame: can't replace %s (%s)" % [path, error_string(error)])
+		return false
+	return true
+
+
+# --- reading ---------------------------------------------------------------
+
+## Reads [param from_slot] and puts the player back where it left them, on the
+## same floor grown from the same seed. Awaitable; false, with the game untouched,
+## if the slot is empty or unreadable or something is in the way.
+func load_slot(from_slot: int) -> bool:
+	if CombatManager.is_running() or DialogueRunner.is_running() or GameState.is_input_locked():
+		return false
+	var data := read(from_slot)
+	if data.is_empty():
+		return false
+	await restore(data)
+	slot = from_slot
+	EventBus.game_loaded.emit(from_slot)
+	return true
+
+
+## Loads [param data] into the autoloads and rebuilds the map round it. The order
+## is the point: [GameState] first, since the quests are built from its seed and
+## its flags are theirs; then [QuestLog]; then [Inventory], whose one
+## [signal EventBus.inventory_changed] has the journal re-read its COLLECT and
+## REACH objectives against the bag it now holds rather than the last game's.
+func restore(data: Dictionary) -> void:
+	GameState.from_save(data["game"])
+	QuestLog.from_save(data["quests"])
+	Inventory.from_save(data["inventory"])
+	var place: Dictionary = data["place"]
+	var facing: Array = place.get("facing", [0, 1]) if place.get("facing") is Array else [0, 1]
+	await SceneRouter.resume(str(place.get("map", "")),
+			Vector2(float(place.get("x", 0.0)), float(place.get("y", 0.0))),
+			cardinal(Vector2(float(facing[0]) if facing.size() > 0 else 0.0,
+					float(facing[1]) if facing.size() > 1 else 1.0)))
+	# Arriving asked for an autosave of the game just read.
+	_autosave_pending = false
+
+
+## The parsed save in [param from_slot], or empty if there is none, it is not
+## JSON, it is missing a part, or it was written by a newer game than this one.
+func read(from_slot: int) -> Dictionary:
+	if not exists(from_slot):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path_for(from_slot)))
+	if not parsed is Dictionary:
+		push_warning("SaveGame: slot %d is not a save" % from_slot)
+		return {}
+	var data: Dictionary = parsed
+	var version := SaveCodec.whole(data.get("version"), 0)
+	if version < 1 or version > VERSION:
+		push_warning("SaveGame: slot %d is version %d; this game reads 1 to %d"
+				% [from_slot, version, VERSION])
+		return {}
+	data = _migrate(data, version)
+	for part in ["game", "quests", "inventory", "place"]:
+		if not data.get(part) is Dictionary:
+			push_warning("SaveGame: slot %d has no %s" % [from_slot, part])
+			return {}
+	return data
+
+
+## Brings an older save up to [constant VERSION], one version at a time. There is
+## only one version yet; the next change to the shape of a save adds a step here
+## rather than a special case in a from_save.
+func _migrate(data: Dictionary, _from_version: int) -> Dictionary:
+	return data
+
+
+# --- slots -----------------------------------------------------------------
+
+func path_for(of_slot: int) -> String:
+	return directory.path_join("slot_%d.json" % of_slot)
+
+
+func exists(of_slot: int) -> bool:
+	return of_slot >= 1 and of_slot <= SLOTS and FileAccess.file_exists(path_for(of_slot))
+
+
+## What a slot list shows of [param of_slot] -- name, level, floor, place and
+## [code]saved_at[/code] (unix time) -- or empty for an empty or unreadable slot.
+func summary(of_slot: int) -> Dictionary:
+	var data := read(of_slot)
+	return data.get("meta", {}) if data.get("meta") is Dictionary else {}
+
+
+func delete(of_slot: int) -> bool:
+	if not exists(of_slot):
+		return false
+	return DirAccess.remove_absolute(path_for(of_slot)) == OK
+
+
+# --- helpers ---------------------------------------------------------------
+
+## The player on the current map, or null between maps.
+func _player() -> Player:
+	var map := SceneRouter.current_map()
+	return map.get_node_or_null("Player") as Player if map != null else null
+
+
+## [param direction] snapped to the nearest of the four ways a sprite can face;
+## down for none. A hand-edited facing of (0.3, 0) must not index past the sheet.
+static func cardinal(direction: Vector2) -> Vector2:
+	if direction.is_zero_approx():
+		return Vector2.DOWN
+	if absf(direction.x) > absf(direction.y):
+		return Vector2(signf(direction.x), 0.0)
+	return Vector2(0.0, signf(direction.y))

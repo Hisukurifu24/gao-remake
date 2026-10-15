@@ -368,3 +368,109 @@ func pop_input_lock() -> void:
 
 func is_input_locked() -> bool:
 	return _input_locks > 0
+
+
+# --- The save ---
+## [SaveGame] owns the file; this owns what of it is the player and the world.
+## Every variable in this file is in exactly one of the two lists below, and the
+## save test reads the file's own variables and fails on one in neither -- so a
+## field added later cannot quietly be left out of the save.
+
+## Written by [method to_save] and read back by [method from_save].
+const SAVED: Array[StringName] = [
+	&"player_name", &"level", &"xp", &"max_hp", &"hp", &"attack", &"defense", &"speed",
+	&"current_floor", &"current_map_path", &"world_seed",
+	&"_cleared_floors", &"_visited_floors", &"_flags", &"_explored", &"_walked",
+	&"_col", &"_dropped_col",
+]
+## Deliberately not saved: the input lock belongs to whatever screen is up, and
+## nothing is up in a save.
+const NOT_SAVED: Array[StringName] = [&"_input_locks"]
+
+
+func to_save() -> Dictionary:
+	var flags := {}
+	for flag in _flags:
+		flags[String(flag)] = _flags[flag]
+	var pile := {}
+	if not _dropped_col.is_empty():
+		var at: Vector2 = _dropped_col["position"]
+		pile = {"map": String(_dropped_col["map"]), "x": at.x, "y": at.y,
+				"amount": _dropped_col["amount"]}
+	return {
+		"player_name": player_name, "level": level, "xp": xp,
+		"max_hp": max_hp, "hp": hp, "attack": attack, "defense": defense, "speed": speed,
+		"current_floor": current_floor, "current_map_path": current_map_path,
+		"world_seed": world_seed,
+		"cleared_floors": _cleared_floors.keys(),
+		"visited_floors": _visited_floors.keys(),
+		"flags": flags,
+		"explored": _cells_to_save(_explored),
+		"walked": _cells_to_save(_walked),
+		"col": _col,
+		"dropped_col": pile,
+	}
+
+
+## Replaces everything [method to_save] wrote with what [param data] says. A key
+## that is missing takes the value a new game starts with, so a save written
+## before a field existed still loads. Announces only the purse: the map is about
+## to be rebuilt round the rest. [SaveGame] decides the order the
+## autoloads load in, and this goes first -- the quests and the bag read it.
+func from_save(data: Dictionary) -> void:
+	player_name = str(data.get("player_name", "Kirito"))
+	level = maxi(1, SaveCodec.whole(data.get("level"), 1))
+	xp = maxi(0, SaveCodec.whole(data.get("xp"), 0))
+	max_hp = SaveCodec.whole(data.get("max_hp"), 60)
+	hp = SaveCodec.whole(data.get("hp"), max_hp)
+	attack = SaveCodec.whole(data.get("attack"), 8)
+	defense = SaveCodec.whole(data.get("defense"), 4)
+	speed = SaveCodec.whole(data.get("speed"), 10)
+	current_floor = clampi(SaveCodec.whole(data.get("current_floor"), 1), 1, FloorTuning.TOP_FLOOR)
+	current_map_path = str(data.get("current_map_path", ""))
+	world_seed = SaveCodec.whole(data.get("world_seed"), 0)
+	if world_seed == 0:
+		new_world_seed()
+
+	_cleared_floors.clear()
+	for floor_number: Variant in data.get("cleared_floors", []):
+		_cleared_floors[SaveCodec.whole(floor_number)] = true
+	_visited_floors.clear()
+	for floor_number: Variant in data.get("visited_floors", []):
+		_visited_floors[SaveCodec.whole(floor_number)] = true
+	_flags.clear()
+	var flags: Dictionary = data.get("flags", {})
+	for flag: String in flags:
+		_flags[StringName(flag)] = SaveCodec.plain(flags[flag])
+	_explored = _cells_from_save(data.get("explored", {}))
+	_walked = _cells_from_save(data.get("walked", {}))
+
+	_col = maxi(0, SaveCodec.whole(data.get("col"), 0))
+	_dropped_col = {}
+	var pile: Dictionary = data.get("dropped_col", {})
+	if SaveCodec.whole(pile.get("amount"), 0) > 0:
+		_dropped_col = {"map": StringName(str(pile.get("map", ""))),
+				"position": Vector2(float(pile.get("x", 0.0)), float(pile.get("y", 0.0))),
+				"amount": SaveCodec.whole(pile["amount"])}
+
+	# HP is not clamped here: the ceiling is the gear's, and the bag that loads
+	# next is what wears it. Inventory.from_save() refreshes the vitals.
+	EventBus.col_changed.emit(_col)
+
+
+static func _cells_to_save(store: Dictionary[StringName, Dictionary]) -> Dictionary:
+	var maps := {}
+	for map_id in store:
+		maps[String(map_id)] = SaveCodec.encode_cells(store[map_id])
+	return maps
+
+
+static func _cells_from_save(data: Variant) -> Dictionary[StringName, Dictionary]:
+	var store: Dictionary[StringName, Dictionary] = {}
+	if not data is Dictionary:
+		return store
+	for map_id: String in data:
+		var cells := SaveCodec.decode_cells(data[map_id])
+		if not cells.is_empty():
+			store[StringName(map_id)] = cells
+	return store

@@ -416,3 +416,75 @@ func _kind_rank(kind: Item.Kind) -> int:
 ## exists or handle a full bag.
 func _on_item_granted(id: StringName, amount: int) -> void:
 	add_id(id, amount)
+
+
+# --- the save --------------------------------------------------------------
+## Every variable in this file is in [constant SAVED]; the save test fails on one
+## that is not, so a field added later cannot quietly miss the save.
+
+const SAVED: Array[StringName] = [&"_stacks", &"_equipped"]
+const NOT_SAVED: Array[StringName] = []
+
+
+## The bag in slot order and what is worn, by item id. A stack keeps its count
+## and its copy's [member ItemStack.plus], worn ones too.
+func to_save() -> Dictionary:
+	var bag := []
+	for stack in _stacks:
+		bag.append(_stack_to_save(stack))
+	var worn := {}
+	for slot in _equipped:
+		worn[String(slot)] = _stack_to_save(_equipped[slot])
+	return {"bag": bag, "worn": worn}
+
+
+## Replaces the bag and the gear with [param data]'s. An id that names no item
+## any more -- content renamed since the save -- is dropped with a warning rather
+## than failing the load; a count or a +N past what the item allows is cut to
+## it. Announces the bag once, at the end, so [QuestLog] re-reads its COLLECT
+## objectives against the whole bag and never against half of one.
+func from_save(data: Dictionary) -> void:
+	_stacks.clear()
+	_equipped.clear()
+	for entry: Variant in data.get("bag", []):
+		var stack := _stack_from_save(entry)
+		if stack != null:
+			_stacks.append(stack)
+	var worn: Dictionary = data.get("worn", {})
+	for slot: String in worn:
+		var stack := _stack_from_save(worn[slot])
+		if stack == null:
+			continue
+		if not stack.item.is_equipment() or stack.item.slot() != StringName(slot) \
+				or _equipped.has(StringName(slot)):
+			push_warning("Inventory: %s can't be worn as %s; it goes in the bag" % [stack.item.id, slot])
+			_stacks.append(stack)
+			continue
+		stack.count = 1
+		_equipped[StringName(slot)] = stack
+	if _stacks.size() > CAPACITY:
+		push_warning("Inventory: the save holds %d stacks, over the bag's %d" % [_stacks.size(), CAPACITY])
+	GameState.refresh_vitals()
+	EventBus.inventory_changed.emit()
+
+
+static func _stack_to_save(stack: ItemStack) -> Dictionary:
+	var entry := {"id": String(stack.item.id), "count": stack.count}
+	if stack.plus > 0:
+		entry["plus"] = stack.plus
+	return entry
+
+
+static func _stack_from_save(entry: Variant) -> ItemStack:
+	if not entry is Dictionary:
+		return null
+	var id := StringName(str(entry.get("id", "")))
+	if not ItemLibrary.exists(id):
+		push_warning("Inventory: the save names an item that no longer exists: '%s'" % id)
+		return null
+	var item := ItemLibrary.get_item(id)
+	var count := clampi(SaveCodec.whole(entry.get("count"), 1), 1, item.stack_limit())
+	var stack := ItemStack.new(item, count)
+	if item.is_equipment():
+		stack.plus = clampi(SaveCodec.whole(entry.get("plus"), 0), 0, item.max_plus())
+	return stack

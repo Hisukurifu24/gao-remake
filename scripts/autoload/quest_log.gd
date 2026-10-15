@@ -408,3 +408,78 @@ func _on_floor_cleared(_floor_number: int) -> void:
 
 func _on_inventory_changed() -> void:
 	_refresh_all_state_based()
+
+
+# --- the save -------------------------------------------------------------
+## Every variable in this file is in [constant SAVED]; the save test fails on one
+## that is not, so a field added later cannot quietly miss the save.
+
+const SAVED: Array[StringName] = [&"_active", &"_completed", &"_order", &"_tracked"]
+const NOT_SAVED: Array[StringName] = []
+
+
+## Quests by id, never by resource: a shipped quest is a [code].tres[/code] and a
+## settled floor's job is rebuilt from its id ([LocalQuests]), so an id is the
+## whole quest. A live one keeps its counters, objective by objective.
+func to_save() -> Dictionary:
+	var active := {}
+	for id in _active:
+		var progress := _active[id]
+		var counts := {}
+		for objective in progress.quest.listed_objectives():
+			counts[String(objective.id)] = progress.of(objective)
+		active[String(id)] = counts
+	var completed := []
+	for id in _completed:
+		completed.append(String(id))
+	var order := []
+	for id in _order:
+		order.append(String(id))
+	return {"active": active, "completed": completed, "order": order,
+			"tracked": String(_tracked)}
+
+
+## Replaces the journal with [param data]'s. Writes no flags: the quest flags came
+## back with the rest of [GameState]'s, which is why that loads first. Re-reads
+## nothing from the world either -- the bag loads after this, and its
+## [signal EventBus.inventory_changed] is what refreshes COLLECT and REACH, against
+## the right bag. A quest the save names that no longer exists is dropped with a
+## warning.
+func from_save(data: Dictionary) -> void:
+	_active.clear()
+	_completed.clear()
+	_order.clear()
+	_tracked = &""
+	for id_text: Variant in data.get("completed", []):
+		var quest := _quest_from_save(str(id_text))
+		if quest != null:
+			_completed[quest.id] = quest
+	var active: Dictionary = data.get("active", {})
+	for id_text: String in active:
+		var quest := _quest_from_save(id_text)
+		if quest == null or _completed.has(quest.id):
+			continue
+		var progress := QuestProgress.new(quest)
+		var counts: Dictionary = active[id_text] if active[id_text] is Dictionary else {}
+		for objective in quest.listed_objectives():
+			progress.set_progress(objective, SaveCodec.whole(counts.get(String(objective.id)), 0))
+		_active[quest.id] = progress
+	for id_text: Variant in data.get("order", []):
+		var id := StringName(str(id_text))
+		if (_active.has(id) or _completed.has(id)) and id not in _order:
+			_order.append(id)
+	# A quest the order lost still belongs in the journal, at the end.
+	for id in _completed.keys() + _active.keys():
+		if id not in _order:
+			_order.append(id)
+	var tracked := StringName(str(data.get("tracked", "")))
+	_tracked = tracked if _active.has(tracked) else &""
+	EventBus.quest_log_changed.emit()
+
+
+func _quest_from_save(id_text: String) -> Quest:
+	var id := StringName(id_text)
+	if not QuestLibrary.exists(id):
+		push_warning("QuestLog: the save names a quest that no longer exists: '%s'" % id)
+		return null
+	return QuestLibrary.get_quest(id)

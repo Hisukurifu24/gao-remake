@@ -125,3 +125,10 @@ signal floor_cleared(floor_number: int)
 signal teleport_requested(floor_number: int)
 ## The player walked into a floor's hidden boss room and the door showed itself.
 signal boss_room_found(floor_number: int)
+
+# --- The save ---
+## The game was written to [param slot] -- asked for, or an autosave. For the
+## view that says so; nothing in the game reacts to having been saved.
+signal game_saved(slot: int, auto: bool)
+## A save was read back and the player is standing where it left them.
+signal game_loaded(slot: int)

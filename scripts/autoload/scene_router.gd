@@ -12,10 +12,15 @@ signal map_changed(map_path: String)
 signal floor_entered(floor_number: int)
 
 const FADE_TIME := 0.25
+## How [member GameState.current_map_path] names a floor built by
+## [FloorRegistry] rather than loaded from a scene: [code]floor://25[/code].
+const FLOOR_SCHEME := "floor://"
 
 var _world_root: Node = null
 var _fade: ColorRect
 var _pending_spawn: StringName = &""
+## Where a loaded game puts the player instead of a spawn point: see [method resume].
+var _pending_place: Dictionary = {}
 var _busy := false
 
 
@@ -57,9 +62,30 @@ func enter_floor(floor_number: int, spawn: StringName = &"", fade_time := FADE_T
 		return
 	await _transition(func() -> Node:
 		return FloorRegistry.build_floor(floor_number)
-	, spawn, "floor://%d" % floor_number, fade_time)
+	, spawn, FLOOR_SCHEME + str(floor_number), fade_time)
 	GameState.current_floor = floor_number
 	floor_entered.emit(floor_number)
+
+
+## Goes back to [param map_path] -- a scene, or a [constant FLOOR_SCHEME] floor --
+## and puts the player at [param position] (map-local) facing [param facing]
+## rather than on a spawn point. A loaded game's way in. If the map has changed
+## under the spot since, [GameMap] falls back to its default spawn; if the path
+## names nothing, the player goes to the current floor's entrance.
+func resume(map_path: String, position: Vector2, facing: Vector2, fade_time := FADE_TIME) -> void:
+	_pending_place = {"position": position, "facing": facing}
+	if map_path.begins_with(FLOOR_SCHEME):
+		await enter_floor(int(map_path.trim_prefix(FLOOR_SCHEME)), &"", fade_time)
+	elif map_path != "" and ResourceLoader.exists(map_path):
+		await change_map(map_path, &"", fade_time)
+	else:
+		push_warning("SceneRouter: no map at '%s'; resuming at floor %d's entrance"
+				% [map_path, GameState.current_floor])
+		_pending_place = {}
+		await enter_floor(GameState.current_floor, &"", fade_time)
+	# Taken by the map, normally. Cleared anyway, so a resume refused mid-transition
+	# never leaks into the next map change.
+	_pending_place = {}
 
 
 ## Fades out, runs [param action], fades back in -- a move within a map that
@@ -92,6 +118,15 @@ func consume_spawn() -> StringName:
 	var spawn := _pending_spawn
 	_pending_spawn = &""
 	return spawn
+
+
+## Maps call this in _ready() after [method consume_spawn]: where a loaded game
+## stood ([code]position[/code], [code]facing[/code]), or empty for any other
+## arrival.
+func consume_placement() -> Dictionary:
+	var place := _pending_place
+	_pending_place = {}
+	return place
 
 
 func _transition(build_map: Callable, spawn: StringName, path_hint: String, fade_time: float) -> void:

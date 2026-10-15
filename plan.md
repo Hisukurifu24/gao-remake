@@ -1856,10 +1856,45 @@ And what the tests learned from it:
 - The generated-floor check said "all 99" and had been counting fewer since Floor 10. It
   counts now: 97.
 
-### M7 — Save/load, polish, audio
-- [ ] Serialize GameState/Inventory/QuestLog to `user://` save files. **`world_seed` must
-  be in the save** — without it every generated floor reshuffles on load.
-- [ ] Main menu, pause menu, settings.
+### M7 — Save/load, polish, audio *(the save decided and built 2026-10-15)*
+Asked, the user chose: **save anywhere plus autosave** (a hardcore mode with no saving
+at all comes later), **three slots**, a loaded game resumes on **the exact spot**, and
+the first slice is **the save/load core and its tests** -- no menus yet.
+- [x] **The save** (`SaveGame` autoload, `scripts/autoload/save_game.gd`): three slots
+  in `user://saves/slot_<n>.json`. Each autoload writes its own state
+  (`GameState`/`Inventory`/`QuestLog` `.to_save()` / `.from_save()`); `SaveGame` owns
+  the slot, the file's version and migration, when to write and putting the player back.
+  JSON, so it reads and diffs; explored and walked cells as bitmaps (`SaveCodec`), a
+  hundred floors' worth in kilobytes. **`world_seed` is in it** and no map is: every
+  floor grows back from the seed, and everything that stays done is a flag.
+- [x] **Load order** -- `GameState`, then `QuestLog`, then `Inventory`, whose one
+  `inventory_changed` re-reads the COLLECT/REACH objectives against the right bag. HP is
+  clamped only once the gear that sets its ceiling is back on.
+- [x] **The exact spot**: `SceneRouter.resume()` arrives with a placement instead of a
+  spawn; `GameMap` stands the player there facing the way they were, unless the map has
+  changed under the spot (then the spawn), and calms the monsters it put back.
+- [x] **Autosave** on every map arrival and floor clear, held until nothing is in the
+  way (a box, a menu, a fade, a fight). **F5** saves and **F9** goes back to the save
+  until the pause menu exists. A small "Saved" note in the HUD's corner.
+- [x] **Boot**: until the title screen, the game plays in slot 1 -- continues it, or
+  starts a new game in it; `-- --slot=N`, `-- --new`. A debug `--floor` run, every test
+  and every tool save nowhere (only the real main scene picks a slot).
+- [x] **Tests** (`test/save_test.tscn`, the seventh suite, 60 checks): the codec; a
+  **field sweep** -- every variable of the three autoloads is in its `SAVED` or
+  `NOT_SAVED` list, so state added later cannot quietly miss the save; a full round
+  trip (levels, floors, flags, purse and dropped pile, a +2 sword worn and a +0 spare, a
+  ring's HP, a quest done, a settled floor's job live with its count and tracked, a
+  generated floor half explored) whose re-save is the save it was loaded from, field for
+  field, on the same floor wall for wall with the player on the spot; older saves,
+  renamed items and quests, corrupt, newer and partial files refused with the game
+  untouched; slots; refusals through the input lock; the fallback spawn; autosave.
+- *Calls of mine, flag if wrong:* one file per slot, autosave writing over the manual
+  save (no separate autosave file); autosaving on map arrival and floor clear only, not
+  after every fight or purchase; monsters calm for `CALM_SECONDS` after a load; play
+  time not tracked yet (the slot summary has name, level, floor, place, saved-at).
+- [ ] Main menu (the three slots: continue, new, delete -- `SaveGame.summary()` is
+  ready for it), pause menu (save, quit to title), settings.
+- [ ] **Hardcore mode**: no saving at all, chosen at new game (the user, 2026-10-15).
 - [ ] **Death Game mode** (M5.6): permadeath chosen at new game -- lose a fight, lose the
   save. Lands with the save, since there is nothing to delete before it.
 - [ ] SFX/music, screen shake, hit-stop, transitions; controller support.
@@ -2151,7 +2186,11 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    each and an authored boss — Lanternfall took that from a design job to a content job, and
    the suite checks everything a hand-built floor tends to get wrong. Forty opens the swamp
    band; Ashlow was a loop and Lanternfall a chain, so it wants a third shape.
-5. **M7 save/load is the one thing getting more expensive with every milestone.**
+5. ~~M7 save/load~~ **built 2026-10-15** (three slots, autosave, F5/F9, the exact
+   spot) -- and the save test's field sweep now fails on any autoload field left out of
+   it, so it no longer gets more expensive by itself. Next on M7: the title screen and
+   pause menu, then hardcore and Death Game modes. *The old note, for the record:*
+   **M7 save/load is the one thing getting more expensive with every milestone.**
    M5.6 added the purse (`GameState._col`), the dropped pile (`_dropped_col`) and
    every gear stack's `plus` -- worn ones too, since a slot now holds the stack.
    `QuestLog` just added a third autoload's worth of state to serialise

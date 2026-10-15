@@ -293,7 +293,13 @@ func _contact_opening(player: Player) -> Encounter.Opening:
 
 
 func _on_any_combat_finished(_result: CombatResult) -> void:
-	_calm = CALM_SECONDS
+	calm()
+
+
+## Notices nobody for [param seconds]: what every monster does after any fight,
+## and what a loaded game gives the monsters it put back round the player.
+func calm(seconds := CALM_SECONDS) -> void:
+	_calm = maxf(_calm, seconds)
 
 
 # --- movement --------------------------------------------------------------
