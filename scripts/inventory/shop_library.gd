@@ -7,8 +7,20 @@ class_name ShopLibrary
 const SHOP_PATH := "res://resources/shops/%s.tres"
 
 const SHOPS: PackedStringArray = [
-	"town_outfitter", "ashlow_trader", "lanternfall_quartermaster",
+	"town_outfitter", "ashlow_trader", "lanternfall_quartermaster", "travelling_merchant",
 ]
+
+## Every [Smith]'s forge -- the other kind of counter -- by id.
+const SMITH_PATH := "res://resources/smiths/%s.tres"
+const SMITHS: PackedStringArray = ["town_forge"]
+
+
+static func get_smith(id: StringName) -> Smith:
+	var path := SMITH_PATH % id
+	if not ResourceLoader.exists(path):
+		push_error("ShopLibrary: no such forge '%s'" % id)
+		return null
+	return load(path) as Smith
 
 
 static func get_shop(id: StringName) -> Shop:

@@ -1286,7 +1286,7 @@ a place, not tactics); a party (formation has room for it — spots are a list �
 party is one); pulling nearby monsters into a fight they could see (tempting, and it
 would make the labyrinth's monsters much more dangerous; weigh after it plays).
 
-### M5.6 — Economy: Col *(decided 2026-10-04; first slice built 2026-10-07)*
+### M5.6 — Economy: Col *(decided 2026-10-04; first slice built 2026-10-07; the sinks 2026-10-09)*
 The climb has nothing to earn and nothing to lose. M3 left out currency and shops on
 purpose; materials have one buyer (Nezha's whetstones), Argo "sells" a map for a flag,
 and losing costs a walk: a monster knocks you to 35% HP where you stand
@@ -1301,15 +1301,17 @@ materials, so a hide is worth picking up; Col in chests and as a quest reward; t
 in sealed puzzle chests.
 
 *Sinks* (taken):
-- [ ] **Smith enhancement (+N)**, SAO's sharpening: Col plus materials, and it can fail.
+- [x] **Smith enhancement (+N)**, SAO's sharpening: Col plus materials, and it can fail.
+  *(Built 2026-10-09 -- see "The sinks" below.)*
   The deep sink, and the materials' second use beside Nezha's whetstones. Where the
   bonus lives matters: an enhanced sword must still reach combat through
   `GameState.total_*()` and nowhere else.
-- [ ] **Argo sells information.** Col for a floor's hidden boss door — `BossGate.reveal()`
+- [x] **Argo sells information.** *(Built 2026-10-09.)* Col for a floor's hidden boss door — `BossGate.reveal()`
   is already public for exactly this. Pricing it is the design question: it should save
   the walk on a floor you're tired of, not skip the labyrinth on every floor.
-- [ ] **Shops, and a merchant at the campfire.** Shops in the authored hubs (Floor 1's
+- [x] **Shops, and a merchant at the campfire.** Shops in the authored hubs (Floor 1's
   town, Ashlow, the Lanternfall camp) — **built 2026-10-07**; a travelling merchant in the labyrinth's safe zone
+  (**built 2026-10-09**)
   on *some* generated floors, which gives the camp a second reason to exist without
   waiting for M6's town hubs.
 
@@ -1407,7 +1409,81 @@ and the dropped purse. Built:
   teeth.
 - *Not built:* smith enhancement, Argo's information, the campfire merchant,
   floor-exclusive stock in villages, Death Game mode (needs M7). With ten stocked items
-  the shelf climbs only to floor 25; it grows as items are added.
+  the shelf climbs only to floor 25; it grows as items are added. *(The first three
+  are in now, below.)*
+
+**The sinks — built 2026-10-09.** "Proceed with plan.md": the three sinks the user had
+already chosen, so no new decision was asked for; the numbers are mine, flagged below.
+- [x] **Enhancement is per copy, not per item.** `ItemStack.plus` -- equipment is a
+  stack of one, so a stack *is* that sword -- and a worn slot now holds the stack
+  itself (`Inventory._equipped: Dictionary[StringName, ItemStack]`, `worn(slot)`), so
+  the +N goes on and comes off with it. Two Bronze Swords can be +0 and +3.
+  `equip(item)` wears the best copy, `equip_stack()` the one the bag's cursor is on;
+  `remove()` takes the least enhanced of equal stacks, so selling "a Bronze Sword"
+  never sells the worked one; the shop's sell rows are stacks (`Shop.sell_stack()`).
+  **The M7 save has to keep `plus` on every stack, worn ones included.**
+- [x] **It reaches combat the one way gear does**: `Inventory.bonus()` adds
+  `Item.plus_bonus()`, `GameState.total_*()` fold it in, `Combatant.from_player()`
+  reads those. Nothing in combat knows.
+- [x] **The rule is the item's** (`Item.max_plus()`, `enhanced_stat()`, `plus_step()`):
+  a weapon sharpens attack, armour defence, an accessory max HP; each +1 adds 10% of
+  the piece's own bonus in that stat (at least 1, or 5 HP), so a better blade
+  sharpens into more; the cap is by rarity -- common +3, uncommon +5, rare +8, epic
+  and legendary +10. The Anneal Blade tops out at +8 (ATK 18), past the Heartwood
+  Blade's bare 15, and a +8 Heartwood is 31.
+- [x] **`Smith`** (`scripts/resources/smith.gd`, `resources/smiths/town_forge.tres`,
+  listed in `ShopLibrary.SMITHS`): an attempt from +n costs **a quarter of the
+  piece's price per level it is going to** (Anneal +1: 300, +8: 2,400 -- 10.8k to
+  take it all the way, failures on top) and **n+1 monster materials of a tier**:
+  common for +1..+3, uncommon for +4..+6, rare beyond -- so the floor-60 golems and
+  floor-70 drakes are what finish a blade, and drops have a second use. Odds are
+  100/90/80/70/60/50/40/35/30/25%, and each extra material put in adds 10 (to a
+  sure thing). The forge picks *which* materials, cheapest first; the player picks
+  *how many* extras. A failure costs everything put in and keeps the +n -- no
+  degrading, no breaking. Key items are never fed to it. `Smith.attempt(stack,
+  extra, roll)` takes a roll for the tests.
+- [x] **Nezha is the smith**: his menu gains "Work on my gear.", whose line carries a
+  new `DialogueEffect.OPEN_FORGE` -- `EventBus.forge_requested` -- and the forge
+  screen (`ui/forge_screen.tscn`) opens once the conversation has closed. It lists
+  your gear worn-first with each step's price, says which materials it will burn and
+  the odds, ←/→ puts extras in, **E** works it -- deaf for `Player.INTERACT_GRACE`
+  after opening, since the press that closed Nezha's box is still being mashed and E
+  here spends Col. `Npc.smith` opens a forge directly, for a smith with nothing to say.
+- [x] **Argo sells doors** (`DoorIntel`, `scripts/quests/door_intel.gd`): "Know where
+  any doors are?" (once Illfang is down) queues a pitch built in code -- a new
+  `DialogueEffect.SELL_INTEL` -- offering the four highest floors you have stood on
+  whose door you haven't found or cleared, never floor 1. Each is a plain choice gated
+  on `MIN_COL` (shown locked when you're short) paying `TAKE_COL` and setting
+  `boss_found_<n>`, so the runner needed no new rule. **The price is a floor's
+  hunting** -- `kill_col(n) × monster_count(n)`: 128 col on floor 5, 1,612 on 50.
+  **She sells the location, not the way**: the door stands and `GameMap` charts its
+  room on **M** when the floor is next built (`_chart_found_doors()`, any found door
+  whose room is unexplored), but the labyrinth between is still dark and unwalked.
+  That is the answer to "save the walk, not skip the labyrinth".
+- [x] **A peddler by the fire** on some generated floors (`FloorGenerator._add_merchant`):
+  an `Npc` keeping the `travelling_merchant` shop -- potions, antidotes, whetstones
+  at town prices -- in the labyrinth's safe zone. Whether, and who, from the floor's
+  own `hash("<seed>:merchant")` stream (40%), so no floor's rng moved; where by rule,
+  the middle of one of the room's sides against the pillar the maze leaves there,
+  never in a doorway. The floor test's `_audit_merchant` walks the room with the
+  fire and the peddler both solid -- every cell and the door still reachable, the
+  peddler walkable up to, a listed shop -- and wants peddlers in between a fifth
+  and three fifths of safe zones.
+- [x] **Tests**: inventory (per-copy enhancement through equip, unequip, removal and
+  selling; the +N in `total_attack()` and the `Combatant`; cost, tiers, odds, extras,
+  cheapest-first materials, a failure's cost, the caps; every forge listed and
+  Nezha's effect naming one), quest (Argo's offers, prices, her real menu queuing the
+  pitch, buying it, and the bought door charted on a built floor 5 with the maze
+  mouth still unseen), floor (the peddler audit on every generated floor), smoke
+  (Nezha's real conversation opening the forge, the mashed E swallowed, a real +1
+  showing in attack). `tools/screenshot.gd -- --forge` frames all three.
+- *Calls of mine, flag if wrong:* the numbers above (caps, costs, odds, tiers); that a
+  failure never degrades the piece (SAO's could); that the smith's work is not bought
+  back (an enhanced piece sells for what a plain one does); that Argo's price is a
+  floor's kills and that she sells the door rather than the route; the peddler's 40%
+  and town prices (no mark-up for the walk); and Lanternfall and Ashlow having no
+  smith of their own yet.
+- *Still not built:* villages' floor-exclusive stock, Death Game mode (needs M7).
 
 ### M6 — World depth & floor content
 The 100-floor architecture is in (see *Floors of Aincrad* below); this is the pass that
@@ -1991,6 +2067,13 @@ and they buy back whatever you drag home. Lose a fight and your purse stays wher
 fell — a pouch on the floor, marked on the map — and lose again before you go back for
 it and it is gone.
 
+And there is somewhere for it to go. Nezha will work your gear now: Col for the coal,
+hides and fangs for the temper, and it takes or it doesn't -- the Anneal Blade goes to
++8 if you feed it, and the last steps want what the drakes and golems drop seventy
+floors up. Argo sells doors: a floor's hunting buys the location of its boss on your
+map, though the maze in front of it is still yours to walk. And now and then there is
+a peddler by the safe zone's fire with potions at town prices, halfway to the door.
+
 And the floors you leave behind fill in. Three floors further up, go back through the
 gate and the camp has become a village: the adventurers have moved on with the front
 line, houses in the band's own style stand round the tents they left — igloos on the
@@ -2001,12 +2084,12 @@ labyrinth after the mapmaker who never came out.
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 160-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 140-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 167-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 141-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 61-check dialogue test
-"$GODOT" --headless --path . res://test/inventory_test.tscn # 163-check inventory test
+"$GODOT" --headless --path . res://test/inventory_test.tscn # 202-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 88-check combat test
-"$GODOT" --headless --path . res://test/quest_test.tscn     # 194-check quest test
+"$GODOT" --headless --path . res://test/quest_test.tscn     # 204-check quest test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -2060,15 +2143,17 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where
-   you fall. Still to build: smith enhancement (the deep sink), Argo's boss-door
-   information, the campfire merchant, and villages' floor-exclusive stock.
+   you fall. **The sinks built 2026-10-09**: Nezha's forge (+N per copy, Col and
+   materials, can fail), Argo selling boss doors, a peddler in some safe zones. Still
+   to build: villages' floor-exclusive stock, and Death Game mode after M7.
 4. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
    a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest
    each and an authored boss — Lanternfall took that from a design job to a content job, and
    the suite checks everything a hand-built floor tends to get wrong. Forty opens the swamp
    band; Ashlow was a loop and Lanternfall a chain, so it wants a third shape.
 5. **M7 save/load is the one thing getting more expensive with every milestone.**
-   M5.6 added the purse (`GameState._col`) and the dropped pile (`_dropped_col`).
+   M5.6 added the purse (`GameState._col`), the dropped pile (`_dropped_col`) and
+   every gear stack's `plus` -- worn ones too, since a slot now holds the stack.
    `QuestLog` just added a third autoload's worth of state to serialise
    (`_active`/`_completed`/`_order`/`_tracked`), on top of `GameState` and
    `Inventory` — and `GameState._visited_floors`, which the teleport gates read. `world_seed` **must** be in the save or every generated floor

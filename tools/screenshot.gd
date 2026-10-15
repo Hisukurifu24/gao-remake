@@ -8,6 +8,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --camps     # the adventurers' camps only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --villages  # the camps settled into villages
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
 ##
 ## Dev aid for checking how a change actually looks without sitting through the
 ## game. Needs a real window, so it can't run with --headless.
@@ -72,6 +73,11 @@ func _ready() -> void:
 		return
 	if "--villages" in OS.get_cmdline_user_args():
 		await _capture_villages(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--forge" in OS.get_cmdline_user_args():
+		await _capture_forge(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1067,6 +1073,84 @@ func _capture_shops(main: Node) -> void:
 	await _capture("04s_bag_purse")
 	bag.call(&"close")
 	await _frames(2)
+
+
+## The rest of M5.6's sinks: Nezha's forge on a worn blade (and a failure), Argo's
+## door pitch, a door she sold on its floor's map, and a peddler by a safe zone's
+## fire with their pack open.
+func _capture_forge(main: Node) -> void:
+	for floor_number in range(1, 31):
+		if floor_number > 1:
+			GameState.clear_floor(floor_number - 1)
+		GameState.visit_floor(floor_number)
+	GameState.reset_col()
+	EventBus.col_granted.emit(4000)
+	Inventory.add_id(&"anneal_blade", 1)
+	Inventory.equip(ItemLibrary.get_item(&"anneal_blade"))
+	Inventory.add_id(&"leather_coat", 1)
+	Inventory.add_id(&"swift_charm", 1)
+	Inventory.add_id(&"boar_hide", 4)
+	Inventory.add_id(&"wolf_fang", 3)
+	Inventory.add_id(&"lizard_scale", 2)
+	SceneRouter.enter_floor(1, &"gate")
+	await _arrived(1)
+	var forge := main.get_node("ForgeScreen")
+	EventBus.forge_requested.emit(ShopLibrary.get_smith(&"town_forge"))
+	await _wait(0.2)
+	await _capture("04v_forge")
+	forge.call(&"work", 0.0)
+	await _press(&"move_right")
+	await _capture("04v_forge_extra")
+	forge.call(&"set_extra", 0)
+	forge.call(&"work", 99.9)
+	await _capture("04v_forge_failed")
+	forge.call(&"close")
+	await _frames(2)
+
+	# Argo's pitch: floors 2 to 30 stood on, none of their doors found.
+	DialogueRunner.start(DoorIntel.conversation())
+	await _typed(main)
+	while DialogueRunner.is_running() and not DialogueRunner.is_choosing():
+		DialogueRunner.advance()
+		await _typed(main)
+	await _capture("04v_argo_doors")
+	DialogueRunner.choose(0)
+	await _typed(main)
+	await _capture("04v_argo_sold")
+	while DialogueRunner.is_running():
+		DialogueRunner.advance()
+		await _frames(2)
+	var sold := 30
+	SceneRouter.enter_floor(sold, &"gate")
+	await _arrived(sold)
+	await _wait(0.3)
+	await _capture_map(main, "04v_argo_door_on_map")
+
+	# The first floor with a peddler by its fire.
+	for floor_number in range(2, 31):
+		var probe := FloorRegistry.build_floor(floor_number)
+		var has_one := probe.get_node_or_null("Merchant") != null
+		probe.free()
+		if not has_one:
+			continue
+		SceneRouter.enter_floor(floor_number, &"gate")
+		var map := await _arrived(floor_number)
+		var player := map.get_node("Player") as Player
+		var peddler := map.get_node("Merchant") as Npc
+		_stand_by(map, player, peddler)
+		await _wait(0.4)
+		# Walking in says "the air is calm here" -- let it.
+		while DialogueRunner.is_running():
+			DialogueRunner.advance()
+			await _frames(2)
+		await _wait(0.2)
+		await _capture("04v_peddler_floor%02d" % floor_number)
+		peddler.interact(player)
+		await _wait(0.2)
+		await _capture("04v_peddler_pack")
+		main.get_node("ShopScreen").call(&"close")
+		await _frames(2)
+		break
 
 
 ## A generated floor's adventurers' camp in every band, as you arrive in it; one

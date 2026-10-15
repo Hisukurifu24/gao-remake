@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="2_hud"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://ui/battle_hud.tscn" id="9_battle_hud"]
 [ext_resource type="PackedScene" path="res://ui/gate_menu.tscn" id="10_gate"]
 [ext_resource type="PackedScene" path="res://ui/shop_screen.tscn" id="11_shop"]
+[ext_resource type="PackedScene" path="res://ui/forge_screen.tscn" id="12_forge"]
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
@@ -31,5 +32,7 @@ script = ExtResource("1_main")
 [node name="GateMenu" parent="." instance=ExtResource("10_gate")]
 
 [node name="ShopScreen" parent="." instance=ExtResource("11_shop")]
+
+[node name="ForgeScreen" parent="." instance=ExtResource("12_forge")]
 
 [node name="DialogueBox" parent="." instance=ExtResource("3_dialogue")]

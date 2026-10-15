@@ -26,11 +26,20 @@ enum Kind {
 	## EventBus.col_charged(amount) -- the purse picks this up, and refuses the
 	## whole charge if it cannot pay. Gate the line on MIN_COL so it never has to.
 	TAKE_COL,
+	## EventBus.forge_requested(smith) for the [Smith] named by id -- the forge
+	## screen picks this up and opens once the conversation closes. A smith who
+	## also has things to say: Nezha's "work on my gear".
+	OPEN_FORGE,
+	## Queues Argo's door-information pitch ([method DoorIntel.conversation]) to
+	## follow this conversation: built when asked, since what she has to sell
+	## depends on where you have been. The one effect that starts a conversation,
+	## which is still the dialogue system talking to itself.
+	SELL_INTEL,
 }
 
 @export var kind: Kind = Kind.SET_FLAG
 
-## Flag name for SET_FLAG / CLEAR_FLAG, item or quest id for the others.
+## Flag name for SET_FLAG / CLEAR_FLAG, item, quest or forge id for the others.
 @export var id: StringName = &""
 ## Amount for GRANT_XP, GIVE_ITEM, GIVE_COL and TAKE_COL.
 @export var amount := 1
@@ -59,6 +68,12 @@ func apply() -> void:
 			EventBus.col_granted.emit(amount)
 		Kind.TAKE_COL:
 			EventBus.col_charged.emit(amount)
+		Kind.SELL_INTEL:
+			DialogueRunner.start(DoorIntel.conversation())
+		Kind.OPEN_FORGE:
+			var smith := ShopLibrary.get_smith(id) if id != &"" else null
+			if smith != null:
+				EventBus.forge_requested.emit(smith)
 
 
 static func apply_all(effects: Array[DialogueEffect]) -> void:

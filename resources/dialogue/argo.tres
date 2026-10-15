@@ -141,6 +141,17 @@ conditions = Array[ExtResource("condition")]([SubResource("cond_floor_1_cleared"
 hide_when_locked = false
 locked_hint = "(not until Illfang falls)"
 
+[sub_resource type="Resource" id="eff_sell_intel"]
+script = ExtResource("effect")
+kind = 9
+
+[sub_resource type="Resource" id="choice_doors"]
+script = ExtResource("choice")
+text = "Know where any doors are?"
+next = &"end"
+conditions = Array[ExtResource("condition")]([SubResource("cond_floor_1_cleared")])
+effects = Array[ExtResource("effect")]([SubResource("eff_sell_intel")])
+
 [sub_resource type="Resource" id="choice_leave"]
 script = ExtResource("choice")
 text = "Nothing right now."
@@ -167,7 +178,7 @@ next = &"menu"
 script = ExtResource("line")
 id = &"menu"
 text = "So. What're you after?"
-choices = Array[ExtResource("choice")]([SubResource("choice_errand_report"), SubResource("choice_illfang_report"), SubResource("choice_errand"), SubResource("choice_errand_wip"), SubResource("choice_illfang"), SubResource("choice_boss"), SubResource("choice_nezha"), SubResource("choice_map"), SubResource("choice_leave")])
+choices = Array[ExtResource("choice")]([SubResource("choice_errand_report"), SubResource("choice_illfang_report"), SubResource("choice_errand"), SubResource("choice_errand_wip"), SubResource("choice_illfang"), SubResource("choice_boss"), SubResource("choice_nezha"), SubResource("choice_map"), SubResource("choice_doors"), SubResource("choice_leave")])
 
 [sub_resource type="Resource" id="line_boss"]
 script = ExtResource("line")

@@ -71,6 +71,7 @@ func _run() -> void:
 	_test_ashlow()
 	_test_lanternfall()
 	_test_settled_floors()
+	_test_door_intel()
 	_test_journal_ordering()
 
 
@@ -824,6 +825,96 @@ func _pick(dialogue: Dialogue, text: String) -> void:
 		DialogueRunner.advance()
 	if DialogueRunner.is_running():
 		DialogueRunner.cancel()
+
+
+# --- Argo's door information (M5.6) ---------------------------------------
+
+## What she sells, at what price, through her real menu and the conversation it
+## queues -- and that a bought door is charted when its floor is next built.
+func _test_door_intel() -> void:
+	print("\n-- Argo's door information --")
+	_reset()
+	GameState._visited_floors.clear()
+	GameState.visit_floor(1)
+	_check(DoorIntel.offers().is_empty() and DoorIntel.conversation().lines.size() == 1
+			and DoorIntel.conversation().lines[0].choices.is_empty(),
+			"with only floor 1 stood on she has nothing to sell, and says so")
+	for n in [2, 3, 4, 5]:
+		GameState.visit_floor(n)
+	GameState.clear_floor(1)
+	GameState.clear_floor(2)
+	GameState.set_flag(BossGate.found_flag(3))
+	_check(DoorIntel.offers() == [5, 4],
+			"she sells doors you have stood near and not found, highest first (%s)" % [DoorIntel.offers()])
+	_check(DoorIntel.price(5) == FloorTuning.kill_col(5) * FloorTuning.monster_count(5)
+			and DoorIntel.price(50) > DoorIntel.price(5),
+			"a door costs a floor's hunting: %d col on floor 5, %d on 50" % [DoorIntel.price(5),
+			DoorIntel.price(50)])
+
+	var argo: Dialogue = load("res://resources/dialogue/argo.tres")
+	GameState.set_flag(&"met_argo")
+	_check(_offers(argo, "Know where any doors are?"), "her menu asks about doors once Illfang is down")
+	var price := DoorIntel.price(5)
+	_check(not _intel_choice(argo, 5, false), "broke, floor 5's door is offered and locked")
+	EventBus.col_granted.emit(price + 7)
+	_check(_intel_choice(argo, 5, true), "with the Col, it can be bought")
+	_check(GameState.col() == 7 and GameState.has_flag(BossGate.found_flag(5)),
+			"buying it takes the price and marks the door found")
+	_check(DoorIntel.offers() == [4], "and it is off her list")
+
+	# The bought door's room is on the map the next time the floor is built --
+	# and the labyrinth in front of it is not.
+	var map := FloorRegistry.build_floor(5) as GameMap
+	add_child(map)
+	var gate := map.get_node_or_null("BossGate") as BossGate
+	var seen := GameState.explored_cells(map.map_id)
+	var walls := map.get_node("Walls") as TileMapLayer
+	var door := walls.local_to_map(walls.to_local(gate.global_position)) if gate != null else Vector2i.ZERO
+	var mouth: Vector2i = (map.get_meta(&"labyrinth_mouth", Rect2i()) as Rect2i).get_center()
+	_check(gate != null and gate.revealed and seen.has(door),
+			"on floor 5 the door stands and its room is charted")
+	_check(not seen.has(mouth), "but the way through the labyrinth is not")
+	map.free()
+	GameState._explored.clear()
+	GameState._visited_floors.clear()
+	_reset()
+
+
+## Opens Argo's menu, asks about doors, and in the pitch it queues picks floor
+## [param floor_number]'s door if [param buy] -- else just reports whether it was
+## there and unlocked. Returns whether that choice was offered and unlocked.
+func _intel_choice(argo: Dialogue, floor_number: int, buy: bool) -> bool:
+	DialogueRunner.start(argo)
+	for i in 12:
+		if DialogueRunner.is_choosing():
+			break
+		DialogueRunner.advance()
+	var menu := DialogueRunner.offered_choices()
+	for i in menu.size():
+		if menu[i].text == "Know where any doors are?":
+			DialogueRunner.choose(i)
+	var unlocked := false
+	var wanted := "Floor %d's door. (%d col)" % [floor_number, DoorIntel.price(floor_number)]
+	for i in 12:
+		if not DialogueRunner.is_running():
+			break
+		if DialogueRunner.is_choosing():
+			var offered := DialogueRunner.offered_choices()
+			for j in offered.size():
+				if offered[j].text == wanted and offered[j].is_unlocked():
+					unlocked = true
+					if buy:
+						DialogueRunner.choose(j)
+			break
+		DialogueRunner.advance()
+	for i in 12:
+		if not DialogueRunner.is_running():
+			break
+		if DialogueRunner.is_choosing():
+			DialogueRunner.cancel()
+		else:
+			DialogueRunner.advance()
+	return unlocked
 
 
 # --- the journal's view ---------------------------------------------------

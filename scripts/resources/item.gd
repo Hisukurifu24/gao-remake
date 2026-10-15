@@ -47,6 +47,23 @@ const RARITY_NAMES: PackedStringArray = [
 	"Common", "Uncommon", "Rare", "Epic", "Legendary",
 ]
 
+## How far the smith can take a piece, by rarity. Starter steel tops out early, a
+## boss's blade has room in it -- the reason to keep the Anneal Blade.
+const MAX_PLUS: Array[int] = [3, 5, 8, 10, 10]
+## The one stat each wearable kind is sharpened in. Not attack everywhere: a coat
+## that gets more attack from the smith is a sword with sleeves.
+const ENHANCED_STAT := {
+	Kind.WEAPON: &"attack",
+	Kind.ARMOR: &"defense",
+	Kind.ACCESSORY: &"max_hp",
+}
+## What each +1 adds, as a share of the piece's own bonus in that stat -- so a
+## better blade sharpens into more -- and the least it ever adds, so every +1 on
+## a cheap piece still shows. Accessories grow HP in bigger steps, since an HP
+## point is worth far less than an attack point.
+const PLUS_SHARE := 0.1
+const PLUS_MIN_STEP := {&"attack": 1, &"defense": 1, &"max_hp": 5}
+
 @export var id: StringName = &""
 @export var display_name := ""
 @export_multiline var description := ""
@@ -97,6 +114,51 @@ func label() -> String:
 
 func is_equipment() -> bool:
 	return EQUIP_SLOTS.has(kind)
+
+
+# --- enhancement ------------------------------------------------------------
+## The smith's +N lives on the [ItemStack] (a copy of the sword, not every sword),
+## and reaches combat the way the base bonuses do: [method Inventory.bonus] adds
+## [method plus_bonus], [GameState]'s [code]total_*[/code] accessors fold it in.
+
+## How far this can be enhanced; 0 for anything that is not equipment.
+func max_plus() -> int:
+	return MAX_PLUS[clampi(rarity, 0, MAX_PLUS.size() - 1)] if is_equipment() else 0
+
+
+## The stat enhancement raises, or [code]&""[/code].
+func enhanced_stat() -> StringName:
+	return ENHANCED_STAT.get(kind, &"")
+
+
+## What one +1 adds to [method enhanced_stat].
+func plus_step() -> int:
+	var stat := enhanced_stat()
+	if stat == &"":
+		return 0
+	return maxi(PLUS_MIN_STEP[stat], roundi(base_bonus(stat) * PLUS_SHARE))
+
+
+## What [param plus] levels of enhancement add to [param stat].
+func plus_bonus(stat: StringName, plus: int) -> int:
+	if plus <= 0 or stat != enhanced_stat():
+		return 0
+	return plus * plus_step()
+
+
+## The worn bonus to one stat before any enhancement.
+func base_bonus(stat: StringName) -> int:
+	match stat:
+		&"attack": return attack_bonus
+		&"defense": return defense_bonus
+		&"speed": return speed_bonus
+		&"max_hp": return max_hp_bonus
+	return 0
+
+
+## The name with its enhancement: "Anneal Blade +3".
+func label_at(plus: int) -> String:
+	return label() if plus <= 0 else "%s +%d" % [label(), plus]
 
 
 ## The slot this goes in, or [code]&""[/code] if it is not wearable.
@@ -163,12 +225,12 @@ func kind_name() -> String:
 
 ## The stat line shown under an item in the bag: "ATK +6  SPD -1", or the
 ## potion's effect. Empty for something that does nothing but sit there.
-func summary() -> String:
+## [param plus] folds a copy's enhancement in.
+func summary(plus := 0) -> String:
 	var parts := PackedStringArray()
 	if is_equipment():
-		for pair in [["ATK", attack_bonus], ["DEF", defense_bonus],
-				["SPD", speed_bonus], ["HP", max_hp_bonus]]:
-			var amount: int = pair[1]
+		for pair in [["ATK", &"attack"], ["DEF", &"defense"], ["SPD", &"speed"], ["HP", &"max_hp"]]:
+			var amount: int = base_bonus(pair[1]) + plus_bonus(pair[1], plus)
 			if amount != 0:
 				parts.append("%s %+d" % [pair[0], amount])
 	else:

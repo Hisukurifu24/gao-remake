@@ -107,7 +107,7 @@ func trade() -> bool:
 	var item := selected_item()
 	if _shop == null or item == null:
 		return false
-	var done := _shop.buy(item) if _mode == Mode.BUY else _shop.sell(item)
+	var done := _shop.buy(item) if _mode == Mode.BUY else _shop.sell_stack(_entries[_index])
 	if done:
 		_news = "Bought %s." % item.label() if _mode == Mode.BUY \
 				else "Sold %s for %d col." % [item.label(), item.sell_price()]
@@ -228,9 +228,7 @@ func _paint() -> void:
 		price.add_theme_color_override(&"font_color", UiPalette.LOCKED if refused else UiPalette.TEXT)
 		var label := item.label()
 		if _mode == Mode.SELL:
-			var count := Inventory.count(item.id)
-			if count > 1:
-				label = "%s x%d" % [label, count]
+			label = (_entries[entry] as ItemStack).label()
 		item_name.text = "%s %s" % [">" if entry == _index else " ", label]
 		price.text = str(item.price if _mode == Mode.BUY else item.sell_price())
 

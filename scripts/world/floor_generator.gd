@@ -65,6 +65,7 @@ const STAIRS_SCENE := preload("res://scenes/world/floor_stairs.tscn")
 const MONSTER_SCENE := preload("res://scenes/world/monster.tscn")
 const CAMPFIRE_SCENE := preload("res://scenes/world/campfire.tscn")
 const TELEPORT_GATE_SCENE := preload("res://scenes/world/teleport_gate.tscn")
+const NPC_SCENE := preload("res://scenes/world/npc.tscn")
 ## Where the teleport gate stands from the entrance room's centre, and where you
 ## arrive through it: off the centre's row and column, which is where the room's
 ## three-wide corridors run, so the gate's base never narrows one below two.
@@ -91,6 +92,18 @@ const CHEST_GEAR_CHANCE := 0.3
 ## dead end is the price already.
 const GILDED_CHANCE := 0.35
 const GILDED_TRAP_CHANCE := 0.65
+## How often the safe zone has a peddler by its fire, what they sell and who they
+## might be. See [method _add_merchant].
+const MERCHANT_CHANCE := 0.4
+const MERCHANT_SHOP := "res://resources/shops/travelling_merchant.tres"
+const MERCHANT_SHEETS: PackedStringArray = ["OldMan2", "Monk", "Sultan", "Villager4"]
+const CHARACTERS := "res://assets/ninja_adventure/Actor/Character/%s/%s.png"
+## The middle of each side of the 6x6 safe zone: the cells against the pillar
+## where the maze's wall lines cross, which no passage can come in through.
+const MERCHANT_SPOTS: Array[Vector2i] = [
+	Vector2i(2, 0), Vector2i(3, 0), Vector2i(0, 2), Vector2i(5, 2),
+	Vector2i(0, 3), Vector2i(5, 3), Vector2i(2, 5), Vector2i(3, 5),
+]
 
 ## Whether floors get their puzzles ([FloorPuzzles]). Off only for the floor test,
 ## which proves a floor without them is the same floor: they draw on a stream of
@@ -240,6 +253,7 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	_add_boss_gate(map, gate_cell, lab.boss_room)
 	if lab.camp_room.has_area():
 		_add_campfire(map, lab.camp_room)
+		_add_merchant(map, lab.camp_room, generation_seed)
 	if _definition.floor_number > 1:
 		_add_stairs(map, _center(entry) + STAIRS_OFFSET)
 	camp.place(map, lab.side if lab.has_maze() else -1, _definition.boss_name,
@@ -899,6 +913,47 @@ func _add_campfire(map: Node2D, room: Rect2i) -> void:
 	fire.position = Vector2((room.position.x + room.size.x / 2) * TILE,
 			(room.position.y + room.size.y / 2 + 1) * TILE)
 	map.add_child(fire)
+
+
+## A peddler by the safe zone's fire, on some floors: potions at town prices,
+## halfway to the door. Whether there is one, and who, comes from the floor's own
+## [code]hash("<seed>:merchant")[/code] stream, never the floor's rng, so adding
+## them moved nothing; where they stand is rule -- the middle of one of the room's
+## sides, against the pillar the maze always leaves there, never in a doorway, so
+## the fire's room stays open all round and the floor test's safe-zone walk holds.
+func _add_merchant(map: Node2D, room: Rect2i, generation_seed: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%d:merchant" % generation_seed)
+	if rng.randf() >= MERCHANT_CHANCE:
+		return
+	var spots: Array[Vector2i] = []
+	for offset in MERCHANT_SPOTS:
+		var cell := room.position + offset
+		if not _open.has(cell):
+			continue
+		var against_rock := true
+		for step in MAZE_STEPS:
+			if not room.has_point(cell + step) and _open.has(cell + step):
+				against_rock = false
+		if against_rock:
+			spots.append(cell)
+	if spots.is_empty():
+		return
+	var spot := spots[rng.randi() % spots.size()]
+	var sheet: String = MERCHANT_SHEETS[rng.randi() % MERCHANT_SHEETS.size()]
+	var npc := NPC_SCENE.instantiate()
+	npc.name = "Merchant"
+	npc.position = _world(spot)
+	npc.set(&"sprite_sheet", load(CHARACTERS % [sheet, "SpriteSheet"]))
+	npc.set(&"display_name", "the peddler")
+	npc.set(&"prompt_verb", "Trade with")
+	npc.set(&"shop", load(MERCHANT_SHOP))
+	# Facing the fire, in the middle of the room: down, up, left, right.
+	var to_fire := Vector2(room.get_center()) - Vector2(spot) - Vector2(0.5, 0.5)
+	(npc.get_node("Sprite2D") as Sprite2D).frame = \
+			(0 if to_fire.y > 0 else 1) if absf(to_fire.y) >= absf(to_fire.x) \
+			else (3 if to_fire.x > 0 else 2)
+	map.add_child(npc)
 
 
 func _add_stairs(map: Node2D, cell: Vector2i) -> void:

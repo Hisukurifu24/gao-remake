@@ -11,6 +11,10 @@ extends Interactable
 ## A shopkeeper: talking to them opens the counter instead of a conversation.
 ## Wins over both of the above -- what they say is the shop's greeting.
 @export var shop: Shop
+## A smith: talking to them opens the forge, the same way. A smith with things to
+## say as well (Nezha) has a [member dialogue] whose menu opens it instead, with
+## a [code]OPEN_FORGE[/code] effect.
+@export var smith: Smith
 
 ## Their walk sheet, in the Ninja Adventure layout (4 columns by 7 rows). Empty
 ## keeps the scene's default villager.
@@ -54,6 +58,8 @@ func interact(by: Node) -> void:
 	super.interact(by)
 	if shop != null:
 		EventBus.shop_requested.emit(shop)
+	elif smith != null:
+		EventBus.forge_requested.emit(smith)
 	elif dialogue != null:
 		await DialogueRunner.start(dialogue)
 	elif not lines.is_empty():

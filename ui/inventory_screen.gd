@@ -203,7 +203,7 @@ func _confirm() -> void:
 	if stack == null:
 		return
 	if stack.item.is_equipment():
-		Inventory.equip(stack.item)
+		Inventory.equip_stack(stack)
 	elif stack.item.is_consumable():
 		Inventory.use(stack.item.id)
 
@@ -354,7 +354,7 @@ func _bag_drop(_at: Vector2, data: Variant, index: int) -> void:
 	elif index < _stacks.size():
 		# Onto a compatible piece of gear: equipping it is the swap, and it is
 		# one operation, so the player is never briefly holding neither.
-		Inventory.equip(_stacks[index].item)
+		Inventory.equip_stack(_stacks[index])
 	else:
 		Inventory.unequip(payload[&"slot"])
 	_end_drag()
@@ -363,7 +363,7 @@ func _bag_drop(_at: Vector2, data: Variant, index: int) -> void:
 func _gear_drop(_at: Vector2, data: Variant, index: int) -> void:
 	if not _accepts_gear(data, index):
 		return
-	Inventory.equip((data as Dictionary)[&"item"] as Item)
+	Inventory.equip_stack(_stacks[(data as Dictionary)[&"index"]])
 	_end_drag()
 
 
@@ -641,7 +641,7 @@ func _paint_gear() -> void:
 		var value_label := row.get_node("Value") as Label
 		name_label.text = String(slot).capitalize()
 		name_label.add_theme_color_override(&"font_color", color)
-		value_label.text = item.label() if item != null else "--"
+		value_label.text = Inventory.worn(slot).label() if item != null else "--"
 		value_label.add_theme_color_override(&"font_color", color)
 
 		var selected := _focus == Focus.GEAR and i == _gear_index
@@ -664,19 +664,34 @@ func _paint_details() -> void:
 		_detail_text.add_theme_color_override(&"font_color", UiPalette.DIM)
 		return
 
-	_detail_name.text = item.label()
+	var stack := _detail_stack()
+	var plus := stack.plus if stack != null else 0
+	_detail_name.text = item.label_at(plus)
 	_detail_name.add_theme_color_override(&"font_color", item.rarity_color())
 	_detail_kind.text = "%s %s" % [item.rarity_name(), item.kind_name()]
 	_detail_kind.add_theme_color_override(&"font_color", UiPalette.DIM)
-	_detail_stats.text = item.summary()
+	_detail_stats.text = item.summary(plus)
 	_detail_stats.add_theme_color_override(&"font_color",
-			UiPalette.BAD if item.summary().contains("-") else UiPalette.GOOD)
+			UiPalette.BAD if item.summary(plus).contains("-") else UiPalette.GOOD)
 	# A hide does nothing on its own; what it is worth is the one thing to say.
 	if item.summary().is_empty() and item.is_sellable():
 		_detail_stats.text = "Sells for %d col" % item.sell_price()
 		_detail_stats.add_theme_color_override(&"font_color", UiPalette.DIM)
 	_detail_text.text = item.description
 	_detail_text.add_theme_color_override(&"font_color", UiPalette.TEXT)
+
+
+## The copy the details describe, for its enhancement: the one in hand, the worn
+## one, or the one under the cursor.
+func _detail_stack() -> ItemStack:
+	if not _drag.is_empty():
+		if _drag[&"source"] == &"gear":
+			return Inventory.worn(_drag[&"slot"])
+		var index: int = _drag[&"index"]
+		return _stacks[index] if index < _stacks.size() else null
+	if _focus == Focus.GEAR:
+		return Inventory.worn(Inventory.SLOTS[_gear_index])
+	return _selected_stack()
 
 
 func _detail_item() -> Item:

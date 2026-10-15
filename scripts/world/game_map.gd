@@ -87,12 +87,31 @@ func _ready() -> void:
 		for zone in safe_zones:
 			_darkness.glow(zone)
 		add_child(_darkness)
+	if tracks:
+		_chart_found_doors()
 	set_physics_process(tracks)
 	set_process(_darkness != null)
 	var pile := GameState.dropped_col()
 	if not pile.is_empty():
 		_on_col_dropped(pile["map"], pile["position"], pile["amount"])
 	EventBus.col_dropped.connect(_on_col_dropped)
+
+
+## A hidden door that is already found -- walked into, or bought from Argo -- has
+## its room charted on **M**, seen if not walked, so a door you were told about is
+## on the map before you have been anywhere near it. What lies between is not.
+func _chart_found_doors() -> void:
+	for child in get_children():
+		var gate := child as BossGate
+		if gate == null or not gate.revealed or not gate.reveal_area.has_area():
+			continue
+		var from := _walls.local_to_map(_walls.to_local(to_global(gate.reveal_area.position)))
+		var to := _walls.local_to_map(_walls.to_local(to_global(gate.reveal_area.end - Vector2.ONE)))
+		var cells: Array[Vector2i] = []
+		for y in range(from.y, to.y + 1):
+			for x in range(from.x, to.x + 1):
+				cells.append(Vector2i(x, y))
+		GameState.explore(map_id, cells)
 
 
 ## The player has lost a fight on this map: the purse falls where they stand.

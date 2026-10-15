@@ -73,6 +73,7 @@ func _run() -> void:
 	_test_purse()
 	await _test_dropped_col()
 	_test_shops()
+	_test_forge()
 	_test_economy()
 
 
@@ -736,6 +737,128 @@ func _test_shops() -> void:
 			"the town, Ashlow and Lanternfall each have a shop (%s)" % [counters.keys()])
 	GameState._cleared_floors.clear()
 	GameState.reset_col()
+
+
+## The smith (M5.6's deep sink): a copy's +N, how it reaches combat, and the
+## forge's rules -- cost, materials by tier, odds, and what a failure costs.
+func _test_forge() -> void:
+	print("\n-- the forge --")
+	_reset()
+	for id in ItemLibrary.ITEMS:
+		var item := ItemLibrary.get_item(StringName(id))
+		if item.is_equipment():
+			_check(item.max_plus() > 0 and item.plus_step() > 0 and item.enhanced_stat() != &"",
+					"%s can be enhanced (+%d max, +%d %s a level)" % [id, item.max_plus(),
+					item.plus_step(), item.enhanced_stat()])
+		elif item.max_plus() != 0:
+			_check(false, "%s is not equipment and has no enhancement" % id)
+	for id in ShopLibrary.SMITHS:
+		_check(ShopLibrary.get_smith(StringName(id)) != null, "forge '%s' loads" % id)
+	_check(_open_forge_ids(&"nezha") == [&"town_forge"],
+			"Nezha's menu opens the town forge (%s)" % [_open_forge_ids(&"nezha")])
+
+	# The +N reaches combat through GameState and nowhere else.
+	var blade := ItemLibrary.get_item(&"anneal_blade")
+	Inventory.add(blade, 1)
+	Inventory.equip(blade)
+	var before := GameState.total_attack()
+	var worn := Inventory.worn(&"weapon")
+	_check(worn != null and worn.plus == 0, "a found blade starts at +0")
+	_check(Inventory.enhance(worn) and worn.plus == 1
+			and GameState.total_attack() == before + blade.plus_step(),
+			"+1 on the worn blade adds its step to total attack (%d -> %d)" % [before,
+			GameState.total_attack()])
+	_check(Combatant.from_player().attack == GameState.total_attack(),
+			"and the fight sees it")
+	_check(worn.label() == "Anneal Blade +1" and blade.summary(1).begins_with(
+			"ATK +%d" % (blade.attack_bonus + blade.plus_step())), "it reads as +1 in the bag")
+	_check(Inventory.unequip(&"weapon") and Inventory.stacks()[0].plus == 1
+			and GameState.total_attack() == before - blade.attack_bonus,
+			"taken off, the +1 goes into the bag with it")
+
+	# Two copies are two pieces of work.
+	Inventory.add(blade, 1)
+	_check(Inventory.equip(blade) and Inventory.worn(&"weapon").plus == 1,
+			"equipping by item wears the best copy")
+	Inventory.unequip(&"weapon")
+	Inventory.remove(&"anneal_blade", 1)
+	_check(Inventory.count(&"anneal_blade") == 1 and Inventory.stacks()[0].plus == 1,
+			"removing one takes the plain copy, never the worked one")
+	Inventory.add(blade, 1)
+	var plain: ItemStack = Inventory.stacks().filter(func(s: ItemStack) -> bool:
+			return s.plus == 0)[0]
+	_check(Inventory.equip_stack(plain) and Inventory.worn(&"weapon").plus == 0,
+			"equipping a chosen copy wears that copy")
+	var shop := ShopLibrary.get_shop(&"town_outfitter")
+	Inventory.unequip(&"weapon")
+	var worked: ItemStack = Inventory.stacks().filter(func(s: ItemStack) -> bool:
+			return s.plus == 1)[0]
+	_check(shop.sell_stack(worked) and Inventory.stacks().size() == 1
+			and Inventory.stacks()[0].plus == 0, "selling the row you chose sells that copy")
+
+	# The forge's rules.
+	_reset()
+	var sword := ItemLibrary.get_item(&"bronze_sword")
+	Inventory.add(sword, 1)
+	var piece := Inventory.stacks()[0]
+	_check(Smith.cost(piece) == maxi(Smith.MIN_COST, roundi(sword.price * Smith.COST_SHARE)),
+			"the first step costs a quarter of the price")
+	_check(Smith.refusal(piece).begins_with("Needs 1 common"), "no materials, no attempt")
+	Inventory.add_id(&"drake_scale", 1)
+	Inventory.add_id(&"boar_hide", 2)
+	Inventory.add_id(&"raid_tag", 3)
+	_check(Smith.materials_held(piece) == 3, "monster drops count, a key item never does")
+	_check(Smith.refusal(piece).begins_with("Not enough col"), "no Col, no attempt")
+	EventBus.col_granted.emit(10000)
+	_check(Smith.refusal(piece).is_empty() and Smith.odds(piece) == 100, "+0 to +1 always takes")
+	var col := GameState.col()
+	var first_cost := Smith.cost(piece)
+	_check(Smith.attempt(piece, 0, 0.0) == Smith.Outcome.SUCCEEDED and piece.plus == 1
+			and GameState.col() == col - first_cost, "a success spends the Col and raises the piece")
+	_check(Smith.cost(piece) == 2 * first_cost or first_cost == Smith.MIN_COST,
+			"and the next step costs twice the first")
+	_check(Inventory.count(&"boar_hide") == 1 and Inventory.count(&"drake_scale") == 1,
+			"and burns the cheapest material, not the drake scale")
+	_check(Smith.odds(piece) == Smith.ODDS[1] and Smith.odds(piece, 1) == Smith.ODDS[1] + Smith.EXTRA_ODDS,
+			"+1 to +2 is %d%%, and an extra material adds %d" % [Smith.ODDS[1], Smith.EXTRA_ODDS])
+	_check(Smith.max_extra(piece) == 0, "with only the two needed, there is nothing extra to add")
+	Inventory.add_id(&"wolf_fang", 5)
+	_check(Smith.max_extra(piece) == 1, "and extras stop at a sure thing (%d)" % Smith.max_extra(piece))
+	var spend := Smith.materials_for(piece, 1)
+	_check(spend.get(&"boar_hide", 0) == 1 and spend.get(&"wolf_fang", 0) == 2
+			and not spend.has(&"drake_scale"), "the forge picks which, cheapest first (%s)" % [spend])
+	col = GameState.col()
+	var cost := Smith.cost(piece)
+	_check(Smith.attempt(piece, 0, 99.9) == Smith.Outcome.FAILED and piece.plus == 1
+			and GameState.col() == col - cost and Inventory.count(&"boar_hide") == 0,
+			"a failure keeps the +1 and costs everything put in")
+	piece.plus = 3
+	_check(Smith.refusal(piece).begins_with("As sharp as it will go"), "a common blade stops at +3")
+	var coat := ItemLibrary.get_item(&"blackwyrm_coat")
+	Inventory.add(coat, 1)
+	var armour: ItemStack = Inventory.stacks().filter(func(s: ItemStack) -> bool:
+			return s.item == coat)[0]
+	armour.plus = 3
+	_check(Smith.tier(armour) == Item.Rarity.UNCOMMON and Smith.materials_held(armour) == 1
+			and Smith.refusal(armour).begins_with("Needs 4 uncommon"),
+			"from +3 the step wants uncommon materials: fangs won't do, the drake scale will")
+	Inventory.add_id(&"lizard_scale", 4)
+	_check(Smith.attempt(armour, 0, 0.0) == Smith.Outcome.SUCCEEDED and armour.plus == 4
+			and Inventory.count(&"drake_scale") == 1,
+			"lizard scales do, and the drake scale still isn't the first thing burnt")
+	_check(not Inventory.enhance(Inventory.worn(&"weapon")), "there is nothing to enhance in an empty slot")
+	_reset()
+
+
+## Every forge id an OPEN_FORGE effect in [param dialogue_id] names.
+func _open_forge_ids(dialogue_id: StringName) -> Array[StringName]:
+	var ids: Array[StringName] = []
+	var dialogue := load("res://resources/dialogue/%s.tres" % dialogue_id) as Dialogue
+	for line in dialogue.lines:
+		for effect in line.effects:
+			if effect.kind == DialogueEffect.Kind.OPEN_FORGE:
+				ids.append(effect.id)
+	return ids
 
 
 ## The measured check M5.6 asked for: a player killing the floor's

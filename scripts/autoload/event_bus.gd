@@ -34,6 +34,8 @@ signal item_removed(item_id: StringName, amount: int)
 signal item_used(item_id: StringName)
 ## [param item_id] is [code]&""[/code] when the slot was emptied.
 signal item_equipped(slot: StringName, item_id: StringName)
+## The smith's work took: one copy of [param item_id] is now +[param plus].
+signal item_enhanced(item_id: StringName, plus: int)
 ## Nothing fit. [param lost] is how many of the grant fell on the floor.
 signal inventory_full(item_id: StringName, lost: int)
 ## Anything at all changed: added, removed, worn, sorted. For views that repaint
@@ -59,6 +61,10 @@ signal col_dropped(map_id: StringName, position: Vector2, amount: int)
 ## The player is at a shop counter. A request, like [signal teleport_requested]:
 ## the shop screen is its only listener.
 signal shop_requested(shop: Shop)
+## The player asked a smith to work on their gear -- a [Smith]'s forge. A request:
+## the forge screen is its only listener, and opens once any conversation that
+## asked for it has closed.
+signal forge_requested(smith: Smith)
 
 # --- Combat (M4) ---
 ## A fight is about to start where the player stands, and this is where

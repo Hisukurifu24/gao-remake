@@ -33,6 +33,8 @@ var _checks := 0
 ## Gathered by [method _audit_labyrinth] across every generated floor.
 var _lab_floors := 0
 var _lab_not_farthest := 0
+## Safe zones with a peddler by the fire, of the generated floors walked.
+var _merchants := 0
 var _lab_walks: Array[int] = []
 ## Gilded chests across every generated floor, by [enum Chest.Trap].
 var _gilded: Dictionary[int, int] = {}
@@ -340,6 +342,9 @@ func _run() -> void:
 	_check(_lab_floors == generated and _lab_not_farthest * 4 >= _lab_floors,
 			"the boss room is not always the labyrinth's farthest point (%d of %d floors aren't)" % [
 				_lab_not_farthest, _lab_floors])
+	# Some floors, not all and not one in ten: the peddler is a stroke of luck.
+	_check(_merchants * 5 >= generated and _merchants * 5 <= generated * 3,
+			"a peddler keeps shop in %d of %d safe zones" % [_merchants, generated])
 	var shortest := 1 << 30
 	for walk in _lab_walks:
 		shortest = mini(shortest, walk)
@@ -767,6 +772,9 @@ func _audit_labyrinth(map: Node2D, walls: TileMapLayer, gate: Node, start: Vecto
 	for child in map.get_children():
 		if child is Monster and camp.has_point(walls.local_to_map((child as Node2D).position)):
 			return "floor %d has %s starting in its safe zone" % [floor_number, child.name]
+	var peddled := _audit_merchant(map as GameMap, walls, camp, gate, start, floor_number)
+	if not peddled.is_empty():
+		return peddled
 
 	# What the labyrinth is like to walk: its dead ends, and how far the door is
 	# along it against the farthest cell it has.
@@ -795,6 +803,34 @@ func _audit_labyrinth(map: Node2D, walls: TileMapLayer, gate: Node, start: Vecto
 	_lab_walks.append(to_door)
 	if to_door < farthest * 9 / 10:
 		_lab_not_farthest += 1
+	return ""
+
+
+## The peddler, where there is one: by the fire in the safe zone, keeping a listed
+## shop, walkable up to -- and, with them and the fire both solid, every cell of
+## the room and the door still reachable. The walls-only flood fills can't see a
+## body standing in a doorway; this is the walk that can.
+func _audit_merchant(map: GameMap, walls: TileMapLayer, camp: Rect2i, gate: Node, start: Vector2i,
+		floor_number: int) -> String:
+	var merchant := map.get_node_or_null("Merchant") as Npc
+	if merchant == null:
+		return ""
+	_merchants += 1
+	if not camp.has_point(walls.local_to_map(merchant.position)):
+		return "floor %d's peddler stands outside its safe zone" % floor_number
+	if merchant.shop == null or not String(merchant.shop.id) in ShopLibrary.SHOPS:
+		return "floor %d's peddler keeps no listed shop" % floor_number
+	map.refresh_solids()
+	var standable := _flood_standable(map, start)
+	if not _approachable(walls, merchant, standable):
+		return "floor %d's peddler can't be walked up to" % floor_number
+	if not _approachable(walls, gate as Node2D, standable):
+		return "floor %d's peddler cuts the door off" % floor_number
+	for y in range(camp.position.y, camp.end.y):
+		for x in range(camp.position.x, camp.end.x):
+			var cell := Vector2i(x, y)
+			if map.is_standable(cell) and not standable.has(cell):
+				return "floor %d's peddler walls off %s in the safe zone" % [floor_number, cell]
 	return ""
 
 

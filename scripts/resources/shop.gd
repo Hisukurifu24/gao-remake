@@ -69,11 +69,24 @@ func sellable() -> Array[ItemStack]:
 
 
 ## Sells one [param item] out of the bag for [method Item.sell_price]. Worn gear
-## is not in the bag, so it can't be sold out from under you.
+## is not in the bag, so it can't be sold out from under you; of several copies
+## the least enhanced goes.
 func sell(item: Item) -> bool:
 	if item == null or not item.is_sellable():
 		return false
 	if Inventory.remove(item.id, 1) != 1:
 		return false
 	EventBus.col_granted.emit(item.sell_price())
+	return true
+
+
+## Sells one out of that [param stack] -- the copy the counter's cursor is on, so
+## a +3 sword is only sold when it is the one chosen. The smith's work is not
+## bought back: it fetches what the plain piece does.
+func sell_stack(stack: ItemStack) -> bool:
+	if stack == null or not stack.item.is_sellable():
+		return false
+	if Inventory.remove_from(stack, 1) != 1:
+		return false
+	EventBus.col_granted.emit(stack.item.sell_price())
 	return true

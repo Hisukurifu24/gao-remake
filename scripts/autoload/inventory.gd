@@ -17,7 +17,9 @@ extends Node
 ##
 ## Equipment [b]leaves the bag[/b] when worn: a slot is a place, not a flag. That
 ## way the bag count is the truth, and unequipping into a full bag is refused
-## rather than quietly deleting a sword.
+## rather than quietly deleting a sword. What a slot holds is the [ItemStack]
+## itself, so a copy's smith enhancement ([member ItemStack.plus]) goes on and
+## comes off with it.
 
 ## Bag slots. Not weight -- weight means every item needs a mass and the player
 ## needs a number to watch, which is a system's worth of tuning for a game whose
@@ -29,7 +31,7 @@ const CAPACITY := 24
 const SLOTS: Array[StringName] = [&"weapon", &"armor", &"accessory"]
 
 var _stacks: Array[ItemStack] = []
-var _equipped: Dictionary[StringName, Item] = {}
+var _equipped: Dictionary[StringName, ItemStack] = {}
 
 
 func _ready() -> void:
@@ -143,13 +145,15 @@ func add_id(id: StringName, amount := 1) -> int:
 ## taken has a corrupted bag and no way to notice, which is the worse failure.
 ##
 ## Drains the smallest stacks first, so partial piles get consolidated rather
-## than multiplied.
+## than multiplied -- and of equal ones the least enhanced, so selling "a Bronze
+## Sword" never sells the one the smith has worked on.
 func remove(id: StringName, amount := 1) -> int:
 	if amount <= 0 or count(id) < amount:
 		return 0
 
 	var matching := _stacks.filter(func(s: ItemStack) -> bool: return s.item.id == id)
-	matching.sort_custom(func(a: ItemStack, b: ItemStack) -> bool: return a.count < b.count)
+	matching.sort_custom(func(a: ItemStack, b: ItemStack) -> bool:
+		return a.count < b.count if a.count != b.count else a.plus < b.plus)
 
 	var remaining := amount
 	for stack in matching:
@@ -159,6 +163,18 @@ func remove(id: StringName, amount := 1) -> int:
 	_prune()
 
 	EventBus.item_removed.emit(id, amount)
+	EventBus.inventory_changed.emit()
+	return amount
+
+
+## Takes [param amount] out of that one [param stack] -- a particular copy, where
+## [method remove] takes any. All or nothing, like it.
+func remove_from(stack: ItemStack, amount := 1) -> int:
+	if stack == null or stack not in _stacks or amount <= 0 or stack.count < amount:
+		return 0
+	stack.take(amount)
+	_prune()
+	EventBus.item_removed.emit(stack.item.id, amount)
 	EventBus.inventory_changed.emit()
 	return amount
 
@@ -226,28 +242,61 @@ func consume(id: StringName) -> bool:
 # --- equipment -------------------------------------------------------------
 
 func equipped(slot: StringName) -> Item:
+	var stack := worn(slot)
+	return stack.item if stack != null else null
+
+
+## The copy in [param slot] -- with its enhancement -- or null.
+func worn(slot: StringName) -> ItemStack:
 	return _equipped.get(slot, null)
 
 
 func is_equipped(item: Item) -> bool:
-	return item != null and _equipped.get(item.slot(), null) == item
+	return item != null and equipped(item.slot()) == item
 
 
-## Wears [param item], moving it out of the bag and whatever it replaces back
-## into it. Refused if the item is not wearable or is not actually carried.
+## Every piece of equipment the player owns, worn first (in slot order), then the
+## bag's. What the smith's counter lists.
+func gear() -> Array[ItemStack]:
+	var pieces: Array[ItemStack] = []
+	for slot in SLOTS:
+		if _equipped.has(slot):
+			pieces.append(_equipped[slot])
+	for stack in _stacks:
+		if stack.item.is_equipment():
+			pieces.append(stack)
+	return pieces
+
+
+## Wears a copy of [param item] -- the most enhanced one carried -- moving it out
+## of the bag and whatever it replaces back into it. Refused if the item is not
+## wearable or is not actually carried.
 func equip(item: Item) -> bool:
-	if item == null or not item.is_equipment() or not has(item.id):
+	if item == null or not item.is_equipment():
 		return false
-	# The incoming item vacates a slot before the outgoing one needs it, so the
+	var best: ItemStack = null
+	for stack in _stacks:
+		if stack.item == item and (best == null or stack.plus > best.plus):
+			best = stack
+	return equip_stack(best)
+
+
+## Wears that copy: the one the bag's cursor is on, not just one like it.
+func equip_stack(stack: ItemStack) -> bool:
+	if stack == null or not stack.item.is_equipment() or stack not in _stacks:
+		return false
+	# The incoming piece vacates a slot before the outgoing one needs it, so the
 	# swap can never fail halfway and leave the player holding neither.
-	if remove(item.id, 1) <= 0:
-		return false
+	var item := stack.item
+	_stacks.erase(stack)
+	EventBus.item_removed.emit(item.id, 1)
 
 	var slot := item.slot()
-	var replaced := _equipped.get(slot, null) as Item
-	_equipped[slot] = item
+	var replaced := worn(slot)
+	_equipped[slot] = stack
 	if replaced != null:
-		add(replaced, 1)
+		_stacks.append(replaced)
+		EventBus.item_added.emit(replaced.item.id, 1)
 
 	GameState.refresh_vitals()
 	EventBus.item_equipped.emit(slot, item.id)
@@ -258,33 +307,44 @@ func equip(item: Item) -> bool:
 ## Takes off whatever is in [param slot] and returns it to the bag. Refused when
 ## the bag is full: gear has to have somewhere to go.
 func unequip(slot: StringName) -> bool:
-	var item := _equipped.get(slot, null) as Item
-	if item == null:
-		return false
-	if add(item, 1) <= 0:
+	var stack := worn(slot)
+	if stack == null or is_full():
 		return false
 
 	_equipped.erase(slot)
+	_stacks.append(stack)
+	EventBus.item_added.emit(stack.item.id, 1)
 	GameState.refresh_vitals()
 	EventBus.item_equipped.emit(slot, &"")
 	EventBus.inventory_changed.emit()
 	return true
 
 
-## The sum of every worn bonus to one stat. [GameState] folds these into its
-## [code]total_*[/code] accessors, which is the only place combat reads stats
-## from -- gear never reaches into [CombatMath] or [Combatant].
+## Raises one copy's enhancement by one -- the smith's success, and nothing else
+## calls it. [param stack] may be in the bag or worn; a worn one moves the stats
+## at once. Refused at the piece's [method Item.max_plus].
+func enhance(stack: ItemStack) -> bool:
+	if stack == null or not stack.item.is_equipment() or stack.plus >= stack.item.max_plus():
+		return false
+	if stack not in _stacks and stack not in _equipped.values():
+		return false
+	stack.plus += 1
+	if stack in _equipped.values():
+		GameState.refresh_vitals()
+	EventBus.item_enhanced.emit(stack.item.id, stack.plus)
+	EventBus.inventory_changed.emit()
+	return true
+
+
+## The sum of every worn bonus to one stat, enhancement included. [GameState]
+## folds these into its [code]total_*[/code] accessors, which is the only place
+## combat reads stats from -- gear never reaches into [CombatMath] or [Combatant].
 func bonus(stat: StringName) -> int:
 	var total := 0
 	for slot in _equipped:
-		var item := _equipped[slot] as Item
-		if item == null:
-			continue
-		match stat:
-			&"attack": total += item.attack_bonus
-			&"defense": total += item.defense_bonus
-			&"speed": total += item.speed_bonus
-			&"max_hp": total += item.max_hp_bonus
+		var stack := _equipped[slot]
+		if stack != null:
+			total += stack.item.base_bonus(stat) + stack.item.plus_bonus(stat, stack.plus)
 	return total
 
 

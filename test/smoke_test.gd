@@ -122,6 +122,7 @@ func _run() -> void:
 	await _close_dialogue()
 
 	await _test_shop(main, town, player)
+	await _test_forge(main, town, player)
 
 	# --- map transition ---
 	SceneRouter.change_map("res://scenes/world/field.tscn", &"from_town")
@@ -911,6 +912,61 @@ func _test_shop(main: Node, town: Node2D, player: Node2D) -> void:
 	await _tap(&"ui_cancel")
 	_check(not screen.is_open() and not GameState.is_input_locked(),
 			"Esc closes the counter and lets go of the lock")
+
+
+## Nezha's forge, through his real conversation and the real screen: "Work on my
+## gear." closes the box and opens the forge, a mashed E straight after is
+## swallowed, a deliberate one works the sword, and Esc leaves.
+func _test_forge(main: Node, town: Node2D, player: Node2D) -> void:
+	var screen := main.get_node("ForgeScreen")
+	var nezha := town.get_node_or_null("Nezha") as Npc
+	_check(nezha != null and nezha.dialogue != null, "the town has a smith to talk to")
+	if nezha == null:
+		return
+	var sword := ItemLibrary.get_item(&"bronze_sword")
+	Inventory.add(sword, 1)
+	Inventory.equip(sword)
+	Inventory.add_id(&"boar_hide", 2)
+	EventBus.col_granted.emit(200)
+	nezha.interact(player)
+	var asked := false
+	for _i in 600:
+		if not DialogueRunner.is_running():
+			break
+		if DialogueRunner.is_choosing():
+			var offered := DialogueRunner.offered_choices()
+			var pick := offered.size() - 1
+			for i in offered.size():
+				if offered[i].text == "Work on my gear.":
+					pick = i
+					asked = true
+			DialogueRunner.choose(pick)
+		else:
+			DialogueRunner.advance()
+		await _idle()
+	_check(asked, "his menu offers to work on your gear")
+	for _i in 30:
+		if screen.is_open():
+			break
+		await _idle()
+	_check(screen.is_open() and GameState.is_input_locked() and not DialogueRunner.is_running(),
+			"and the forge opens once the box has closed")
+	var worn: ItemStack = screen.selected()
+	_check(worn != null and worn == Inventory.worn(&"weapon"), "starting on the sword in your hand")
+	var col := GameState.col()
+	await _tap(&"interact")
+	_check(worn.plus == 0 and GameState.col() == col, "an E mashed through the last line is swallowed")
+	await get_tree().create_timer(Player.INTERACT_GRACE + 0.05).timeout
+	var attack := GameState.total_attack()
+	await _tap(&"interact")
+	_check(worn.plus == 1 and GameState.col() < col and GameState.total_attack() > attack,
+			"a deliberate E works it: +1, and the attack shows (%d -> %d)" % [attack,
+			GameState.total_attack()])
+	await _tap(&"ui_cancel")
+	_check(not screen.is_open() and not GameState.is_input_locked(),
+			"Esc leaves the forge and lets go of the lock")
+	Inventory.unequip(&"weapon")
+	Inventory.remove(&"bronze_sword", 1)
 
 
 ## Losing a real fight on a real floor: the purse spills where you fell, a pouch

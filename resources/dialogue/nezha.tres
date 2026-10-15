@@ -73,6 +73,16 @@ text = "Still gathering."
 next = &"blade_wip"
 conditions = Array[ExtResource("condition")]([SubResource("cond_blade_taken"), SubResource("cond_blade_not_ready"), SubResource("cond_blade_not_done")])
 
+[sub_resource type="Resource" id="eff_open_forge"]
+script = ExtResource("effect")
+kind = 8
+id = &"town_forge"
+
+[sub_resource type="Resource" id="choice_forge"]
+script = ExtResource("choice")
+text = "Work on my gear."
+next = &"forge"
+
 [sub_resource type="Resource" id="choice_gossip"]
 script = ExtResource("choice")
 text = "Heard anything worth hearing?"
@@ -107,7 +117,7 @@ text = "A +1 sword has ended more players' first day than any monster has."
 script = ExtResource("line")
 id = &"menu"
 text = "Well? The forge doesn't stay hot for conversation."
-choices = Array[ExtResource("choice")]([SubResource("choice_blade_report"), SubResource("choice_blade"), SubResource("choice_blade_wip"), SubResource("choice_gossip"), SubResource("choice_leave")])
+choices = Array[ExtResource("choice")]([SubResource("choice_blade_report"), SubResource("choice_blade"), SubResource("choice_blade_wip"), SubResource("choice_forge"), SubResource("choice_gossip"), SubResource("choice_leave")])
 
 [sub_resource type="Resource" id="line_blade"]
 script = ExtResource("line")
@@ -137,6 +147,13 @@ script = ExtResource("line")
 text = "Whetstones, both of them. Use one before a boss, not after."
 next = &"menu"
 
+[sub_resource type="Resource" id="line_forge"]
+script = ExtResource("line")
+id = &"forge"
+text = "Lay it on the anvil. Col first -- the coal doesn't care whether it takes."
+next = &"end"
+effects = Array[ExtResource("effect")]([SubResource("eff_open_forge")])
+
 [sub_resource type="Resource" id="line_gossip"]
 script = ExtResource("line")
 id = &"gossip"
@@ -152,5 +169,5 @@ script = ExtResource("dialogue")
 id = &"nezha"
 default_speaker = "Nezha"
 default_portrait = ExtResource("portrait")
-lines = Array[ExtResource("line")]([SubResource("line_after_boss"), SubResource("line_after_boss_2"), SubResource("line_first"), SubResource("line_first_2"), SubResource("line_menu"), SubResource("line_blade"), SubResource("line_blade_2"), SubResource("line_blade_wip"), SubResource("line_blade_report"), SubResource("line_blade_report_2"), SubResource("line_gossip"), SubResource("line_gossip_2")])
+lines = Array[ExtResource("line")]([SubResource("line_after_boss"), SubResource("line_after_boss_2"), SubResource("line_first"), SubResource("line_first_2"), SubResource("line_menu"), SubResource("line_blade"), SubResource("line_blade_2"), SubResource("line_blade_wip"), SubResource("line_blade_report"), SubResource("line_blade_report_2"), SubResource("line_forge"), SubResource("line_gossip"), SubResource("line_gossip_2")])
 start = &""

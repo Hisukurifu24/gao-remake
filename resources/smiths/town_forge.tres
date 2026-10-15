@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Smith" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/smith.gd" id="smith"]
+
+[resource]
+script = ExtResource("smith")
+id = &"town_forge"
+display_name = "Nezha's Forge"
+keeper = "Nezha"
+greeting = "Col for the coal, hide and fang for the temper. It takes or it doesn't -- I don't do refunds."
