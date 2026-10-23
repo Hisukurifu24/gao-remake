@@ -3,7 +3,7 @@ extends PanelContainer
 ## One save slot as a card: the player's face, who and how far, where, and when.
 ##
 ## Drawn from [method SaveGame.summary] and nothing else, so listing the slots
-## never loads a game. A death game wears a red badge -- the one thing about a
+## never loads a game. A hardcore game wears a red badge -- the one thing about a
 ## slot worth seeing before you pick it. [param note] replaces the last line, for
 ## "press again to delete".
 
@@ -64,7 +64,7 @@ func _init() -> void:
 	_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var badge_text := _label(_badge, &"BadgeLabel")
-	badge_text.text = "Death Game"
+	badge_text.text = "Hardcore"
 	badge_text.clip_text = false
 	middle.add_child(_badge)
 	_when = _label(lines, &"HintLabel")
@@ -77,7 +77,7 @@ func show_slot(n: int, meta: Dictionary, note := "") -> void:
 	_face.texture = null if empty else load(FACE) as Texture2D
 	_face.modulate.a = 1.0
 	_badge.visible = not empty \
-			and GameState.mode_named(str(meta.get("mode", ""))) == GameState.Mode.DEATH_GAME
+			and GameState.mode_named(str(meta.get("mode", ""))) == GameState.Mode.HARDCORE
 	if empty:
 		_name.text = "Empty"
 		_name.add_theme_color_override(&"font_color", UiPalette.LOCKED)
@@ -99,7 +99,7 @@ func show_slot(n: int, meta: Dictionary, note := "") -> void:
 ## Everything the card says, line by line: for tests and tools.
 func text() -> String:
 	return "%s %s\n%s%s\n%s" % [_name.text, _slot.text, _where.text,
-			"  Death Game" if _badge.visible else "", _when.text]
+			"  Hardcore" if _badge.visible else "", _when.text]
 
 
 ## "Floor 10, Ashlow Wood": a map's name may start with its floor's number,

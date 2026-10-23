@@ -14,14 +14,15 @@ extends Node
 const XP_BASE := 25
 const XP_STEP := 40
 
-## How this game is played, chosen at new game and fixed for it. A death game
-## ([constant DEATH_GAME]) saves like any other, and losing a fight deletes the save
-## ([method SaveGame.end_if_death_game]); a hardcore run ([constant HARDCORE]) is
+## How this game is played, chosen at new game and fixed for it. A hardcore game
+## ([constant HARDCORE]) saves like any other, and losing a fight deletes the save
+## ([method SaveGame.end_if_hardcore]); a marathon ([constant MARATHON]) is
 ## never saved at all, so closing the game ends it.
-enum Mode { STANDARD, DEATH_GAME, HARDCORE }
+enum Mode { STANDARD, HARDCORE, MARATHON }
 ## How [enum Mode] is spelled in a save file, so a reordered enum can't turn every
-## standard save into a death game.
-const MODE_NAMES: Array[String] = ["standard", "death_game", "hardcore"]
+## standard save into a hardcore game. Hardcore was "death_game" in version 1
+## ([method SaveGame._migrate]).
+const MODE_NAMES: Array[String] = ["standard", "hardcore", "marathon"]
 
 var player_name := "Kirito"
 ## Seconds spent on a map in this run, counted by the main scene. Shown on the

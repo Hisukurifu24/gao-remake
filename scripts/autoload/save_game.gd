@@ -18,12 +18,12 @@ extends Node
 ## as bitmaps ([SaveCodec]).
 ##
 ## A game is played in one of three ways ([enum GameState.Mode]), chosen at new
-## game. A standard game saves anywhere. A death game saves the same way, but
+## game. A standard game saves anywhere. A hardcore game saves the same way, but
 ## losing a fight deletes the save -- and a fight is marked on disk while it runs
 ## (a [code].fight[/code] file beside the slot), so closing the game to get out of
-## a losing one is losing it. A hardcore run is never saved at all.
+## a losing one is losing it. A marathon is never saved at all.
 
-const VERSION := 1
+const VERSION := 2
 const SLOTS := 3
 const DIRECTORY := "user://saves"
 
@@ -75,20 +75,20 @@ func _process(_delta: float) -> void:
 		save_game(slot, true)
 
 
-## Why this game can't be saved at all, or empty if it can be: a hardcore run,
+## Why this game can't be saved at all, or empty if it can be: a marathon,
 ## or a debug start. What the pause menu greys Save out with.
 func why_unsaved() -> String:
-	if GameState.mode == GameState.Mode.HARDCORE:
-		return "Hardcore: nothing is ever saved."
+	if GameState.mode == GameState.Mode.MARATHON:
+		return "Marathon: nothing is ever saved."
 	if slot <= 0:
 		return "This run isn't saved -- it was started from a debug floor."
 	return ""
 
 
 ## Whether there is a save to go back to: a slot with a save in it, and not a
-## death game, where going back to before a mistake is the one thing ruled out.
+## hardcore game, where going back to before a mistake is the one thing ruled out.
 func can_go_back() -> bool:
-	return slot > 0 and exists(slot) and GameState.mode != GameState.Mode.DEATH_GAME
+	return slot > 0 and exists(slot) and GameState.mode != GameState.Mode.HARDCORE
 
 
 ## F5 saves and F9 goes back to the last save: shortcuts for what the pause menu
@@ -114,7 +114,7 @@ func _unhandled_input(event: InputEvent) -> void:
 ## is out of range. [param auto] only tells the view which kind of save it was.
 func save_game(to_slot := slot, auto := false) -> bool:
 	if to_slot < 1 or to_slot > SLOTS or not can_save() \
-			or GameState.mode == GameState.Mode.HARDCORE:
+			or GameState.mode == GameState.Mode.MARATHON:
 		return false
 	var data := snapshot()
 	if data.is_empty() or not _write(to_slot, data):
@@ -179,12 +179,12 @@ func _write(to_slot: int, data: Dictionary) -> bool:
 
 ## Reads [param from_slot] and puts the player back where it left them, on the
 ## same floor grown from the same seed. Awaitable; false, with the game untouched,
-## if the slot is empty or unreadable, a death game left mid-fight, or something
+## if the slot is empty or unreadable, a hardcore game left mid-fight, or something
 ## is in the way.
 func load_slot(from_slot: int) -> bool:
 	if CombatManager.is_running() or DialogueRunner.is_running() or GameState.is_input_locked():
 		return false
-	# A death game left mid-fight is a death game lost: see bury_fallen().
+	# A hardcore game left mid-fight is a hardcore game lost: see bury_fallen().
 	if left_mid_fight(from_slot):
 		return false
 	var data := read(from_slot)
@@ -238,10 +238,16 @@ func read(from_slot: int) -> Dictionary:
 	return data
 
 
-## Brings an older save up to [constant VERSION], one version at a time. There is
-## only one version yet; the next change to the shape of a save adds a step here
-## rather than a special case in a from_save.
-func _migrate(data: Dictionary, _from_version: int) -> Dictionary:
+## Brings an older save up to [constant VERSION], one version at a time. A change
+## to the shape of a save adds a step here rather than a special case in a
+## from_save.
+func _migrate(data: Dictionary, from_version: int) -> Dictionary:
+	if from_version < 2:
+		# Version 1 called Hardcore "death_game". Its "hardcore" (now Marathon) was
+		# never saved, so no version 1 file spells it.
+		for part in ["game", "meta"]:
+			if data.get(part) is Dictionary and data[part].get("mode") == "death_game":
+				data[part]["mode"] = "hardcore"
 	return data
 
 
@@ -251,14 +257,14 @@ func _migrate(data: Dictionary, _from_version: int) -> Dictionary:
 ## game has it -- which is what loading an empty save gives, so a new game and a
 ## save with nothing in it can never disagree -- on a fresh seed, in the Town of
 ## Beginnings. It saves into [param to_slot], whose old save the first autosave
-## writes over; a hardcore run takes no slot. Awaitable.
+## writes over; a marathon takes no slot. Awaitable.
 func new_game(to_slot: int, mode := GameState.Mode.STANDARD) -> void:
 	_autosave_pending = false
 	GameState.from_save({})
 	GameState.mode = mode
 	QuestLog.from_save({})
 	Inventory.from_save({})
-	slot = 0 if mode == GameState.Mode.HARDCORE else clampi(to_slot, 0, SLOTS)
+	slot = 0 if mode == GameState.Mode.MARATHON else clampi(to_slot, 0, SLOTS)
 	_clear_fight(slot)
 	await SceneRouter.enter_floor(1)
 
@@ -275,15 +281,15 @@ func quit_to_title(notice := "", save_first := true) -> void:
 	await SceneRouter.leave(func() -> void: EventBus.title_requested.emit(notice))
 
 
-# --- the death game --------------------------------------------------------
+# --- hardcore --------------------------------------------------------------
 
 ## A real defeat has happened -- [Monster] and [BossGate] ask before deciding
-## what it costs. In a death game it costs the save: the slot is deleted, the
+## what it costs. In a hardcore game it costs the save: the slot is deleted, the
 ## player is told, and the game goes back to the title. Returns whether it was a
-## death game, in which case the caller does nothing more -- no revive, no walk
+## hardcore game, in which case the caller does nothing more -- no revive, no walk
 ## back to the entrance.
-func end_if_death_game() -> bool:
-	if GameState.mode != GameState.Mode.DEATH_GAME:
+func end_if_hardcore() -> bool:
+	if GameState.mode != GameState.Mode.HARDCORE:
 		return false
 	var lost := slot
 	if lost > 0:
@@ -298,7 +304,7 @@ func _game_over(lost: int) -> void:
 	var where := "Floor %d" % GameState.current_floor
 	await DialogueRunner.say("", PackedStringArray([
 		"Your HP reaches zero.",
-		"In a death game, that is the end of it.",
+		"On Hardcore, that is the end of it.",
 	]))
 	var notice := "%s died on %s." % [GameState.player_name, where]
 	if lost > 0:
@@ -306,18 +312,18 @@ func _game_over(lost: int) -> void:
 	await quit_to_title(notice, false)
 
 
-## Where a death game marks a fight in progress: beside the slot.
+## Where a hardcore game marks a fight in progress: beside the slot.
 func fight_path_for(of_slot: int) -> String:
 	return directory.path_join("slot_%d.fight" % of_slot)
 
 
 ## Whether [param of_slot] was left in the middle of a fight -- the game closed,
-## or crashed, before it ended. In a death game that is a fight lost.
+## or crashed, before it ended. In a hardcore game that is a fight lost.
 func left_mid_fight(of_slot: int) -> bool:
 	return of_slot >= 1 and of_slot <= SLOTS and FileAccess.file_exists(fight_path_for(of_slot))
 
 
-## Deletes every death-game save that was left in the middle of a fight, and says
+## Deletes every hardcore save that was left in the middle of a fight, and says
 ## so, a line each. The title screen calls it as it opens, before it lists them.
 func bury_fallen() -> PackedStringArray:
 	var notices := PackedStringArray()
@@ -326,14 +332,14 @@ func bury_fallen() -> PackedStringArray:
 			continue
 		var meta := summary(of_slot)
 		if not meta.is_empty():
-			notices.append("Slot %d: %s left a fight unfinished on Floor %d. In a death game, that is a fight lost."
+			notices.append("Slot %d: %s left a fight unfinished on Floor %d. On Hardcore, that is a fight lost."
 					% [of_slot, meta.get("name", "?"), SaveCodec.whole(meta.get("floor"), 1)])
 		delete(of_slot)
 	return notices
 
 
 func _on_combat_started(_encounter_id: StringName) -> void:
-	if slot <= 0 or GameState.mode != GameState.Mode.DEATH_GAME or not exists(slot):
+	if slot <= 0 or GameState.mode != GameState.Mode.HARDCORE or not exists(slot):
 		return
 	var file := FileAccess.open(fight_path_for(slot), FileAccess.WRITE)
 	if file == null:
@@ -344,7 +350,7 @@ func _on_combat_started(_encounter_id: StringName) -> void:
 
 
 ## Every fight ends here, won, fled or lost. A loss is settled straight after, by
-## [method end_if_death_game], which takes the save with it.
+## [method end_if_hardcore], which takes the save with it.
 func _on_combat_ended(_victory: bool) -> void:
 	_clear_fight(slot)
 
@@ -372,7 +378,7 @@ func summary(of_slot: int) -> Dictionary:
 	return data.get("meta", {}) if data.get("meta") is Dictionary else {}
 
 
-## Empties [param of_slot], and any fight a death game marked beside it.
+## Empties [param of_slot], and any fight a hardcore game marked beside it.
 func delete(of_slot: int) -> bool:
 	_clear_fight(of_slot)
 	if not exists(of_slot):

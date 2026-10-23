@@ -135,7 +135,7 @@ signal boss_room_found(floor_number: int)
 signal game_saved(slot: int, auto: bool)
 ## A save was read back and the player is standing where it left them.
 signal game_loaded(slot: int)
-## The game has been left -- quit from the pause menu, or ended by a death game --
+## The game has been left -- quit from the pause menu, or ended by a hardcore game --
 ## and the title screen should come up, saying [param notice] if it isn't empty.
 ## Also how the game proper boots. The title screen is its only listener.
 signal title_requested(notice: String)

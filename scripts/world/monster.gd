@@ -217,10 +217,10 @@ func _level() -> int:
 
 ## Losing to a roaming monster costs HP and your purse -- no reload, no lost
 ## progress. The purse spills where you fell ([method GameMap.player_fell]), and
-## the monster that beat you is still standing over it. In a death game, losing
+## the monster that beat you is still standing over it. In a hardcore game, losing
 ## is the end of the save.
 func _knock_out(defeated: bool) -> void:
-	if defeated and SaveGame.end_if_death_game():
+	if defeated and SaveGame.end_if_hardcore():
 		return
 	GameState.set_hp(maxi(1, roundi(GameState.total_max_hp() * 0.35)))
 	var lines := PackedStringArray([

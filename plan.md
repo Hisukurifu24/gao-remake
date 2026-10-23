@@ -1328,7 +1328,7 @@ floor, so it reads `FloorTuning` / cleared floors, never a shop's own table of l
   is the walk back the floor already makes you take.
 - [x] **Death Game mode** — optional permadeath, chosen at new game: lose a fight, lose
   the save. The most SAO thing the game can do. *Built 2026-10-21 with M7's title
-  screen -- see M7.*
+  screen -- see M7. Renamed **Hardcore** 2026-10-23.*
 
 *Not taken:* durability and repair (faithful, and a chore); losing a percentage of carried
 Col (flatter than dropping it); banking Col in towns.
@@ -1904,11 +1904,14 @@ the first slice is **the save/load core and its tests** -- no menus yet.
   that can't be made now stays greyed with the reason under it. F5/F9 stay as
   shortcuts for Save and Back.
 - [x] **The three modes** (`GameState.mode`, saved by name): **Standard** saves
-  anywhere. **Death Game** (M5.6) saves the same way, but a real defeat --
-  `Monster._knock_out` / `BossGate._revive` ask `SaveGame.end_if_death_game()` first --
+  anywhere. **Hardcore** (M5.6's Death Game) saves the same way, but a real defeat --
+  `Monster._knock_out` / `BossGate._revive` ask `SaveGame.end_if_hardcore()` first --
   deletes the slot on the spot, says so and goes back to the title; there is no going
-  back to the save (F9 and the menu refuse it). **Hardcore** (the user, 2026-10-15)
+  back to the save (F9 and the menu refuse it). **Marathon** (the user, 2026-10-15)
   is never saved and takes no slot: closing the game ends it, and quitting asks twice.
+  *Renamed 2026-10-23 (the user): Death Game became Hardcore, and the old Hardcore
+  became Marathon. Saves are version 2; `_migrate()` reads a version 1 "death_game"
+  as "hardcore" -- no version 1 file spells the old hardcore, which never saved.*
 - [x] **A new game is an empty save loaded** (`SaveGame.new_game(slot, mode)` runs
   every autoload's `from_save({})`), so a new game and a save with nothing in it can
   never disagree. Leaving for the title is `SceneRouter.leave()`, a fade onto no map.
@@ -2192,10 +2195,10 @@ labyrinth after the mapmaker who never came out.
 And it keeps your place now. The game opens on a title screen over the Town of
 Beginnings: continue, start a new game, load one of three saves, the settings, the
 credits. Start a new game as a standard one, saving anywhere and autosaving as you
-go; as a **Death Game**, where losing a fight deletes the save and sends you back to
-the title; or as a hardcore run that is never saved at all. **Esc** opens the game
+go; on **Hardcore**, where losing a fight deletes the save and sends you back to
+the title; or as a **Marathon** that is never saved at all. **Esc** opens the game
 menu -- your status, the bag with you standing in your gear, the journal, the map,
-and the system page to save, go back to the last save (not in a death game), change
+and the system page to save, go back to the last save (not on Hardcore), change
 the settings or quit to the title. A loaded game puts you on the very spot you saved on.
 
 ```sh
@@ -2273,7 +2276,7 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
 5. ~~M7 save/load~~ **built 2026-10-15** (three slots, autosave, F5/F9, the exact
    spot) -- and the save test's field sweep now fails on any autoload field left out of
    it, so it no longer gets more expensive by itself. **The title screen, the pause
-   menu and the three modes (standard, Death Game, hardcore) built 2026-10-21; the
+   menu and the three modes (standard, Hardcore, Marathon -- named so 2026-10-23) built 2026-10-21; the
    menus redone classic (a tabbed game menu, a paged title) and settings built
    2026-10-22.** Left on M7: name entry, volume/key settings, and the polish/audio half. *The old note, for the record:*
    **M7 save/load is the one thing getting more expensive with every milestone.**

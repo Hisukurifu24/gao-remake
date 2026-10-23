@@ -123,7 +123,7 @@ func shown() -> void:
 	_name.text = GameState.player_name
 	_level.text = "Level %d" % GameState.level
 	_mode.visible = GameState.mode != GameState.Mode.STANDARD
-	_mode_text.text = "Death Game" if GameState.mode == GameState.Mode.DEATH_GAME else "Hardcore"
+	_mode_text.text = "Hardcore" if GameState.mode == GameState.Mode.HARDCORE else "Marathon"
 	var map := SceneRouter.current_map() as GameMap
 	var place := map.display_name if map != null and not map.display_name.is_empty() else ""
 	_place.text = SaveCard.where({"floor": GameState.current_floor, "place": place})

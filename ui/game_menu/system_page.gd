@@ -4,7 +4,7 @@ extends MenuPage
 ##
 ## A view: [SaveGame] says what can be done and does it. A choice that can't be
 ## made now stays listed and greyed, and the line under the list says why: a
-## hardcore run has no Save, a death game no going back. Every choice that acts
+## marathon has no Save, a hardcore game no going back. Every choice that acts
 ## closes the menu first, so the save it makes is one with nothing open -- the
 ## only kind [method SaveGame.can_save] allows.
 
@@ -12,8 +12,8 @@ enum Choice { RESUME, SAVE, LOAD, SETTINGS, QUIT }
 
 const MODE_LINES := {
 	GameState.Mode.STANDARD: "Standard: save anywhere, and it autosaves as you go.",
-	GameState.Mode.DEATH_GAME: "Death Game: lose a fight and this save is deleted.",
-	GameState.Mode.HARDCORE: "Hardcore: nothing is ever saved.",
+	GameState.Mode.HARDCORE: "Hardcore: lose a fight and this save is deleted.",
+	GameState.Mode.MARATHON: "Marathon: nothing is ever saved.",
 }
 
 ## Quit was pressed once on a run that isn't saved; the second press ends it.
@@ -146,8 +146,8 @@ func _paint_detail() -> void:
 				text = SaveGame.why_unsaved() if not SaveGame.why_unsaved().is_empty() \
 						else "Into slot %d." % SaveGame.slot
 			Choice.LOAD:
-				if GameState.mode == GameState.Mode.DEATH_GAME:
-					text = "There is no going back in a death game."
+				if GameState.mode == GameState.Mode.HARDCORE:
+					text = "There is no going back in a hardcore game."
 				elif not SaveGame.why_unsaved().is_empty():
 					text = "There is no save to go back to."
 				else:

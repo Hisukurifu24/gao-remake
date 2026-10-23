@@ -5,11 +5,11 @@ extends CanvasLayer
 ## A view like every other screen. [SaveGame] owns the slots and does the
 ## loading, the starting and the deleting; this only lists them and asks which.
 ## It opens on [signal EventBus.title_requested] -- how the game proper boots, and
-## where quitting and dying in a death game end up -- and holds the input lock
+## where quitting and dying in a hardcore game end up -- and holds the input lock
 ## while open, so nothing on the map underneath can open over it.
 ##
-## A new game asks how to play first and where to save second, because a hardcore
-## run is never saved and has no slot to ask about. Esc goes back a page.
+## A new game asks how to play first and where to save second, because a marathon
+## is never saved and has no slot to ask about. Esc goes back a page.
 
 enum Page { MAIN, LOAD, NEW_MODE, NEW_SLOT, SETTINGS, CREDITS }
 enum Main { CONTINUE, NEW, LOAD, SETTINGS, CREDITS, QUIT }
@@ -19,10 +19,10 @@ const MODES := [
 	[GameState.Mode.STANDARD, "Standard",
 			"Save anywhere; it autosaves as you go.",
 			"Saves into a slot you choose."],
-	[GameState.Mode.DEATH_GAME, "Death Game",
+	[GameState.Mode.HARDCORE, "Hardcore",
 			"Aincrad's rule: lose a fight, lose the save.",
 			"Saves into a slot -- until you fall."],
-	[GameState.Mode.HARDCORE, "Hardcore",
+	[GameState.Mode.MARATHON, "Marathon",
 			"Nothing is ever saved.",
 			"Close the game and the run is over."],
 ]
@@ -76,7 +76,7 @@ func is_open() -> bool:
 	return _open
 
 
-## Puts the title up, saying [param notice] -- and any death game that was left
+## Puts the title up, saying [param notice] -- and any hardcore game that was left
 ## mid-fight, which is buried before the slots are listed.
 func open(notice := "") -> void:
 	var notices := PackedStringArray([notice] if not notice.is_empty() else [])
@@ -327,7 +327,7 @@ func _on_card_chosen(at: int) -> void:
 				continue_slot(at + 1)
 		Page.NEW_MODE:
 			_mode = MODES[at][0]
-			if _mode == GameState.Mode.HARDCORE:
+			if _mode == GameState.Mode.MARATHON:
 				begin(0, _mode)
 			else:
 				_show_page(Page.NEW_SLOT)

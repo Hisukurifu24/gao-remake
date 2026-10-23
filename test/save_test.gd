@@ -63,8 +63,8 @@ func _run() -> void:
 	await _test_autosave()
 	await _test_game_menu()
 	await _test_new_game()
+	await _test_marathon()
 	await _test_hardcore()
-	await _test_death_game()
 	await _test_title_screen()
 
 
@@ -400,12 +400,15 @@ func _test_modes_in_memory() -> void:
 	GameState.from_save({})
 	_check(GameState.mode == GameState.Mode.STANDARD,
 			"a save from before modes existed is a standard game")
-	GameState.mode = GameState.Mode.DEATH_GAME
+	GameState.mode = GameState.Mode.HARDCORE
 	var data: Dictionary = JSON.parse_string(JSON.stringify(GameState.to_save()))
-	_check(data.get("mode") == "death_game", "a mode is saved by name, not by number")
+	_check(data.get("mode") == "hardcore", "a mode is saved by name, not by number")
 	GameState.from_save({})
 	GameState.from_save(data)
-	_check(GameState.mode == GameState.Mode.DEATH_GAME, "and a death game loads as one")
+	_check(GameState.mode == GameState.Mode.HARDCORE, "and a hardcore game loads as one")
+	var old := SaveGame._migrate({"game": {"mode": "death_game"}, "meta": {"mode": "death_game"}}, 1)
+	_check(old["game"]["mode"] == "hardcore" and old["meta"]["mode"] == "hardcore",
+			"a version 1 Death Game loads as Hardcore, slot card included")
 	GameState.from_save({"mode": "nonsense"})
 	_check(GameState.mode == GameState.Mode.STANDARD, "a mode nobody knows loads as standard")
 	GameState.from_save({})
@@ -455,17 +458,17 @@ func _test_new_game() -> void:
 	await _close_boxes()
 
 
-# --- hardcore ----------------------------------------------------------------
+# --- marathon ----------------------------------------------------------------
 
-func _test_hardcore() -> void:
+func _test_marathon() -> void:
 	SaveGame.delete(3)
 	_saved_events.clear()
-	await SaveGame.new_game(3, GameState.Mode.HARDCORE)
+	await SaveGame.new_game(3, GameState.Mode.MARATHON)
 	await _until_unlocked()
 	await _idle(3)
-	_check(GameState.mode == GameState.Mode.HARDCORE and SaveGame.slot == 0
+	_check(GameState.mode == GameState.Mode.MARATHON and SaveGame.slot == 0
 			and not SaveGame.exists(3) and _saved_events.is_empty(),
-			"a hardcore run takes no slot, and arriving autosaves nothing")
+			"a marathon takes no slot, and arriving autosaves nothing")
 	_check(not SaveGame.save_game(3) and not SaveGame.exists(3),
 			"it can't be saved, even into a slot asked for by name")
 	_check(not SaveGame.why_unsaved().is_empty() and not SaveGame.can_go_back(),
@@ -489,27 +492,27 @@ func _test_hardcore() -> void:
 			"Resume closes it and lets go of the lock")
 
 
-# --- the death game ------------------------------------------------------------
+# --- hardcore ------------------------------------------------------------------
 
-func _test_death_game() -> void:
+func _test_hardcore() -> void:
 	SaveGame.delete(3)
-	await SaveGame.new_game(3, GameState.Mode.DEATH_GAME)
+	await SaveGame.new_game(3, GameState.Mode.HARDCORE)
 	await _until_unlocked()
 	await _idle(3)
 	_check(SaveGame.slot == 3 and SaveGame.exists(3)
-			and SaveGame.summary(3).get("mode") == "death_game",
-			"a death game saves into its slot like any other, and the slot says what it is")
+			and SaveGame.summary(3).get("mode") == "hardcore",
+			"a hardcore game saves into its slot like any other, and the slot says what it is")
 	_check(not SaveGame.can_go_back(), "but there is no going back to the save")
 
 	EventBus.combat_started.emit(&"save_test")
-	_check(SaveGame.left_mid_fight(3), "a fight in a death game is marked beside its slot")
+	_check(SaveGame.left_mid_fight(3), "a fight in a hardcore game is marked beside its slot")
 	EventBus.combat_ended.emit(true)
 	_check(not SaveGame.left_mid_fight(3), "and the mark goes when the fight ends")
 
 	# The game closed in the middle of one: the mark is still down.
 	EventBus.combat_started.emit(&"save_test")
 	var loaded: bool = await SaveGame.load_slot(3)
-	_check(not loaded, "a death game left mid-fight won't load")
+	_check(not loaded, "a hardcore game left mid-fight won't load")
 	var notices := SaveGame.bury_fallen()
 	_check(not SaveGame.exists(3) and not SaveGame.left_mid_fight(3) and notices.size() == 1,
 			"and is buried when the slots are listed, with a word why (%s)" % [notices])
@@ -517,14 +520,14 @@ func _test_death_game() -> void:
 	EventBus.combat_started.emit(&"save_test")
 	EventBus.combat_ended.emit(true)
 	_check(not SaveGame.left_mid_fight(3), "(setup) and a fight with no save behind it marks nothing")
-	_check(SaveGame.save_game(3) and SaveGame.exists(3), "(setup) the death game saves again")
+	_check(SaveGame.save_game(3) and SaveGame.exists(3), "(setup) the hardcore game saves again")
 
 	_title_notices.clear()
 	var knocked_out := (load("res://scenes/world/monster.tscn") as PackedScene).instantiate()
 	knocked_out.call(&"_knock_out", true)
 	knocked_out.free()
 	_check(not SaveGame.exists(3) and SaveGame.slot == 0,
-			"losing a fight in a death game deletes the save on the spot")
+			"losing a fight in a hardcore game deletes the save on the spot")
 	await _close_boxes()
 	await _until_true(func() -> bool:
 		return not _title_notices.is_empty() and not SceneRouter.is_busy())
@@ -593,9 +596,9 @@ func _test_title_screen() -> void:
 	cards.choose()
 	await _until_unlocked()
 	await _idle(3)
-	_check(GameState.mode == GameState.Mode.DEATH_GAME and SaveGame.slot == 3 and SaveGame.exists(3)
+	_check(GameState.mode == GameState.Mode.HARDCORE and SaveGame.slot == 3 and SaveGame.exists(3)
 			and not title.call(&"is_open"),
-			"Death Game, then an empty slot, starts one there")
+			"Hardcore, then an empty slot, starts one there")
 	menu.call(&"open", 4)
 	system = menu.call(&"page", 4).call(&"list")
 	_check(system.is_enabled(1) and not system.is_enabled(2),
@@ -610,9 +613,9 @@ func _test_title_screen() -> void:
 	cards.choose()
 	await _until_unlocked()
 	await _idle(3)
-	_check(GameState.mode == GameState.Mode.HARDCORE and SaveGame.slot == 0
+	_check(GameState.mode == GameState.Mode.MARATHON and SaveGame.slot == 0
 			and SceneRouter.current_map() != null and not title.call(&"is_open"),
-			"Hardcore starts at once: it has no slot to ask about")
+			"Marathon starts at once: it has no slot to ask about")
 	await SaveGame.quit_to_title()
 	await _until_true(func() -> bool: return title.call(&"is_open") and not SceneRouter.is_busy())
 

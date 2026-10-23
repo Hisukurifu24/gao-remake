@@ -1274,9 +1274,9 @@ func _capture_title(main: Node) -> void:
 	SceneRouter.enter_floor(10)
 	await _arrived(10)
 	SaveGame.save_game(1)
-	# Or arriving on floor 2 autosaves the death game over slot 1.
+	# Or arriving on floor 2 autosaves the hardcore game over slot 1.
 	SaveGame.slot = 0
-	GameState.mode = GameState.Mode.DEATH_GAME
+	GameState.mode = GameState.Mode.HARDCORE
 	SceneRouter.enter_floor(2)
 	await _arrived(2)
 	SaveGame.save_game(3)
@@ -1285,7 +1285,7 @@ func _capture_title(main: Node) -> void:
 	menu.call(&"open", 4)
 	(menu.call(&"page", 4).call(&"list") as MenuList).select(2)
 	await _wait(0.2)
-	await _capture("50_system_death_game")
+	await _capture("50_system_hardcore")
 	menu.call(&"close")
 
 	var title := main.get_node("TitleScreen")
