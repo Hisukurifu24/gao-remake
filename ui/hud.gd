@@ -45,6 +45,9 @@ func _ready() -> void:
 	CombatManager.combat_finished.connect(_on_combat_finished)
 	EventBus.game_saved.connect(_on_game_saved)
 	EventBus.game_loaded.connect(func(_slot: int) -> void: _refresh_vitals())
+	# The game menu's dim is see-through, and its tab strip stands where the plate
+	# does: the Status tab already says everything the plate would.
+	EventBus.game_menu_toggled.connect(func(open: bool) -> void: _vitals.visible = not open)
 	_build_saved_note()
 	_refresh_vitals()
 
@@ -59,8 +62,8 @@ func _build_saved_note() -> void:
 	_saved.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	_saved.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_saved.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_saved.offset_right = -4.0
-	_saved.offset_bottom = -2.0
+	_saved.offset_right = -8.0
+	_saved.offset_bottom = -4.0
 	_saved.modulate.a = 0.0
 	add_child(_saved)
 

@@ -12,7 +12,7 @@ extends CanvasLayer
 ## piece the forge would refuse is drawn locked and the detail line says why,
 ## asked of [method Smith.refusal] -- the rule [method Smith.attempt] enforces.
 
-const ROWS_SHOWN := 6
+const ROWS_SHOWN := 10
 
 var _open := false
 var _smith: Smith = null
@@ -48,7 +48,7 @@ func _ready() -> void:
 	for i in ROWS_SHOWN:
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_STOP
-		row.add_theme_constant_override(&"separation", 4)
+		row.add_theme_constant_override(&"separation", 8)
 		var piece := Label.new()
 		piece.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		piece.clip_text = true
@@ -241,7 +241,7 @@ func _paint() -> void:
 		var stack := _entries[entry]
 		var maxed := stack.plus >= stack.item.max_plus()
 		var refused := not Smith.refusal(stack, 0).is_empty()
-		var tone := UiPalette.LOCKED if refused else stack.item.rarity_color()
+		var tone := UiPalette.LOCKED if refused else UiPalette.rarity_ink(stack.item.rarity)
 		piece.add_theme_color_override(&"font_color", tone)
 		price.add_theme_color_override(&"font_color", UiPalette.LOCKED if refused else UiPalette.TEXT)
 		var worn := Inventory.worn(stack.item.slot()) == stack

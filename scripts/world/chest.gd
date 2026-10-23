@@ -142,7 +142,9 @@ func _on_flag_changed(flag: StringName, _value: Variant) -> void:
 	if flag != hidden_until or is_hidden():
 		return
 	EventBus.flag_changed.disconnect(_on_flag_changed)
-	_set_present(true)
+	# Drawn at once, solid once the player isn't standing where it appeared.
+	visible = true
+	SolidWhenClear.attach($Solid)
 	modulate.a = 0.0
 	create_tween().tween_property(self, ^"modulate:a", 1.0, APPEAR_TIME)
 

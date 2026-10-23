@@ -11,7 +11,7 @@ class_name ItemLibrary
 ## directory listing is unreliable in exported builds.
 ##
 ## Adding an item is a .tres in [code]resources/items/[/code], an entry in
-## [constant ITEMS], and an icon in [code]tools/gen_placeholder_art.py[/code].
+## [constant ITEMS], and an icon from [code]tools/build_item_icons.gd[/code].
 
 const ITEM_PATH := "res://resources/items/%s.tres"
 

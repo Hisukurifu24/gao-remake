@@ -28,7 +28,7 @@ func _ready() -> void:
 		var region := AtlasTexture.new()
 		region.atlas = LOGIC
 		mark.texture = region
-		# Half size: a texel is still a whole screen pixel at 320x180.
+		# Half size: a texel is still whole screen pixels at the map's zoom.
 		mark.scale = Vector2(0.5, 0.5)
 		# Four hollows close up a pixel, to stay on the door's 32.
 		var pitch := 9.0 if sigils.size() <= 3 else 8.0

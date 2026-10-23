@@ -1,6 +1,16 @@
 class_name UiLayout
 extends RefCounted
 ## Layout helpers the screens share, so a fix to one reaches all of them.
+##
+## The screen is 640x360 units and the world is drawn at [constant WORLD_ZOOM]:
+## the player's camera shows 320x180 world pixels, each two units across, so the
+## UI is laid out at twice the map's pixel density -- a frame's one-pixel line is
+## half a world texel, and text is drawn smooth at the window's own resolution.
+
+## Screen units to a world pixel: the player's camera zoom (set in
+## [code]scenes/player/player.tscn[/code]). Anything that frames the world itself --
+## the fight's camera, the title's town -- multiplies by it.
+const WORLD_ZOOM := 2.0
 
 
 ## Collapses a shrink-wrapped panel onto its contents. A [PanelContainer] grows

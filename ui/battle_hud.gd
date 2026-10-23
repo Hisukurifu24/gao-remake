@@ -20,8 +20,8 @@ signal aimed(target: Combatant)
 
 ## How long the result stays up after the last blow.
 const OUTRO_TIME := 1.1
-## A row's icon slot, in screen units: the pack's 24 px skill icons at half
-## size, so each texel is still whole screen pixels. A 16 px bag icon draws at
+## A row's icon slot, in 640x360 units: the pack's 24 px skill icons at half
+## size, so each texel is still a whole screen pixel. A 16 px bag icon draws at
 ## half too, centred in the same slot, so the text lines up down the menu.
 const ICON_SLOT := Vector2(12, 12)
 const ICON := "res://assets/ninja_adventure/Ui/Skill Icon/"
@@ -305,10 +305,10 @@ func _populate(labels: PackedStringArray, locked: PackedInt32Array,
 		# Cursor, icon, text: the cursor is its own label so the icons stay in
 		# a column whichever row it is on.
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override(&"separation", 2)
+		row.add_theme_constant_override(&"separation", 4)
 		row.set_meta(&"locked", i in locked)
 		var cursor := Label.new()
-		cursor.custom_minimum_size = Vector2(6, 0)
+		cursor.custom_minimum_size = Vector2(8, 0)
 		row.add_child(cursor)
 		if not icons.is_empty():
 			row.add_child(_icon_slot(icons[i] if i < icons.size() else null))
@@ -340,11 +340,11 @@ func _move_selection(step: int) -> void:
 func _paint() -> void:
 	for i in _list.get_child_count():
 		var row := _list.get_child(i)
-		var color := UiPalette.TEXT
+		var color := UiPalette.GLASS_TEXT
 		if row.get_meta(&"locked", false):
-			color = UiPalette.LOCKED
+			color = UiPalette.GLASS_LOCKED
 		elif i == _selected:
-			color = UiPalette.TARGETED if _phase == Phase.TARGET else UiPalette.SELECTED
+			color = UiPalette.GLASS_TARGETED if _phase == Phase.TARGET else UiPalette.GLASS_SELECTED
 		var cursor := row.get_child(0) as Label
 		var text := row.get_child(row.get_child_count() - 1) as Label
 		for label in [cursor, text]:

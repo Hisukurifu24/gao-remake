@@ -45,7 +45,8 @@ const OUTRO_EASE := 0.45
 ## Over the labyrinth's dark (z 10), so a number never pops behind it.
 const OVER_DARK := 20
 ## The menu and the message line take the bottom of the screen, so the fight is
-## framed this many screen units above centre -- half the band they cover.
+## framed this far above centre -- half the band they cover. In world pixels at
+## the map's own zoom, as [constant CLOSE_ROOM] and [constant ZOOM] are.
 const FRAME_LIFT := 12.0
 ## What the camera keeps clear over the tallest head, in world units: the
 ## pointer, and the bob it hangs with.
@@ -56,11 +57,12 @@ const LIGHT_RADIUS := 4
 ## fight doesn't read as a second enemy.
 const BYSTANDER_ALPHA := 0.25
 
-## How far the camera closes in on a fight that fits: 2 frames 160x90 of world.
-## A fight that doesn't is drawn at 1, the UI's own scale (see [method fits]).
+## How far the camera closes in on a fight that fits, over the map's own zoom
+## ([constant UiLayout.WORLD_ZOOM]): 2 frames 160x90 of world. A fight that doesn't
+## is drawn at 1, as the map is (see [method fits]).
 const ZOOM := 2.0
-## The screen the fighters may cover, in screen units: all of it across, and
-## above the band the menus take.
+## The view the fighters may cover, in world pixels at the map's zoom: all of it
+## across, and above the band the menus take.
 const CLOSE_ROOM := Vector2(320, 180.0 - FRAME_LIFT * 2.0)
 
 var field: BattleField
@@ -165,6 +167,7 @@ func _close_in() -> void:
 	_player_camera = field.player.get_node_or_null("Camera2D") as Camera2D
 	_camera = Camera2D.new()
 	_camera.name = "BattleCamera"
+	_camera.zoom = Vector2.ONE * UiLayout.WORLD_ZOOM
 	if _player_camera != null:
 		_camera.limit_left = _player_camera.limit_left
 		_camera.limit_top = _player_camera.limit_top
@@ -175,16 +178,16 @@ func _close_in() -> void:
 	_camera.make_current()
 	_zoom = ZOOM if fits(field.bodies.size, ZOOM) else 1.0
 	# The box fits was asked about, centred in the room above the menus: lifted
-	# in screen units, so the same at either zoom.
+	# in the map's own world pixels, so the same on screen at either zoom.
 	var framed := field.bodies.grow_side(SIDE_TOP, HEADROOM)
 	var target := framed.get_center() + Vector2(0, FRAME_LIFT / _zoom)
 	if CombatManager.step_delay <= 0.0:
 		_camera.position = target
-		_camera.zoom = Vector2.ONE * _zoom
+		_camera.zoom = Vector2.ONE * _zoom * UiLayout.WORLD_ZOOM
 		return
 	var glide := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	glide.tween_property(_camera, "position", target, INTRO_TIME)
-	glide.tween_property(_camera, "zoom", Vector2.ONE * _zoom, INTRO_TIME)
+	glide.tween_property(_camera, "zoom", Vector2.ONE * _zoom * UiLayout.WORLD_ZOOM, INTRO_TIME)
 
 
 ## Whether fighters covering [param bodies] of the world, with the pointer's
@@ -448,7 +451,7 @@ func _on_combat_finished(_result: CombatResult) -> void:
 		var to := field.map.to_local(_player_camera.get_screen_center_position()) \
 				if _player_camera != null else from
 		_camera.position = from.lerp(to, t), 0.0, 1.0, OUTRO_EASE)
-	glide.tween_property(_camera, "zoom", Vector2.ONE, OUTRO_EASE)
+	glide.tween_property(_camera, "zoom", Vector2.ONE * UiLayout.WORLD_ZOOM, OUTRO_EASE)
 	glide.chain().tween_callback(_hand_back)
 
 
@@ -554,7 +557,7 @@ func _flash(who: Combatant) -> void:
 
 ## Whole units, so the pixel grid never smears.
 func _shake_camera() -> void:
-	if _camera == null:
+	if _camera == null or not Settings.screen_shake:
 		return
 	if _shake != null:
 		_shake.kill()

@@ -1326,8 +1326,9 @@ floor, so it reads `FloorTuning` / cleared floors, never a shop's own table of l
   that spot, marked on the **M** map; walk back to it to pick it up. Lose again first and
   it is gone. Items and gear are never dropped. A boss defeat drops it at the door, which
   is the walk back the floor already makes you take.
-- [ ] **Death Game mode** — optional permadeath, chosen at new game: lose a fight, lose
-  the save. The most SAO thing the game can do, and it **needs M7's save/load first**.
+- [x] **Death Game mode** — optional permadeath, chosen at new game: lose a fight, lose
+  the save. The most SAO thing the game can do. *Built 2026-10-21 with M7's title
+  screen -- see M7.*
 
 *Not taken:* durability and repair (faithful, and a chore); losing a percentage of carried
 Col (flatter than dropping it); banking Col in towns.
@@ -1483,7 +1484,7 @@ already chosen, so no new decision was asked for; the numbers are mine, flagged 
   floor's kills and that she sells the door rather than the route; the peddler's 40%
   and town prices (no mark-up for the walk); and Lanternfall and Ashlow having no
   smith of their own yet.
-- *Still not built:* villages' floor-exclusive stock, Death Game mode (needs M7).
+- *Still not built:* villages' floor-exclusive stock. (Death Game mode: built with M7.)
 
 ### M6 — World depth & floor content
 The 100-floor architecture is in (see *Floors of Aincrad* below); this is the pass that
@@ -1856,7 +1857,7 @@ And what the tests learned from it:
 - The generated-floor check said "all 99" and had been counting fewer since Floor 10. It
   counts now: 97.
 
-### M7 — Save/load, polish, audio *(the save decided and built 2026-10-15)*
+### M7 — Save/load, polish, audio *(the save decided and built 2026-10-15; title, pause and the three modes built 2026-10-21; the menus redone classic and settings built 2026-10-22)*
 Asked, the user chose: **save anywhere plus autosave** (a hardcore mode with no saving
 at all comes later), **three slots**, a loaded game resumes on **the exact spot**, and
 the first slice is **the save/load core and its tests** -- no menus yet.
@@ -1892,11 +1893,83 @@ the first slice is **the save/load core and its tests** -- no menus yet.
   save (no separate autosave file); autosaving on map arrival and floor clear only, not
   after every fight or purchase; monsters calm for `CALM_SECONDS` after a load; play
   time not tracked yet (the slot summary has name, level, floor, place, saved-at).
-- [ ] Main menu (the three slots: continue, new, delete -- `SaveGame.summary()` is
-  ready for it), pause menu (save, quit to title), settings.
-- [ ] **Hardcore mode**: no saving at all, chosen at new game (the user, 2026-10-15).
-- [ ] **Death Game mode** (M5.6): permadeath chosen at new game -- lose a fight, lose the
-  save. Lands with the save, since there is nothing to delete before it.
+- [x] **Title screen** (`ui/title_screen.tscn`, 2026-10-21): the game proper boots to
+  it (`--slot`/`--new` still skip it; tests and tools never see it). The three slots
+  -- who, level, floor and place, a Death Game marked red, when it was saved -- over
+  the sky band's own backdrop drifting. A save offers **Continue** / **Delete** (asks
+  twice); an empty slot offers the three ways to play. `EventBus.title_requested` puts
+  it up, with a notice line ("Kirito died on Floor 2. Slot 3 is empty.").
+- [x] **Pause menu** (**Esc**, `ui/pause_menu.tscn`): Resume, Save, Back to the last
+  save, Save and quit to title. Opens from the overworld only, like the bag. A choice
+  that can't be made now stays greyed with the reason under it. F5/F9 stay as
+  shortcuts for Save and Back.
+- [x] **The three modes** (`GameState.mode`, saved by name): **Standard** saves
+  anywhere. **Death Game** (M5.6) saves the same way, but a real defeat --
+  `Monster._knock_out` / `BossGate._revive` ask `SaveGame.end_if_death_game()` first --
+  deletes the slot on the spot, says so and goes back to the title; there is no going
+  back to the save (F9 and the menu refuse it). **Hardcore** (the user, 2026-10-15)
+  is never saved and takes no slot: closing the game ends it, and quitting asks twice.
+- [x] **A new game is an empty save loaded** (`SaveGame.new_game(slot, mode)` runs
+  every autoload's `from_save({})`), so a new game and a save with nothing in it can
+  never disagree. Leaving for the title is `SceneRouter.leave()`, a fade onto no map.
+- [x] **Tests**: the save test grew to 103 checks -- modes saved by name, a new game
+  starting over on a new seed and autosaving into its slot, hardcore refusing every
+  save, the death game's fight mark and its burial, a defeat deleting the slot and
+  landing on the title, and both screens driven through their rows (continue, delete
+  twice, save and quit, a death game from an empty slot, what each mode greys out).
+  `tools/screenshot.gd -- --title` shoots the title's pages and the pause menu.
+- *Calls of mine, flag if wrong:* **a death game marks a fight on disk while it runs**
+  (`slot_<n>.fight`), and a save found with the mark still down -- the game closed or
+  crashed mid-fight -- is buried as a fight lost when the title lists the slots; without
+  it, closing the window is a way out of every losing fight. **Hardcore is a run with
+  no slot**, rather than a slot that refuses to save, so the slot it was started from
+  stays empty. **Quit saves first** in a game with a slot. The title says **"GAO"** and
+  "A hundred floors of Aincrad" -- placeholder words. No name entry yet (everyone is
+  Kirito), no play time, no save-on-window-close.
+- [x] **The menus redone classic** (2026-10-22). The user didn't like the look of the
+  title, the pause menu or the bag, and chose (asked): a **classic title** -- a main
+  menu over the Town of Beginnings, a page per entry; **one game menu with tabs** on
+  Esc, the bag and the journal and the map in it, I/J/M opening their tab; a bag with
+  **the pack's item icons, category tabs, the player in their gear and a stat
+  comparison**; and **the Ninja Adventure pack for all of it** (an outside UI pack was
+  offered and declined for now).
+  - **Title** (`ui/title_screen.gd`): Continue (the latest save), New game, Load game,
+    Settings, Credits, Quit on the pack's button plates, the pack's arrow as cursor,
+    over the town (`TownBackdrop`: `town.tscn`'s tiles and villagers, taken apart before
+    it enters the tree, dimmed, drifting). Load shows three **save cards** (face, level,
+    floor and place, a red Death Game tag, when, time played); Delete asks twice. **New
+    game asks how to play first, then where** -- hardcore skips the slot page -- and an
+    occupied slot asks twice before it is overwritten.
+  - **Game menu** (`ui/game_menu/`): tabs Status, Items, Quests, Map, System; Tab /
+    Shift+Tab / a click move between them; the purse in the corner; the key line drawn
+    with the pack's keycaps (`KeyHints`). **Status**: face, level, HP and XP bars, each
+    stat with what the gear adds, what is worn, floors cleared, time played. **Items**:
+    the player in their gear (three slots, a faint outline where one is empty), the
+    bag filtered by category tabs (all, consumables, equipment, materials, key items),
+    an X to drag things onto, and the item up close; a piece of gear under the cursor
+    shows what wearing it would change under the player (`Inventory.change_if_worn`).
+    **Quests** is the journal, **Map** the map screen. **System**: resume, save, back
+    to the save, settings, quit -- the run's own save card beside them.
+  - **Item icons** from the pack (`tools/build_item_icons.gd`, 16x16 each, padded);
+    the coats, the ring and the lantern, which the pack doesn't draw, are pixel tables
+    in the tool. The placeholder item art is gone.
+  - [x] **Settings** (`Settings` autoload, `user://settings.cfg`, not in any save):
+    fullscreen, window size (x2-x6), text speed (slow / normal / fast / instant), screen
+    shake. Applied and written as they change. On the title and in System.
+  - **Time played** (`GameState.play_time`, saved): counted while a map is up; on the
+    save cards and the Status page.
+  - **Tests**: the save test drives the title's pages (load, delete twice, new game's
+    mode then slot, overwrite asks twice, hardcore skipping the slot, settings written
+    and read back) and the game menu (each key opening its tab, Tab and Shift+Tab, the
+    bag's filters and comparison, System's settings and Esc stepping out of them); the
+    inventory test checks every icon is its item's 16x16 tile and the comparison.
+    `tools/screenshot.gd -- --menu` shoots the tabs, `-- --title` the title's pages.
+  - *Calls of mine, flag if wrong:* **no separate Equip tab** -- the gear is on the Items
+    tab beside the bag, so a sword can be dragged from one to the other; **Esc opens on
+    Status**, not on System; category tabs are walked into from the bag (up off its top
+    row) rather than given keys of their own; no volume settings until there is audio,
+    no key rebinding yet; the credits name the user and the pack's authors.
+- [ ] Settings still to come: volume once there is audio, key bindings.
 - [ ] SFX/music, screen shake, hit-stop, transitions; controller support.
 
 ---
@@ -2116,6 +2189,15 @@ ice, stilt huts over the bog — and the people who stopped climbing have jobs f
 Thin out the boars at the door, bring in three wolf fangs, or go back into the
 labyrinth after the mapmaker who never came out.
 
+And it keeps your place now. The game opens on a title screen over the Town of
+Beginnings: continue, start a new game, load one of three saves, the settings, the
+credits. Start a new game as a standard one, saving anywhere and autosaving as you
+go; as a **Death Game**, where losing a fight deletes the save and sends you back to
+the title; or as a hardcore run that is never saved at all. **Esc** opens the game
+menu -- your status, the bag with you standing in your gear, the journal, the map,
+and the system page to save, go back to the last save (not in a death game), change
+the settings or quit to the title. A loaded game puts you on the very spot you saved on.
+
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
@@ -2125,6 +2207,7 @@ GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 202-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 88-check combat test
 "$GODOT" --headless --path . res://test/quest_test.tscn     # 204-check quest test
+"$GODOT" --headless --path . res://test/save_test.tscn      # 103-check save test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -2180,7 +2263,8 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where
    you fall. **The sinks built 2026-10-09**: Nezha's forge (+N per copy, Col and
    materials, can fail), Argo selling boss doors, a peddler in some safe zones. Still
-   to build: villages' floor-exclusive stock, and Death Game mode after M7.
+   to build: villages' floor-exclusive stock. (Death Game mode landed with M7's
+   title screen, 2026-10-21.)
 4. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
    a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest
    each and an authored boss — Lanternfall took that from a design job to a content job, and
@@ -2188,8 +2272,10 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    band; Ashlow was a loop and Lanternfall a chain, so it wants a third shape.
 5. ~~M7 save/load~~ **built 2026-10-15** (three slots, autosave, F5/F9, the exact
    spot) -- and the save test's field sweep now fails on any autoload field left out of
-   it, so it no longer gets more expensive by itself. Next on M7: the title screen and
-   pause menu, then hardcore and Death Game modes. *The old note, for the record:*
+   it, so it no longer gets more expensive by itself. **The title screen, the pause
+   menu and the three modes (standard, Death Game, hardcore) built 2026-10-21; the
+   menus redone classic (a tabbed game menu, a paged title) and settings built
+   2026-10-22.** Left on M7: name entry, volume/key settings, and the polish/audio half. *The old note, for the record:*
    **M7 save/load is the one thing getting more expensive with every milestone.**
    M5.6 added the purse (`GameState._col`), the dropped pile (`_dropped_col`) and
    every gear stack's `plus` -- worn ones too, since a slot now holds the stack.

@@ -115,6 +115,9 @@ signal flag_changed(flag: StringName, value: Variant)
 ## that step aside while anything holds the screen -- a shop, the gate menu, a fade
 ## -- without having to know what each of those is.
 signal input_lock_changed(locked: bool)
+## The game menu opened or closed. For views that would show through its dim --
+## the vitals, under the tab strip. Nothing in the game reacts to it.
+signal game_menu_toggled(open: bool)
 signal hp_changed(hp: int, max_hp: int)
 signal xp_gained(amount: int)
 signal leveled_up(new_level: int)
@@ -132,3 +135,7 @@ signal boss_room_found(floor_number: int)
 signal game_saved(slot: int, auto: bool)
 ## A save was read back and the player is standing where it left them.
 signal game_loaded(slot: int)
+## The game has been left -- quit from the pause menu, or ended by a death game --
+## and the title screen should come up, saying [param notice] if it isn't empty.
+## Also how the game proper boots. The title screen is its only listener.
+signal title_requested(notice: String)

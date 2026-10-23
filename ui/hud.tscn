@@ -1,23 +1,25 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://ui/hud.gd" id="1_hud"]
 [ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Receptacle/IconHeart.png" id="2_heart"]
 [ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Input/Keyboard/KeyE.png" id="3_key"]
+[ext_resource type="Theme" path="res://ui/theme/glass_theme.tres" id="9_glass"]
 
 [node name="Hud" type="CanvasLayer"]
 script = ExtResource("1_hud")
 
 [node name="Vitals" type="PanelContainer" parent="."]
-offset_left = 4.0
-offset_top = 4.0
-offset_right = 5.0
-offset_bottom = 5.0
+theme = ExtResource("9_glass")
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 10.0
+offset_bottom = 10.0
 mouse_filter = 2
 theme_type_variation = &"HudPanel"
 
 [node name="Rows" type="VBoxContainer" parent="Vitals"]
 layout_mode = 2
-theme_override_constants/separation = 1
+theme_override_constants/separation = 2
 
 [node name="Label" type="Label" parent="Vitals/Rows"]
 layout_mode = 2
@@ -25,7 +27,7 @@ text = "Kirito  Lv 1"
 
 [node name="Bar" type="HBoxContainer" parent="Vitals/Rows"]
 layout_mode = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 4
 
 [node name="Heart" type="TextureRect" parent="Vitals/Rows/Bar"]
 layout_mode = 2
@@ -37,17 +39,17 @@ stretch_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
-theme_override_constants/separation = 1
+theme_override_constants/separation = 2
 
 [node name="Hp" type="ProgressBar" parent="Vitals/Rows/Bar/Gauges"]
-custom_minimum_size = Vector2(48, 4)
+custom_minimum_size = Vector2(96, 8)
 layout_mode = 2
 value = 100.0
 show_percentage = false
 
 [node name="Poise" type="ProgressBar" parent="Vitals/Rows/Bar/Gauges"]
 visible = false
-custom_minimum_size = Vector2(0, 3)
+custom_minimum_size = Vector2(0, 6)
 layout_mode = 2
 value = 100.0
 show_percentage = false
@@ -59,15 +61,16 @@ theme_type_variation = &"HintLabel"
 text = " "
 
 [node name="InteractPrompt" type="PanelContainer" parent="."]
+theme = ExtResource("9_glass")
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -0.5
-offset_top = -5.0
-offset_right = 0.5
-offset_bottom = -4.0
+offset_left = -1.0
+offset_top = -10.0
+offset_right = 1.0
+offset_bottom = -8.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
@@ -75,7 +78,7 @@ theme_type_variation = &"HudPanel"
 
 [node name="Row" type="HBoxContainer" parent="InteractPrompt"]
 layout_mode = 2
-theme_override_constants/separation = 3
+theme_override_constants/separation = 6
 
 [node name="Key" type="TextureRect" parent="InteractPrompt/Row"]
 layout_mode = 2

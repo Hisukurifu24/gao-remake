@@ -19,8 +19,8 @@ arrangement of wall neighbours, in the order BLOB_MASKS enumerates them.
 tools/build_biomes.gd derives that same order independently and wires each tile's
 terrain peering bits from it, so the two files agree without sharing data.
 
-Also emits characters, dialogue portraits, props, enemy battlers, and one 16x16
-icon per item id in ITEM_ICONS -- which must stay in step with ItemLibrary.ITEMS.
+Also emits characters, dialogue portraits, props and enemy battlers. Item icons
+are no longer drawn here: tools/build_item_icons.gd cuts them from the pack.
 """
 
 import os
@@ -535,150 +535,6 @@ def chest():
     c.save("chest.png")
 
 
-# --- item icons ------------------------------------------------------------
-#
-# One 16x16 icon per item (resources/items/*.tres), drawn from six shared
-# silhouettes and tinted. Items are data; the silhouette is only how they read
-# in the bag grid, so every material is a "shard", "fang" or "pelt" and the
-# colour is what tells them apart.
-#              shape      colour
-ITEM_ICONS = {
-    "small_potion":   ("flask",  (206, 76, 92)),
-    "health_potion":  ("flask",  (226, 56, 120)),
-    "antidote":       ("flask",  (104, 190, 118)),
-    "whetstone":      ("shard",  (168, 168, 180)),
-    "bronze_sword":   ("sword",  (186, 132, 72)),
-    "kobold_blade":   ("sword",  (150, 142, 124)),
-    "anneal_blade":   ("sword",  (108, 168, 220)),
-    "heartwood_blade": ("sword", (168, 200, 116)),
-    "deepiron_blade": ("sword",  (112, 122, 146)),
-    "leather_coat":   ("coat",   (140, 100, 64)),
-    "blackwyrm_coat": ("coat",   (66, 70, 96)),
-    "guard_ring":     ("ring",   (204, 180, 110)),
-    "swift_charm":    ("ring",   (114, 200, 206)),
-    "warden_seal":    ("ring",   (126, 176, 100)),
-    "foremans_lantern": ("flask", (232, 176, 72)),
-    "boar_hide":      ("pelt",   (140, 102, 72)),
-    "wolf_fang":      ("fang",   (222, 228, 238)),
-    "bat_wing":       ("pelt",   (118, 98, 140)),
-    "nepent_ovule":   ("shard",  (194, 88, 100)),
-    "kobold_fang":    ("fang",   (194, 176, 120)),
-    "lizard_scale":   ("pelt",   (94, 148, 110)),
-    "drake_scale":    ("fang",   (176, 86, 60)),
-    "golem_core":     ("shard",  (172, 148, 96)),
-    "spirit_ash":     ("shard",  (150, 196, 232)),
-    "map_floor_2":    ("scroll", (212, 196, 156)),
-    "raid_tag":       ("tag",    (150, 158, 176)),
-}
-
-
-def item_icon(name, shape, color):
-    c = Canvas(ICON, ICON)
-    base = shade(color, 1.0)
-    {
-        "flask": _icon_flask,
-        "sword": _icon_sword,
-        "coat": _icon_coat,
-        "ring": _icon_ring,
-        "shard": _icon_shard,
-        "fang": _icon_fang,
-        "pelt": _icon_pelt,
-        "scroll": _icon_scroll,
-        "tag": _icon_tag,
-    }[shape](c, base, shade(color, 0.62), tint(color, 0.3))
-    c.save("item_%s.png" % name)
-
-
-def _icon_flask(c, base, dark, light):
-    glass = (198, 210, 226, 255)
-    cork = (146, 108, 66, 255)
-    c.rect(6, 0, 4, 2, cork)
-    c.rect(6, 2, 4, 4, glass)
-    for y in range(6, 15):  # bulb
-        half = 3 + min(y - 6, 3)
-        c.rect(8 - half, y, half * 2, 1, glass)
-    for y in range(9, 14):  # what's in it
-        half = 3 + min(y - 9, 2)
-        c.rect(8 - half, y, half * 2, 1, base if y % 2 else light)
-    c.rect(4, 14, 8, 1, dark)
-
-
-def _icon_sword(c, base, dark, light):
-    steel = (214, 220, 232, 255)
-    c.rect(7, 0, 2, 2, steel)  # tip
-    c.rect(6, 2, 4, 9, steel)  # blade
-    c.rect(6, 2, 1, 9, light)  # the edge catching the light
-    c.rect(9, 2, 1, 9, (140, 148, 164, 255))
-    c.rect(3, 11, 10, 2, base)  # crossguard
-    c.rect(7, 13, 2, 2, dark)  # grip
-    c.rect(6, 15, 4, 1, base)  # pommel
-
-
-def _icon_coat(c, base, dark, light):
-    c.rect(4, 3, 8, 11, base)  # torso
-    c.rect(2, 4, 2, 7, dark)  # sleeves
-    c.rect(12, 4, 2, 7, dark)
-    c.rect(4, 3, 8, 2, light)  # collar
-    c.rect(7, 5, 2, 9, dark)  # front seam
-    c.rect(4, 14, 8, 1, dark)  # hem
-
-
-def _icon_ring(c, base, dark, light):
-    for y in range(5, 15):
-        for x in range(3, 14):
-            distance = (x - 8) ** 2 + (y - 10) ** 2
-            if 8 <= distance <= 22:
-                c.set(x, y, base if (x + y) % 3 else dark)
-    c.rect(6, 1, 4, 4, light)  # the stone
-    c.rect(7, 2, 2, 2, tint(light, 0.5))
-
-
-def _icon_shard(c, base, dark, light):
-    for y in range(1, 15):
-        half = 5 - abs(8 - y) // 2
-        if half <= 0:
-            continue
-        c.rect(8 - half, y, half * 2, 1, base if y % 3 else light)
-    c.rect(5, 7, 2, 5, dark)  # inner facet
-
-
-def _icon_fang(c, base, dark, light):
-    for y in range(1, 15):
-        half = max(1, (15 - y) // 2)
-        c.rect(8 - half, y, half * 2, 1, base)
-    c.rect(5, 2, 2, 5, light)  # highlight down the outer curve
-    c.rect(9, 2, 2, 4, dark)
-
-
-def _icon_pelt(c, base, dark, light):
-    c.rect(3, 4, 10, 9, base)
-    c.rect(3, 4, 10, 2, light)
-    for x, y in ((1, 2), (12, 2), (1, 11), (12, 11)):  # splayed corners
-        c.rect(x, y, 3, 3, base)
-    for x, y in ((6, 7), (9, 9), (7, 11)):
-        c.rect(x, y, 2, 1, dark)
-
-
-def _icon_scroll(c, base, dark, light):
-    c.rect(3, 3, 10, 10, base)
-    c.rect(3, 1, 10, 2, dark)  # rolled top
-    c.rect(3, 13, 10, 2, dark)  # rolled bottom
-    for y in (5, 7, 9, 11):
-        c.rect(5, y, 6, 1, shade(dark, 0.7))
-    c.rect(7, 7, 3, 3, light)  # the "you are here"
-
-
-def _icon_tag(c, base, dark, light):
-    cord = (150, 128, 96, 255)
-    for x, y in ((4, 1), (5, 2), (6, 3), (11, 1), (10, 2), (9, 3)):  # the cord
-        c.set(x, y, cord)
-    c.rect(4, 4, 8, 11, base)  # the tag
-    c.rect(4, 4, 8, 1, light)
-    c.rect(7, 5, 2, 2, dark)  # the hole the cord runs through
-    for y in (8, 10, 12):  # the stamping
-        c.rect(6, y, 4, 1, dark)
-
-
 def boss_gate():
     """A dark archway -- the labyrinth boss door."""
     c = Canvas(FRAME, FRAME)
@@ -711,5 +567,3 @@ if __name__ == "__main__":
     boss_gate()
     for battler_name, (shape, body, accent) in BATTLERS.items():
         battler(battler_name, shape, body, accent)
-    for item_name, (shape, color) in ITEM_ICONS.items():
-        item_icon(item_name, shape, color)

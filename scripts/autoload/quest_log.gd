@@ -25,7 +25,7 @@ extends Node
 ## quests, and there is one condition language in the game instead of two.
 ##
 ## Flow and view are separate, same as dialogue, inventory and combat: this owns
-## the state, [code]ui/quest_journal.tscn[/code] and
+## the state, [code]ui/game_menu/quests_page.gd[/code] and
 ## [code]ui/quest_tracker.tscn[/code] draw it, and
 ## [code]test/quest_test.tscn[/code] runs the whole system with neither
 ## instantiated.

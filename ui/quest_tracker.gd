@@ -12,8 +12,9 @@ extends CanvasLayer
 ## knowing about the other.
 ##
 ## It steps aside for anything that takes over the screen, on the same signals
-## [code]ui/hud.gd[/code] uses. The journal and the bag do not need a signal --
-## both draw an opaque backdrop on a higher [member CanvasLayer.layer].
+## [code]ui/hud.gd[/code] uses -- the input lock among them, which is how the game
+## menu, the shop and the gate menu clear it: the menu's backdrop is only a dim,
+## and the tracker sat in its tab strip cut off by the purse.
 
 ## How long an "accepted" / "ready" / "completed" line stays up. Timed from when
 ## it is *shown*, which for a quest taken mid-conversation is when the box closes
@@ -33,7 +34,7 @@ func _ready() -> void:
 	_notice_timer.one_shot = true
 	_notice_timer.wait_time = NOTICE_SECONDS
 	_notice_timer.timeout.connect(_clear_notice)
-	_notice.add_theme_color_override(&"font_color", UiPalette.READY)
+	_notice.add_theme_color_override(&"font_color", UiPalette.GLASS_READY)
 	add_child(_notice_timer)
 
 	EventBus.quest_log_changed.connect(_refresh)
@@ -46,6 +47,7 @@ func _ready() -> void:
 	EventBus.dialogue_finished.connect(_on_dialogue_changed)
 	CombatManager.combat_began.connect(_on_combat_began)
 	CombatManager.combat_finished.connect(_on_combat_finished)
+	EventBus.input_lock_changed.connect(func(_locked: bool) -> void: _refresh())
 	_clear_notice()
 
 
@@ -88,7 +90,7 @@ func _on_combat_finished(_result: CombatResult) -> void:
 ## a conversation, so a notice that spent its clock behind the box would never be
 ## seen at all.
 func _is_suppressed() -> bool:
-	return DialogueRunner.is_running() or CombatManager.is_running()
+	return DialogueRunner.is_running() or CombatManager.is_running() or GameState.is_input_locked()
 
 
 ## Repaints from scratch. Cheap enough at one quest and a handful of objectives,
@@ -118,14 +120,14 @@ func _refresh() -> void:
 	var ready := progress.is_complete()
 	_title.text = ("! " if ready else "") + progress.quest.label()
 	_title.add_theme_color_override(&"font_color",
-			UiPalette.READY if ready else UiPalette.TEXT)
+			UiPalette.GLASS_READY if ready else UiPalette.GLASS_TEXT)
 
 	_clear_objectives()
 	for objective in progress.quest.listed_objectives():
 		var row := Label.new()
 		row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var done := progress.is_objective_complete(objective)
-		row.add_theme_color_override(&"font_color", UiPalette.DONE if done else UiPalette.DIM)
+		row.add_theme_color_override(&"font_color", UiPalette.GLASS_DONE if done else UiPalette.GLASS_DIM)
 		row.text = "%s %s" % [
 			"x" if done else "-", objective.progress_text(progress.of(objective))]
 		_objectives.add_child(row)

@@ -14,6 +14,7 @@ extends CanvasLayer
 ## built once and repainted, never rebuilt, so the row under the pointer stays the
 ## row under the pointer.
 
+## Twelve, so the window ends above the key line under it.
 const ROWS_SHOWN := 12
 const PAGE := 10
 

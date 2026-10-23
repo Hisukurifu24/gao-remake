@@ -1,6 +1,6 @@
 class_name MapView
 extends Control
-## One map, as far as the player has explored it, drawn in ink on parchment: the
+## One map, as far as the player has explored it, lit up on a dark sheet: the
 ## floor you have walked, the passages you have only glimpsed, the rock round
 ## them, the names of places, and a symbol for you, the boss door once found, the
 ## ways out, unopened chests, the people you have come across, puzzles not yet
@@ -11,15 +11,15 @@ extends Control
 ## says what is in them, [QuestLog] says what the tracked quest is after; this only
 ## decides how big a cell is and how it is drawn.
 
-## Cells are drawn in half-unit steps, the smallest a 320x180 layout can draw
-## crisply (half a unit is one whole screen pixel), up to four units.
-const MAX_CELL := 4.0
-const MIN_CELL := 0.5
+## Cells are drawn in half-unit steps (half a 640x360 unit is still a whole
+## screen pixel), from one unit up to eight.
+const MAX_CELL := 8.0
+const MIN_CELL := 1.0
 const BLINK := 0.4
 ## Graph-paper dots across the unexplored extent, every this many cells.
 const GRID_STEP := 4
-## The ink line where rock meets floor, in units.
-const EDGE := 0.5
+## The line where rock meets floor, in units.
+const EDGE := 1.0
 
 var _map: GameMap = null
 var _blink_on := true
@@ -70,7 +70,7 @@ func _draw() -> void:
 	_draw_markers(walls, seen)
 
 
-## The floor's extent as a darker wash, dotted like graph paper.
+## The floor's extent as a deeper wash, dotted like a grid.
 func _draw_sheet() -> void:
 	draw_rect(Rect2(_origin, Vector2(_bounds.size) * _cell), UiPalette.MAP_UNSEEN)
 	var dot := Vector2(MIN_CELL, MIN_CELL)
@@ -79,8 +79,8 @@ func _draw_sheet() -> void:
 			draw_rect(Rect2(_corner(_bounds.position + Vector2i(x, y)), dot), UiPalette.MAP_GRID)
 
 
-## Seen cells -- glimpsed floor stippled every other cell -- then the ink where
-## rock meets anything open -- a line on the rock's
+## Seen cells -- glimpsed floor stippled every other cell -- then the bright line
+## where rock meets anything open -- a line on the rock's
 ## side of the shared edge, so a passage keeps its full width.
 func _draw_cells(ground: TileMapLayer, walls: TileMapLayer, seen: Dictionary,
 		walked: Dictionary) -> void:
@@ -99,7 +99,7 @@ func _draw_cells(ground: TileMapLayer, walls: TileMapLayer, seen: Dictionary,
 		else:
 			continue
 		draw_rect(Rect2(_corner(at), Vector2(_cell, _cell)), colour)
-	if _cell >= 1.5:
+	if _cell >= 3.0:
 		var dot := Vector2(MIN_CELL, MIN_CELL)
 		for at in stipple:
 			draw_rect(Rect2(_corner(at) + ((Vector2(_cell, _cell) - dot) / 2.0 / MIN_CELL).floor()
@@ -127,7 +127,7 @@ func _draw_cells(ground: TileMapLayer, walls: TileMapLayer, seen: Dictionary,
 ## A place's name just above it, once any of it has been seen -- beside the place
 ## rather than on it, so it never sits on a passage or a symbol. Where the sheet
 ## ends first it goes just inside the place's top edge instead: below would put it
-## on whatever is next door. Ink with a parchment halo, for when it crosses rock.
+## on whatever is next door. Light with a dark halo, for when it crosses floor.
 ## A name that would land on one already written -- two places side by side on a
 ## map drawn small -- slides along the line clear of it, or goes inside its place's
 ## top edge instead, then a line lower at a time until it is clear.
@@ -181,9 +181,9 @@ func _draw_landmarks(seen: Dictionary) -> void:
 		for halo: Vector2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1),
 				Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 			draw_string(font, baseline + halo, place, HORIZONTAL_ALIGNMENT_LEFT, -1,
-					font_size, UiPalette.MAP_FLOOR)
+					font_size, UiPalette.MAP_HALO)
 		draw_string(font, baseline, place, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size,
-				UiPalette.INK)
+				UiPalette.MAP_LABEL)
 
 
 ## Where a name written at [param baseline_y] needs the sheet to itself: its halo,

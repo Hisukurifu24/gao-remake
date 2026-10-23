@@ -16,6 +16,8 @@ var _checks := 0
 ## Spies. Members, not captured locals: GDScript lambdas capture by value.
 var _saved_events: Array[Array] = []
 var _loaded_events: Array[int] = []
+var _title_notices: PackedStringArray = PackedStringArray()
+var _main: Node = null
 
 
 func _ready() -> void:
@@ -38,19 +40,32 @@ func _run() -> void:
 	_test_codec()
 	_test_every_field_is_listed()
 	_test_old_and_broken_saves_in_memory()
+	_test_modes_in_memory()
 
-	var main := (load("res://scenes/main.tscn") as PackedScene).instantiate()
-	add_child(main)
+	_main = (load("res://scenes/main.tscn") as PackedScene).instantiate()
+	add_child(_main)
 	await _until_unlocked()
 	_check(SaveGame.slot == 0, "a game booted by a test saves nowhere (slot 0)")
+	_check(not (_main.get_node("TitleScreen") as CanvasLayer).visible,
+			"and gets no title screen: it is not the game proper")
+	var solid := _main.get_node("TitleScreen").find_children("*", "TileMapLayer", true, false) \
+			.filter(func(layer: TileMapLayer) -> bool: return layer.collision_enabled)
+	_check(solid.is_empty(),
+			"the town drawn behind the title is not solid -- it shares the maps' physics space")
 	EventBus.game_saved.connect(_on_game_saved)
 	EventBus.game_loaded.connect(_on_game_loaded)
+	EventBus.title_requested.connect(_on_title_requested)
 
 	await _test_round_trip()
 	await _test_slots()
 	await _test_refusals()
 	await _test_resume_fallback()
 	await _test_autosave()
+	await _test_game_menu()
+	await _test_new_game()
+	await _test_hardcore()
+	await _test_death_game()
+	await _test_title_screen()
 
 
 # --- SaveCodec --------------------------------------------------------------
@@ -238,8 +253,15 @@ func _test_round_trip() -> void:
 	await _physics(4)
 
 	var after := SaveGame.snapshot()
-	before["meta"].erase("saved_at")
-	after["meta"].erase("saved_at")
+	# The clock runs on through the load, so it is checked for coming back, not
+	# for standing still.
+	var played: float = after["game"]["play_time"] - before["game"]["play_time"]
+	_check(played >= 0.0 and played < 10.0,
+			"the time played comes back with the save (%.2f s on)" % played)
+	for data: Dictionary in [before, after]:
+		data["meta"].erase("saved_at")
+		data["meta"].erase("play_time")
+		data["game"].erase("play_time")
 	_check(JSON.stringify(after) == JSON.stringify(before),
 			"a save of the loaded game is the save it was loaded from, field for field")
 	_check(GameState.world_seed == 424242 and map.floor_number == 2 and _fingerprint(map) == fingerprint,
@@ -372,7 +394,417 @@ func _test_autosave() -> void:
 	_check(not SaveGame.exists(1), "a run with no slot never autosaves")
 
 
+# --- modes -------------------------------------------------------------------
+
+func _test_modes_in_memory() -> void:
+	GameState.from_save({})
+	_check(GameState.mode == GameState.Mode.STANDARD,
+			"a save from before modes existed is a standard game")
+	GameState.mode = GameState.Mode.DEATH_GAME
+	var data: Dictionary = JSON.parse_string(JSON.stringify(GameState.to_save()))
+	_check(data.get("mode") == "death_game", "a mode is saved by name, not by number")
+	GameState.from_save({})
+	GameState.from_save(data)
+	_check(GameState.mode == GameState.Mode.DEATH_GAME, "and a death game loads as one")
+	GameState.from_save({"mode": "nonsense"})
+	_check(GameState.mode == GameState.Mode.STANDARD, "a mode nobody knows loads as standard")
+	GameState.from_save({})
+
+
+# --- a new game ----------------------------------------------------------------
+
+func _test_new_game() -> void:
+	# A game in progress, in memory and saving nowhere.
+	SaveGame.slot = 0
+	while GameState.level < 3:
+		GameState.grant_xp(GameState.xp_to_next_level() - GameState.xp)
+	GameState.set_flag(&"save_test_flag")
+	GameState.clear_floor(1)
+	Inventory.add_id(&"small_potion", 2)
+	QuestLog.start(&"argo_first_errand")
+	EventBus.col_granted.emit(40)
+	var old_seed := GameState.world_seed
+	SaveGame.delete(2)
+
+	_saved_events.clear()
+	await SaveGame.new_game(2)
+	await _until_unlocked()
+	await _idle(3)
+	_check(GameState.level == 1 and GameState.xp == 0 and GameState.col() == 0
+			and GameState.hp == GameState.total_max_hp() and not GameState.has_flag(&"save_test_flag")
+			and not GameState.is_floor_cleared(1),
+			"a new game starts over: level 1, no Col, full HP, no flags, nothing cleared")
+	_check(Inventory.is_empty() and QuestLog.active_count() == 0 and QuestLog.completed_count() == 0,
+			"with an empty bag and an empty journal")
+	_check(GameState.world_seed != old_seed and GameState.mode == GameState.Mode.STANDARD,
+			"on a new seed, as a standard game")
+	_check(SceneRouter.current_map() != null and GameState.current_floor == 1,
+			"in the Town of Beginnings")
+	_check(SaveGame.slot == 2 and SaveGame.exists(2) and _saved_events == [[2, true]],
+			"saving into its slot, which its first autosave fills (%s)" % [_saved_events])
+	_check(SaveGame.summary(2).get("mode") == "standard" and SaveGame.can_go_back()
+			and SaveGame.why_unsaved().is_empty(),
+			"and the slot says how it is played; a standard game can go back to its save")
+
+	var knocked_out := (load("res://scenes/world/monster.tscn") as PackedScene).instantiate()
+	knocked_out.call(&"_knock_out", true)
+	knocked_out.free()
+	await _idle(2)
+	_check(SaveGame.exists(2) and SceneRouter.current_map() != null and GameState.hp > 0,
+			"losing a fight in a standard game costs HP, not the save")
+	await _close_boxes()
+
+
+# --- hardcore ----------------------------------------------------------------
+
+func _test_hardcore() -> void:
+	SaveGame.delete(3)
+	_saved_events.clear()
+	await SaveGame.new_game(3, GameState.Mode.HARDCORE)
+	await _until_unlocked()
+	await _idle(3)
+	_check(GameState.mode == GameState.Mode.HARDCORE and SaveGame.slot == 0
+			and not SaveGame.exists(3) and _saved_events.is_empty(),
+			"a hardcore run takes no slot, and arriving autosaves nothing")
+	_check(not SaveGame.save_game(3) and not SaveGame.exists(3),
+			"it can't be saved, even into a slot asked for by name")
+	_check(not SaveGame.why_unsaved().is_empty() and not SaveGame.can_go_back(),
+			"and has nothing to go back to")
+
+	var menu := _main.get_node("GameMenu")
+	menu.call(&"open", 4)
+	var rows: MenuList = menu.call(&"page", 4).call(&"list")
+	_check(GameState.is_input_locked() and menu.call(&"tab") == 4 and rows.row_count() == 5
+			and not rows.is_enabled(1) and not rows.is_enabled(2) and rows.is_enabled(4),
+			"its game menu holds the lock, with Save and going back greyed out on System")
+	rows.select(4)
+	rows.choose()
+	_check(menu.call(&"is_open") and SceneRouter.current_map() != null
+			and rows.text_of(4).contains("again"),
+			"and asks twice before quitting a run that is never saved")
+	rows.select(0)
+	_check(not rows.text_of(4).contains("again"), "moving off Quit takes the first press back")
+	rows.choose()
+	_check(not menu.call(&"is_open") and not GameState.is_input_locked(),
+			"Resume closes it and lets go of the lock")
+
+
+# --- the death game ------------------------------------------------------------
+
+func _test_death_game() -> void:
+	SaveGame.delete(3)
+	await SaveGame.new_game(3, GameState.Mode.DEATH_GAME)
+	await _until_unlocked()
+	await _idle(3)
+	_check(SaveGame.slot == 3 and SaveGame.exists(3)
+			and SaveGame.summary(3).get("mode") == "death_game",
+			"a death game saves into its slot like any other, and the slot says what it is")
+	_check(not SaveGame.can_go_back(), "but there is no going back to the save")
+
+	EventBus.combat_started.emit(&"save_test")
+	_check(SaveGame.left_mid_fight(3), "a fight in a death game is marked beside its slot")
+	EventBus.combat_ended.emit(true)
+	_check(not SaveGame.left_mid_fight(3), "and the mark goes when the fight ends")
+
+	# The game closed in the middle of one: the mark is still down.
+	EventBus.combat_started.emit(&"save_test")
+	var loaded: bool = await SaveGame.load_slot(3)
+	_check(not loaded, "a death game left mid-fight won't load")
+	var notices := SaveGame.bury_fallen()
+	_check(not SaveGame.exists(3) and not SaveGame.left_mid_fight(3) and notices.size() == 1,
+			"and is buried when the slots are listed, with a word why (%s)" % [notices])
+
+	EventBus.combat_started.emit(&"save_test")
+	EventBus.combat_ended.emit(true)
+	_check(not SaveGame.left_mid_fight(3), "(setup) and a fight with no save behind it marks nothing")
+	_check(SaveGame.save_game(3) and SaveGame.exists(3), "(setup) the death game saves again")
+
+	_title_notices.clear()
+	var knocked_out := (load("res://scenes/world/monster.tscn") as PackedScene).instantiate()
+	knocked_out.call(&"_knock_out", true)
+	knocked_out.free()
+	_check(not SaveGame.exists(3) and SaveGame.slot == 0,
+			"losing a fight in a death game deletes the save on the spot")
+	await _close_boxes()
+	await _until_true(func() -> bool:
+		return not _title_notices.is_empty() and not SceneRouter.is_busy())
+	var title := _main.get_node("TitleScreen")
+	_check(_title_notices.size() == 1 and _title_notices[0].contains("died"),
+			"and the game goes back to the title, saying so (%s)" % [_title_notices])
+	_check(SceneRouter.current_map() == null and title.call(&"is_open") and GameState.is_input_locked(),
+			"with the map gone and the title holding the lock")
+
+
+# --- the title screen ----------------------------------------------------------
+
+func _test_title_screen() -> void:
+	var title := _main.get_node("TitleScreen")
+	var menu := _main.get_node("GameMenu")
+	title.call(&"open", "")
+	var rows: MenuList = title.call(&"list")
+	var cards: CardList = title.call(&"cards")
+	_check(title.call(&"page") == 0 and rows.row_count() == 6 and rows.is_enabled(0) and rows.is_enabled(2),
+			"the title is a main menu -- Continue, New game, Load game, Settings, Credits, Quit")
+	menu.call(&"open")
+	_check(not menu.call(&"is_open"), "the game menu doesn't open over the title")
+
+	rows.select(2)
+	rows.choose()
+	_check(title.call(&"page") == 1 and cards.card_count() == SaveGame.SLOTS and cards.index == 1
+			and cards.card(1).call(&"text").contains("Kirito") and cards.card(0).call(&"text").contains("Empty"),
+			"Load game lists the three slots, the cursor on the latest save")
+	title.call(&"delete_selected")
+	_check(SaveGame.exists(2) and cards.card(1).call(&"text").contains("again"), "delete asks twice")
+	cards.select(0)
+	_check(not cards.card(1).call(&"text").contains("again"), "and moving off it takes the first press back")
+	cards.select(1)
+	_loaded_events.clear()
+	cards.choose()
+	await _until_unlocked()
+	await _idle(3)
+	_check(_loaded_events == [2] and SaveGame.slot == 2 and SceneRouter.current_map() != null
+			and not title.call(&"is_open") and not (title as CanvasLayer).visible,
+			"choosing a save loads it and the title gets out of the way")
+
+	menu.call(&"open", 4)
+	var system: MenuList = menu.call(&"page", 4).call(&"list")
+	_check(system.is_enabled(1) and system.is_enabled(2), "a standard game's System page can save and go back")
+	_saved_events.clear()
+	system.select(4)
+	system.choose()
+	await _until_true(func() -> bool:
+		return title.call(&"is_open") and not SceneRouter.is_busy())
+	_check(_saved_events == [[2, false]] and SceneRouter.current_map() == null and SaveGame.slot == 0,
+			"Save and quit saves into the slot and leaves for the title (%s)" % [_saved_events])
+
+	rows.select(1)
+	rows.choose()
+	_check(title.call(&"page") == 2 and cards.card_count() == 3, "New game asks how to play first")
+	cards.select(1)
+	cards.choose()
+	_check(title.call(&"page") == 3 and cards.index == 0,
+			"and then where to save, starting on the first empty slot")
+	cards.select(1)
+	cards.choose()
+	_check(title.call(&"page") == 3 and SceneRouter.current_map() == null
+			and cards.card(1).call(&"text").contains("again"),
+			"a slot with a save in it asks before it is overwritten")
+	cards.select(2)
+	cards.choose()
+	await _until_unlocked()
+	await _idle(3)
+	_check(GameState.mode == GameState.Mode.DEATH_GAME and SaveGame.slot == 3 and SaveGame.exists(3)
+			and not title.call(&"is_open"),
+			"Death Game, then an empty slot, starts one there")
+	menu.call(&"open", 4)
+	system = menu.call(&"page", 4).call(&"list")
+	_check(system.is_enabled(1) and not system.is_enabled(2),
+			"whose System page saves but can't go back")
+	menu.call(&"close")
+
+	await SaveGame.quit_to_title()
+	await _until_true(func() -> bool: return not SceneRouter.is_busy())
+	rows.select(1)
+	rows.choose()
+	cards.select(2)
+	cards.choose()
+	await _until_unlocked()
+	await _idle(3)
+	_check(GameState.mode == GameState.Mode.HARDCORE and SaveGame.slot == 0
+			and SceneRouter.current_map() != null and not title.call(&"is_open"),
+			"Hardcore starts at once: it has no slot to ask about")
+	await SaveGame.quit_to_title()
+	await _until_true(func() -> bool: return title.call(&"is_open") and not SceneRouter.is_busy())
+
+	rows.select(2)
+	rows.choose()
+	cards.select(2)
+	title.call(&"delete_selected")
+	title.call(&"delete_selected")
+	_check(not SaveGame.exists(3) and cards.card(2).call(&"text").contains("Empty"),
+			"and pressing Delete twice empties a slot")
+	title.call(&"_back")
+	_check(title.call(&"page") == 0 and rows.index == 2, "Esc goes back to the main menu, on the row it left")
+
+	Settings.path = TEST_DIR.path_join("settings.cfg")
+	Settings.reset()
+	rows.select(3)
+	rows.choose()
+	var settings := title.call(&"list") as MenuList
+	_check(title.call(&"page") == 4 and settings is SettingsList and settings.row_count() == 5,
+			"Settings lists the window, the text, the camera, and Back")
+	settings.select(2)
+	settings.step(1)
+	var file := ConfigFile.new()
+	_check(Settings.text_speed == 2 and Settings.chars_per_second() > 45.0
+			and file.load(Settings.path) == OK and int(file.get_value("settings", "text_speed")) == 2,
+			"stepping a value changes it and writes it at once")
+	settings.select(3)
+	settings.choose()
+	_check(not Settings.screen_shake and settings.text_of(3).contains("Off"),
+			"the confirm key steps it too, and the row says so")
+	Settings.reset()
+	_check(Settings.load_settings() and Settings.text_speed == 2 and not Settings.screen_shake,
+			"and the file reads back as written")
+	Settings.reset()
+	DirAccess.remove_absolute(Settings.path)
+	Settings.path = Settings.PATH
+	title.call(&"_back")
+	title.call(&"_hand_over")
+	await _idle(2)
+	_check(not GameState.is_input_locked(), "(cleanup) the title lets go of the lock")
+
+
+## The game menu over a standard game: the keys that open it on each tab, Tab
+## through the tabs, the bag's filter and comparison, and the settings inside System.
+func _test_game_menu() -> void:
+	var menu := _main.get_node("GameMenu")
+	await _tap(&"inventory")
+	_check(menu.call(&"is_open") and menu.call(&"tab") == 1 and GameState.is_input_locked(),
+			"I opens the game menu on Items, holding the lock")
+	await _tap_key(KEY_TAB)
+	_check(menu.call(&"tab") == 2, "Tab moves on to Quests")
+	await _tap_key(KEY_TAB, true)
+	_check(menu.call(&"tab") == 1, "and Shift+Tab back to Items")
+	var bag_before := Inventory.stacks().size()
+	await _tap_key(KEY_E)
+	_check(menu.call(&"tab") == 2 and Inventory.stacks().size() == bag_before,
+			"E moves on a tab too, and never reaches the page as a confirm")
+	await _tap_key(KEY_Q)
+	await _tap_key(KEY_Q)
+	_check(menu.call(&"tab") == 0, "and Q goes back, one tab a press")
+	await _tap_key(KEY_E)
+	_check(String(menu.call(&"hint_text")).contains("[Q] [E] tab"), "and the key line says so")
+	await _tap(&"journal")
+	_check(menu.call(&"tab") == 2, "J goes to Quests")
+	await _tap(&"journal")
+	_check(not menu.call(&"is_open") and not GameState.is_input_locked(),
+			"and J again closes the menu, letting go of the lock")
+	await _tap(&"pause")
+	_check(menu.call(&"is_open") and menu.call(&"tab") == 0, "Esc opens it on Status")
+	await _tap(&"pause")
+	_check(not menu.call(&"is_open"), "and Esc closes it")
+
+	var start_time := GameState.play_time
+	await _idle(5)
+	_check(GameState.play_time > start_time, "time on a map counts as time played")
+
+	Inventory.add_id(&"leather_coat", 1)
+	Inventory.add_id(&"small_potion", 1)
+	menu.call(&"open", 1)
+	var items: Node = menu.call(&"page", 1)
+	items.call(&"set_category", 2)
+	var shown: Array[ItemStack] = items.call(&"shown_stacks")
+	_check(not shown.is_empty() and shown.all(func(s: ItemStack) -> bool: return s.item.is_equipment()),
+			"the Equipment tab shows only equipment (%d stacks)" % shown.size())
+	items.call(&"select_cell", shown.find(_stack_of(&"leather_coat")))
+	var trying: ItemStack = items.call(&"selected_stack")
+	var change := Inventory.change_if_worn(trying, &"defense")
+	_check(trying != null and change != 0 and items.call(&"stat_delta", 1) == "%+d" % change,
+			"and the stats under the player show what wearing the piece would change (DEF %+d)" % change)
+	items.call(&"set_category", 1)
+	shown = items.call(&"shown_stacks")
+	_check(shown.all(func(s: ItemStack) -> bool: return s.item.is_consumable()),
+			"the Consumables tab shows only consumables")
+	Inventory.remove(&"leather_coat")
+	Inventory.remove(&"small_potion")
+
+	# Every item's details, at its longest -- the most a smith can add to it.
+	items.call(&"set_category", 0)
+	var overflowing: PackedStringArray = []
+	for item in ItemLibrary.all():
+		if Inventory.add(item, 1) != 1:
+			overflowing.append("%s (no room to try it)" % item.id)
+			continue
+		# The copy just added: equipment goes to the back, anything else merges.
+		var stack: ItemStack = null
+		for each in Inventory.stacks():
+			if each.item == item:
+				stack = each
+		var was := stack.plus
+		stack.plus = item.max_plus()
+		items.call(&"select_cell", (items.call(&"shown_stacks") as Array).find(stack))
+		await _idle(1)
+		if not items.call(&"details_fit"):
+			overflowing.append(String(item.id))
+		stack.plus = was
+		Inventory.remove_from(stack, 1)
+	_check(overflowing.is_empty(), "every item's details fit the Items page (%s)" % ", ".join(overflowing))
+
+	menu.call(&"show_tab", 2)
+	await _idle(1)
+	var journal: Node = menu.call(&"page", 2)
+	var cut: PackedStringArray = []
+	for quest in QuestLibrary.all():
+		journal.call(&"show_quest", quest.id)
+		await _idle(1)
+		if not journal.call(&"fits"):
+			cut.append(String(quest.id))
+	_check(cut.is_empty(), "every quest's page fits the journal (%s)" % ", ".join(cut))
+
+	menu.call(&"show_tab", 4)
+	var system: Node = menu.call(&"page", 4)
+	var rows: MenuList = system.call(&"list")
+	rows.select(3)
+	rows.choose()
+	_check(system.call(&"list") is SettingsList, "System's Settings opens the settings in place")
+	await _tap(&"pause")
+	_check(menu.call(&"is_open") and not (system.call(&"list") is SettingsList),
+			"and Esc steps back out of them before it closes anything")
+	await _tap(&"pause")
+	_check(not menu.call(&"is_open") and not GameState.is_input_locked(), "(cleanup) the menu is closed")
+
+
+func _tap_key(key: Key, shift := false) -> void:
+	var press := InputEventKey.new()
+	press.physical_keycode = key
+	press.keycode = key
+	press.shift_pressed = shift
+	press.pressed = true
+	Input.parse_input_event(press)
+	await _idle(2)
+	var release := press.duplicate() as InputEventKey
+	release.pressed = false
+	Input.parse_input_event(release)
+	await _idle(2)
+
+
+func _tap(action: StringName) -> void:
+	var press := InputEventAction.new()
+	press.action = action
+	press.pressed = true
+	Input.parse_input_event(press)
+	await _idle(2)
+	var release := InputEventAction.new()
+	release.action = action
+	release.pressed = false
+	Input.parse_input_event(release)
+	await _idle(2)
+
+
 # --- helpers ---------------------------------------------------------------
+
+func _on_title_requested(notice: String) -> void:
+	_title_notices.append(notice)
+
+
+## Presses on through whatever the box is saying until it closes.
+func _close_boxes() -> void:
+	for _i in 600:
+		if not DialogueRunner.is_running():
+			return
+		DialogueRunner.advance()
+		await get_tree().process_frame
+	_check(false, "timed out waiting for the box to close")
+
+
+func _until_true(predicate: Callable, timeout_frames := 600) -> void:
+	for _i in timeout_frames:
+		if predicate.call():
+			return
+		await get_tree().process_frame
+	_check(false, "timed out waiting for %s" % predicate)
+
 
 func _on_game_saved(slot: int, auto: bool) -> void:
 	_saved_events.append([slot, auto])

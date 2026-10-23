@@ -2,9 +2,8 @@ extends Node
 ## Persistent shell around the game: HUD and the fade overlay live here, maps
 ## come and go inside WorldRoot. This is the project's main scene.
 ##
-## Until the title screen exists, the game plays in save slot 1: it carries on
-## from the save there, or starts a new game in it if there is none.
-##     "$GODOT" --path .                           # continue slot 1
+## The game proper boots to the title screen: pick a slot, continue it or start
+## a new game in it. Shortcuts past the title, for working on the game:
 ##     "$GODOT" --path . -- --slot=2               # continue slot 2
 ##     "$GODOT" --path . -- --slot=2 --new         # a new game, over slot 2's save
 ##
@@ -12,6 +11,10 @@ extends Node
 ## climbing to them. A run started that way is never saved:
 ##     "$GODOT" --path . -- --floor=25             # at FloorTuning.enemy_level(25)
 ##     "$GODOT" --path . -- --floor=25 --level=30
+##
+## A test or tool that instances this scene is not [member SceneTree.current_scene]:
+## it gets no title and goes straight to Floor 1, on a run that saves nowhere, so
+## the suite can never overwrite a player's save.
 
 @export var start_floor := 1
 
@@ -25,17 +28,20 @@ func _ready() -> void:
 	if OS.is_debug_build() and args.has("floor"):
 		floor_number = _apply_debug_start(args)
 	elif get_tree().current_scene == self:
+		if not args.has("slot") and not args.has("new"):
+			EventBus.title_requested.emit("")
+			return
 		if await _continue(args):
 			return
 	SceneRouter.enter_floor(floor_number)
 
 
-## Picks the slot this game saves into and loads it if there is a save there.
-## Returns whether it did. Only for the game proper -- a test or tool that
-## instances this scene is not [member SceneTree.current_scene], and plays a run
-## that saves nowhere, so the suite can never overwrite a player's save.
+## [code]--slot[/code] / [code]--new[/code]: picks the slot this game saves into
+## and loads it if there is a save there. Returns whether it did.
 func _continue(args: Dictionary) -> bool:
 	var chosen := clampi(int(args.get("slot", "1")), 1, SaveGame.SLOTS)
+	for notice in SaveGame.bury_fallen():
+		print(notice)
 	if args.has("new") or not SaveGame.exists(chosen):
 		SaveGame.slot = chosen
 		return false
@@ -57,6 +63,13 @@ func _user_args() -> Dictionary:
 		var pair := arg.substr(2).split("=", true, 1)
 		args[pair[0]] = pair[1] if pair.size() > 1 else ""
 	return args
+
+
+## The run's clock: time on a map, which is the game being played -- not the
+## title, and not a fade between maps.
+func _process(delta: float) -> void:
+	if SceneRouter.current_map() != null:
+		GameState.play_time += delta
 
 
 ## Reads [code]--floor=N[/code] and [code]--level=L[/code] from the user args.

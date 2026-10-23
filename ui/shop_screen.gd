@@ -14,7 +14,7 @@ extends CanvasLayer
 
 enum Mode { BUY, SELL }
 
-const ROWS_SHOWN := 9
+const ROWS_SHOWN := 10
 
 var _open := false
 var _shop: Shop = null
@@ -46,7 +46,7 @@ func _ready() -> void:
 	for i in ROWS_SHOWN:
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_STOP
-		row.add_theme_constant_override(&"separation", 4)
+		row.add_theme_constant_override(&"separation", 8)
 		var item_name := Label.new()
 		item_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		item_name.clip_text = true
@@ -223,7 +223,7 @@ func _paint() -> void:
 			continue
 		var item := _item_at(entry)
 		var refused := _mode == Mode.BUY and not _shop.refusal(item).is_empty()
-		var tone := UiPalette.LOCKED if refused else item.rarity_color()
+		var tone := UiPalette.LOCKED if refused else UiPalette.rarity_ink(item.rarity)
 		item_name.add_theme_color_override(&"font_color", tone)
 		price.add_theme_color_override(&"font_color", UiPalette.LOCKED if refused else UiPalette.TEXT)
 		var label := item.label()

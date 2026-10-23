@@ -348,6 +348,17 @@ func bonus(stat: StringName) -> int:
 	return total
 
 
+## What wearing [param stack] would change [param stat] by, against whatever is
+## in its slot now -- the bag's comparison. Changes nothing; 0 for anything that
+## can't be worn.
+func change_if_worn(stack: ItemStack, stat: StringName) -> int:
+	if stack == null or not stack.item.is_equipment():
+		return 0
+	var now := worn(stack.item.slot())
+	var before := 0 if now == null else now.item.base_bonus(stat) + now.item.plus_bonus(stat, now.plus)
+	return stack.item.base_bonus(stat) + stack.item.plus_bonus(stat, stack.plus) - before
+
+
 # --- housekeeping ----------------------------------------------------------
 
 ## Sorts the bag: equipment first, then consumables, then materials and keys;

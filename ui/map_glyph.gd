@@ -5,15 +5,15 @@ extends Control
 ## A glyph is a table like the font's -- [code]#[/code] its colour, [code]+[/code]
 ## ink, anything else empty -- and every empty pixel touching a drawn one is inked
 ## too, so each symbol carries its own outline and reads on any ground. Pixels are
-## half a unit, the smallest a 320x180 layout draws crisply: a symbol is 4.5 units
-## across, a little more than a map cell, which is what a map pin should be.
+## one unit, half a world pixel: a symbol is 9 units across, a little more than a
+## map cell, which is what a map pin should be.
 ##
 ## As a Control it draws one glyph, for the legend; [method paint] is the same
 ## drawing for [MapView], which places many.
 
 enum Kind { YOU, DOOR, EXIT, CHEST, PERSON, QUEST, CAMP, PUZZLE, COL }
 
-const PIXEL := 0.5
+const PIXEL := 1.0
 
 ## Drawn pointing up; [method paint] turns it to the player's facing.
 const YOU := [
@@ -139,7 +139,7 @@ static func table(glyph: Kind) -> Array:
 
 
 ## Draws [param glyph] onto [param canvas] centred on [param centre], snapped to
-## the half-unit grid. [param facing] turns [constant YOU]; the rest ignore it.
+## the unit grid. [param facing] turns [constant YOU]; the rest ignore it.
 static func paint(canvas: CanvasItem, glyph: Kind, centre: Vector2, colour: Color,
 		facing := Vector2i.UP) -> void:
 	var rows := table(glyph)

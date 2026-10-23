@@ -91,6 +91,17 @@ func _test_content() -> void:
 			broken.append(String(item.id))
 	_check(broken.is_empty(), "every item has an id, a name and an icon (%s)" % broken)
 
+	# Every screen draws an icon at its own size, so every icon must be a tile:
+	# one cut by tools/build_item_icons.gd, padded onto 16x16.
+	var odd_icons := PackedStringArray()
+	for item in ItemLibrary.all():
+		if item.icon == null:
+			continue
+		if item.icon.get_size() != Vector2(16, 16) \
+				or item.icon.resource_path != "res://assets/icons/items/%s.png" % item.id:
+			odd_icons.append("%s (%s, %s)" % [item.id, item.icon.get_size(), item.icon.resource_path])
+	_check(odd_icons.is_empty(), "every icon is its item's 16x16 tile from build_item_icons (%s)" % odd_icons)
+
 	var mismatched := PackedStringArray()
 	for id in ItemLibrary.ITEMS:
 		var item := ItemLibrary.get_item(StringName(id))
@@ -395,9 +406,18 @@ func _test_equipment() -> void:
 
 	_check(not Inventory.equip(sword), "equipping something you don't have is refused")
 
+	# The bag's comparison: what wearing a copy would change, against what is worn.
+	var trial := ItemStack.new(blade)
+	_check(Inventory.change_if_worn(trial, &"attack") == blade.attack_bonus,
+			"with nothing worn, trying a blade on would add its whole bonus")
+	_check(Inventory.change_if_worn(ItemStack.new(ItemLibrary.get_item(&"small_potion")), &"attack") == 0,
+			"and trying on a potion changes nothing")
+
 	Inventory.add(sword, 1)
 	_equipped.clear()
 	_check(Inventory.equip(sword), "a carried weapon can be worn")
+	_check(Inventory.change_if_worn(ItemStack.new(blade), &"attack") == blade.attack_bonus - sword.attack_bonus,
+			"and trying a better blade on then says by how much it is better")
 	_check(_equipped == [&"bronze_sword"], "equipping announces the slot's new occupant")
 	_check(Inventory.equipped(&"weapon") == sword, "the slot reports what is in it")
 	_check(Inventory.count(&"bronze_sword") == 0, "worn gear leaves the bag")

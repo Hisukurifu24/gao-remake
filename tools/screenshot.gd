@@ -9,6 +9,8 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --villages  # the camps settled into villages
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --title     # the title screen and its pages
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --menu      # the game menu's tabs
 ##
 ## Dev aid for checking how a change actually looks without sitting through the
 ## game. Needs a real window, so it can't run with --headless.
@@ -83,6 +85,18 @@ func _ready() -> void:
 		return
 	if "--shops" in OS.get_cmdline_user_args():
 		await _capture_shops(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--menu" in OS.get_cmdline_user_args():
+		await _capture_quests(main)
+		await _capture_inventory(main)
+		await _capture_map(main, "04p0_map_tab")
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--title" in OS.get_cmdline_user_args():
+		await _capture_title(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -228,20 +242,43 @@ func _capture_inventory(main: Node) -> void:
 	await _frames(4)
 	await _capture("04b_inventory")
 
-	# Up out of the grid puts the cursor on the equipment list instead.
-	await _press(&"move_up")
+	# Left off the grid puts the cursor on the slots under the player.
+	await _press(&"move_left")
 	await _capture("04c_inventory_gear")
+
+	# Up onto the tabs, and one along: the bag filtered to its equipment, with the
+	# cursor on a coat -- the stats under the player say what wearing it would do.
+	var menu := main.get_node("GameMenu")
+	var page: Control = menu.call(&"page", 1)
+	await _press(&"move_up")
+	await _press(&"move_right")
+	await _press(&"move_right")
+	await _capture("04c2_inventory_tabs")
+	await _press(&"move_down")
+	await _press(&"move_right")
+	await _capture("04c3_inventory_compare")
+	page.call(&"set_category", 0)
 
 	# A sword carried from the grid to the weapon slot: the whole point of the
 	# mouse path, and the state worth looking at is halfway there, with the
 	# targets it may land on lit up.
-	var screen: CanvasLayer = main.get_node("InventoryScreen")
-	var slot: Control = screen.get_node("Bag/Column/Grid").get_child(0)
-	var weapon_row: Control = screen.get_node("Gear/Rows/Weapon")
-	await _drag(slot, weapon_row, "04d_inventory_drag")
+	await _drag(page.call(&"cell", 0), page.call(&"doll_slot", 0), "04d_inventory_drag")
 	await _capture("04e_inventory_dropped")
 
-	await _press(&"inventory")
+	# The other tabs: who you are, and the system page.
+	await _press(&"pause")
+	await _press(&"pause")
+	await _frames(4)
+	await _capture("04e2_status")
+	menu.call(&"show_tab", 4)
+	await _frames(4)
+	await _capture("04e3_system")
+	await _press(&"move_down")
+	await _press(&"move_down")
+	await _press(&"move_down")
+	await _press(&"interact")
+	await _capture("04e4_settings")
+	menu.call(&"close")
 	await _frames(4)
 
 
@@ -1067,11 +1104,11 @@ func _capture_shops(main: Node) -> void:
 	await _capture("04s_dropped_col")
 	await _capture_map(main, "04s_dropped_col_map")
 	GameState.recover_col()
-	var bag := main.get_node("InventoryScreen")
-	bag.call(&"open")
+	var menu := main.get_node("GameMenu")
+	menu.call(&"open", 1, true)
 	await _wait(0.2)
 	await _capture("04s_bag_purse")
-	bag.call(&"close")
+	menu.call(&"close")
 	await _frames(2)
 
 
@@ -1224,6 +1261,76 @@ func _capture_villages(main: Node) -> void:
 
 
 ## Puts [param player] on a free cell beside [param npc], facing them.
+## The title screen's three pages and a notice, and the pause menu over a death
+## game. Saves into a directory of its own, never the player's slots.
+func _capture_title(main: Node) -> void:
+	SaveGame.directory = "user://screenshot_saves"
+	for n in range(1, SaveGame.SLOTS + 1):
+		SaveGame.delete(n)
+	for below in range(1, 10):
+		GameState.clear_floor(below)
+	while GameState.level < 14:
+		GameState.grant_xp(GameState.xp_to_next_level() - GameState.xp)
+	SceneRouter.enter_floor(10)
+	await _arrived(10)
+	SaveGame.save_game(1)
+	# Or arriving on floor 2 autosaves the death game over slot 1.
+	SaveGame.slot = 0
+	GameState.mode = GameState.Mode.DEATH_GAME
+	SceneRouter.enter_floor(2)
+	await _arrived(2)
+	SaveGame.save_game(3)
+
+	var menu := main.get_node("GameMenu")
+	menu.call(&"open", 4)
+	(menu.call(&"page", 4).call(&"list") as MenuList).select(2)
+	await _wait(0.2)
+	await _capture("50_system_death_game")
+	menu.call(&"close")
+
+	var title := main.get_node("TitleScreen")
+	await SaveGame.quit_to_title()
+	await _until(func() -> bool: return not SceneRouter.is_busy(), 10.0)
+	await _wait(0.5)
+	await _capture("51_title")
+	var rows: MenuList = title.call(&"list")
+	rows.select(2)
+	rows.choose()
+	await _wait(0.1)
+	await _capture("52_title_load")
+	await _press(&"ui_cancel")
+	rows.select(1)
+	rows.choose()
+	await _wait(0.1)
+	await _capture("53_title_new_game")
+	(title.call(&"cards") as CardList).choose()
+	await _wait(0.1)
+	await _capture("53b_title_new_slot")
+	(title.call(&"cards") as CardList).select(0)
+	(title.call(&"cards") as CardList).choose()
+	await _wait(0.1)
+	await _capture("53c_title_overwrite")
+	await _press(&"ui_cancel")
+	await _press(&"ui_cancel")
+	await _press(&"ui_cancel")
+	rows.select(3)
+	rows.choose()
+	await _wait(0.1)
+	await _capture("55_title_settings")
+	await _press(&"ui_cancel")
+	rows.select(4)
+	rows.choose()
+	await _wait(0.1)
+	await _capture("56_title_credits")
+	await _press(&"ui_cancel")
+	SaveGame.delete(3)
+	title.call(&"open", "Kirito died on Floor 2. Slot 3 is empty.")
+	await _wait(0.1)
+	await _capture("54_title_notice")
+	for n in range(1, SaveGame.SLOTS + 1):
+		SaveGame.delete(n)
+
+
 func _stand_by(map: GameMap, player: Player, npc: Node2D) -> void:
 	for offset: Vector2 in [Vector2(0, 16), Vector2(0, -16), Vector2(16, 0), Vector2(-16, 0)]:
 		var cell := map.get_node("Walls").local_to_map(npc.position + offset) as Vector2i
@@ -1236,11 +1343,11 @@ func _stand_by(map: GameMap, player: Player, npc: Node2D) -> void:
 ## The map screen over whatever has been explored so far. Opened directly, since
 ## the caller is holding the input lock that M would wait for.
 func _capture_map(main: Node, tag: String) -> void:
-	var screen := main.get_node("MapScreen")
-	screen.call(&"open")
+	var menu := main.get_node("GameMenu")
+	menu.call(&"open", 3, true)
 	await _wait(0.2)
 	await _capture(tag)
-	screen.call(&"close")
+	menu.call(&"close")
 	await _frames(2)
 
 
@@ -1302,7 +1409,7 @@ func _drag(source: Control, target: Control, shot_name: String) -> void:
 	await _frames(4)
 
 
-## A control's middle in window pixels, not in the 320x180 units it is laid out
+## A control's middle in window pixels, not in the 640x360 units it is laid out
 ## in. Input arrives ahead of the stretch transform and is mapped down by it, so
 ## a position handed straight over lands at a fraction of the intended one -- a
 ## quarter, in the 4x window.

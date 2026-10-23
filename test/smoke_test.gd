@@ -105,7 +105,7 @@ func _run() -> void:
 	# into a running game, that its two views are in the shell, and that a real
 	# floor_cleared from a real boss fight reaches an objective further down.
 	_check(main.get_node_or_null("QuestTracker") != null, "the shell has a quest tracker")
-	_check(main.get_node_or_null("QuestJournal") != null, "and a quest journal")
+	_check(main.get_node_or_null("GameMenu") != null, "and a game menu with the journal in it")
 	GameState.set_flag(QuestLog.flag_for(&"argo_first_errand", QuestLog.FLAG_DONE))
 	_check(QuestLog.start(&"argo_illfang"), "a quest can be taken in the running game")
 	_check(QuestLog.tracked() != null and QuestLog.tracked().quest.id == &"argo_illfang",
@@ -280,16 +280,16 @@ func _test_labyrinth(main: Node, map: Node2D, player: Player) -> void:
 	_check(dark != null and dark.light_at(door_cell) == 1.0,
 			"and lit, now you stand in its room")
 
-	var screen: CanvasLayer = main.get_node("MapScreen")
+	var screen: CanvasLayer = main.get_node("GameMenu")
 	await _tap(&"map")
-	_check(screen.call(&"is_open") and screen.visible and GameState.is_input_locked(),
-			"M opens the map, holding the input lock")
-	var status: Label = screen.get_node("Sheet/Column/Header/Status")
-	_check(status.text.contains("explored") and status.text.contains("door found"),
-			"the map reports what is explored and that the door is found (got '%s')" % status.text)
-	var region: Label = screen.get_node("Sheet/Column/Header/Region")
-	_check(region.text == (map as GameMap).region and not region.text.is_empty(),
-			"and names the floor's region (got '%s')" % region.text)
+	_check(screen.call(&"is_open") and screen.visible and screen.call(&"tab") == 3
+			and GameState.is_input_locked(),
+			"M opens the game menu on the map, holding the input lock")
+	var header: PackedStringArray = screen.call(&"page", 3).call(&"header")
+	_check(header[2].contains("explored") and header[2].contains("door found"),
+			"the map reports what is explored and that the door is found (got '%s')" % header[2])
+	_check(header[1] == (map as GameMap).region and not header[1].is_empty(),
+			"and names the floor's region (got '%s')" % header[1])
 	var walked := GameState.walked_cells(&"floor_2")
 	var seen := GameState.explored_cells(&"floor_2")
 	_check(walked.has(walls.local_to_map(player.position)) and walked.size() < seen.size(),
@@ -544,6 +544,14 @@ func _test_puzzles(world_root: Node2D) -> void:
 	await _idle(2)
 	_check(shrine.is_lit() and wisp_chest.is_available() and wisp_chest.visible,
 			"the shrine lights and its chest appears")
+	# It appears a cell below the shrine -- where you stood to watch the wisp go in.
+	var lid := wisp_chest.get_node("Solid/CollisionShape2D") as CollisionShape2D
+	player.global_position = wisp_chest.global_position
+	await _physics(4)
+	_check(lid.disabled, "a chest that appears where you stand doesn't close round you")
+	player.global_position = wisp_chest.global_position + Vector2(24, 0)
+	await _physics(4)
+	_check(not lid.disabled, "and is solid once you step off it")
 	_check(_open_sealed(wisp_chest, player), "the wisp's chest opens, a sigil under its loot")
 	await _close_dialogue()
 	await _idle(2)
@@ -995,7 +1003,7 @@ func _test_fallen_purse(main: Node, map: GameMap, player: Player) -> void:
 	var pouch := map.get_node_or_null("DroppedCol") as DroppedCol
 	_check(pouch != null and pouch.position.is_equal_approx(fell_at),
 			"and a pouch of it lies where you fell")
-	_check(main.get_node("MapScreen")._status_line(map).contains("250 col dropped"),
+	_check(MapPage.status_line(map).contains("250 col dropped"),
 			"the map says where it is")
 	if pouch != null:
 		pouch.interact(player)
@@ -1163,7 +1171,7 @@ func _check_staging(map: GameMap, player: Player, what: String) -> void:
 		await _idle()
 	_check(get_viewport().get_camera_2d() == own, "and the player's camera is current again after")
 	_check(player.position.is_equal_approx(field.player_spot),
-			"the player is left on the spot %s gave them" % what)
+			"the player is left on the spot %s gave them (%s, not %s)" % [what, player.position, field.player_spot])
 	await _physics()
 	var body := player.get_node("CollisionShape2D") as CollisionShape2D
 	var query := PhysicsShapeQueryParameters2D.new()

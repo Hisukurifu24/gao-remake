@@ -7,15 +7,15 @@ extends CanvasLayer
 ## a fancier one (or none at all, as the headless tests do) changes nothing about
 ## how dialogue runs.
 ##
-## The box is the pack's paper, so everything written on it is ink
-## ([code]UiPalette.INK*[/code]), not the light text the wooden panels use.
+## The box is dark glass over the map (its nodes wear [code]glass_theme.tres[/code]),
+## so everything written on it is light ([code]UiPalette.GLASS_*[/code]), not the
+## ink the menus' white panels use.
 
 const CHARS_PER_SECOND := 45.0
-## The most face the frame holds, in 320x180 units. A portrait is drawn at its own
-## size, or halved until it fits: at the 4x window half a texel is still two whole
-## screen pixels, where any other fraction draws some texels wider than others.
-## The pack's 38 px facesets land at 19.
-const FACE_ROOM := 24.0
+## The most face the frame holds, in 640x360 units. A portrait is drawn at its own
+## size, or halved until it fits: any other fraction draws some texels wider than
+## others. The pack's 38 px facesets fit whole, each texel a world pixel's size.
+const FACE_ROOM := 40.0
 
 var _choices: Array[DialogueChoice] = []
 var _selected := 0
@@ -88,7 +88,8 @@ func _on_line_shown(speaker: String, text: String, portrait: Texture2D) -> void:
 	if _typing != null:
 		_typing.kill()
 	_typing = create_tween()
-	_typing.tween_property(_text, "visible_ratio", 1.0, text.length() / CHARS_PER_SECOND)
+	var speed := Settings.chars_per_second()
+	_typing.tween_property(_text, "visible_ratio", 1.0, text.length() / speed if speed > 0.0 else 0.0)
 	_typing.finished.connect(_on_typing_finished)
 
 
@@ -170,11 +171,11 @@ func _paint_selection() -> void:
 	for i in _list.get_child_count():
 		var row := _list.get_child(i) as Label
 		var choice := _choices[i]
-		var color := UiPalette.INK
+		var color := UiPalette.GLASS_TEXT
 		if not choice.is_unlocked():
-			color = UiPalette.INK_LOCKED
+			color = UiPalette.GLASS_LOCKED
 		elif i == _selected:
-			color = UiPalette.INK_SELECTED
+			color = UiPalette.GLASS_SELECTED
 		row.add_theme_color_override(&"font_color", color)
 		var cursor := "> " if i == _selected else "  "
 		row.text = cursor + choice.label()

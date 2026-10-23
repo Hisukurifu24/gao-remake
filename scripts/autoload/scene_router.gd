@@ -39,6 +39,11 @@ func _ready() -> void:
 	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
+## Whether a fade is under way: a map change, a blink or leaving for the title.
+func is_busy() -> bool:
+	return _busy
+
+
 ## Called by Main once, so the router knows where maps go.
 func register_world_root(node: Node) -> void:
 	_world_root = node
@@ -98,6 +103,27 @@ func blink(action: Callable, fade_time := FADE_TIME) -> void:
 	GameState.push_input_lock()
 	await _fade_to(1.0, fade_time)
 	action.call()
+	await get_tree().process_frame
+	await _fade_to(0.0, fade_time)
+	GameState.pop_input_lock()
+	_busy = false
+
+
+## Fades out of the map onto nothing: the way back to the title. [param action]
+## runs in the dark once the map is gone -- the title putting itself up -- so the
+## fade back in shows it. Holds the input lock throughout.
+func leave(action := Callable(), fade_time := FADE_TIME) -> void:
+	if _busy:
+		return
+	_busy = true
+	GameState.push_input_lock()
+	await _fade_to(1.0, fade_time)
+	if _world_root != null:
+		for child in _world_root.get_children():
+			_world_root.remove_child(child)
+			child.queue_free()
+	if action.is_valid():
+		action.call()
 	await get_tree().process_frame
 	await _fade_to(0.0, fade_time)
 	GameState.pop_input_lock()

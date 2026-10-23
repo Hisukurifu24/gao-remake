@@ -14,7 +14,20 @@ extends Node
 const XP_BASE := 25
 const XP_STEP := 40
 
+## How this game is played, chosen at new game and fixed for it. A death game
+## ([constant DEATH_GAME]) saves like any other, and losing a fight deletes the save
+## ([method SaveGame.end_if_death_game]); a hardcore run ([constant HARDCORE]) is
+## never saved at all, so closing the game ends it.
+enum Mode { STANDARD, DEATH_GAME, HARDCORE }
+## How [enum Mode] is spelled in a save file, so a reordered enum can't turn every
+## standard save into a death game.
+const MODE_NAMES: Array[String] = ["standard", "death_game", "hardcore"]
+
 var player_name := "Kirito"
+## Seconds spent on a map in this run, counted by the main scene. Shown on the
+## save slots and the status page; nothing plays differently for it.
+var play_time := 0.0
+var mode := Mode.STANDARD
 var level := 1
 var xp := 0
 
@@ -378,7 +391,7 @@ func is_input_locked() -> bool:
 
 ## Written by [method to_save] and read back by [method from_save].
 const SAVED: Array[StringName] = [
-	&"player_name", &"level", &"xp", &"max_hp", &"hp", &"attack", &"defense", &"speed",
+	&"player_name", &"mode", &"play_time", &"level", &"xp", &"max_hp", &"hp", &"attack", &"defense", &"speed",
 	&"current_floor", &"current_map_path", &"world_seed",
 	&"_cleared_floors", &"_visited_floors", &"_flags", &"_explored", &"_walked",
 	&"_col", &"_dropped_col",
@@ -398,7 +411,8 @@ func to_save() -> Dictionary:
 		pile = {"map": String(_dropped_col["map"]), "x": at.x, "y": at.y,
 				"amount": _dropped_col["amount"]}
 	return {
-		"player_name": player_name, "level": level, "xp": xp,
+		"player_name": player_name, "mode": MODE_NAMES[mode], "play_time": play_time,
+		"level": level, "xp": xp,
 		"max_hp": max_hp, "hp": hp, "attack": attack, "defense": defense, "speed": speed,
 		"current_floor": current_floor, "current_map_path": current_map_path,
 		"world_seed": world_seed,
@@ -419,6 +433,8 @@ func to_save() -> Dictionary:
 ## autoloads load in, and this goes first -- the quests and the bag read it.
 func from_save(data: Dictionary) -> void:
 	player_name = str(data.get("player_name", "Kirito"))
+	mode = mode_named(str(data.get("mode", "")))
+	play_time = maxf(0.0, float(data.get("play_time", 0.0)))
 	level = maxi(1, SaveCodec.whole(data.get("level"), 1))
 	xp = maxi(0, SaveCodec.whole(data.get("xp"), 0))
 	max_hp = SaveCodec.whole(data.get("max_hp"), 60)
@@ -456,6 +472,13 @@ func from_save(data: Dictionary) -> void:
 	# HP is not clamped here: the ceiling is the gear's, and the bag that loads
 	# next is what wears it. Inventory.from_save() refreshes the vitals.
 	EventBus.col_changed.emit(_col)
+
+
+## The [enum Mode] a save spells [param mode_name]; standard for anything else --
+## a save from before modes existed, or one edited by hand.
+static func mode_named(mode_name: String) -> Mode:
+	var index := MODE_NAMES.find(mode_name)
+	return index as Mode if index >= 0 else Mode.STANDARD
 
 
 static func _cells_to_save(store: Dictionary[StringName, Dictionary]) -> Dictionary:

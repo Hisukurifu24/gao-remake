@@ -28,7 +28,7 @@ const CHARACTER_SHEET := "res://assets/ninja_adventure/Actor/Character/%s/Sprite
 const TILE := 16
 const SOURCE_ID := 0
 
-# Deliberately larger than the 320x180 viewport so the camera actually scrolls
+# Deliberately larger than the 320x180 view so the camera actually scrolls
 # instead of sitting on limits.
 const TOWN_W := 50
 const TOWN_H := 36
