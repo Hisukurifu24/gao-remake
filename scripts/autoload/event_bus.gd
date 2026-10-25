@@ -139,3 +139,16 @@ signal game_loaded(slot: int)
 ## and the title screen should come up, saying [param notice] if it isn't empty.
 ## Also how the game proper boots. The title screen is its only listener.
 signal title_requested(notice: String)
+
+# --- Marathon's idle watch ---
+## A marathon has had no input for a while: the avatar is logged out in
+## [param seconds_left]. Emitted once a second while it counts down.
+signal idle_countdown(seconds_left: int)
+## The player pressed something; the countdown is off.
+signal idle_cleared()
+## Every screen open over the map should close now -- the game is ending under it.
+## The game menu, the shop, the forge and the gate menu listen.
+signal screens_close_requested()
+## The countdown ran out: the avatar shatters, and the game leaves for the title.
+## For the view; [IdleWatch] does the leaving.
+signal avatar_logged_out()

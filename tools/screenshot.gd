@@ -11,6 +11,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --title     # the title screen and its pages
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --menu      # the game menu's tabs
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --idle      # marathon's idle logout
 ##
 ## Dev aid for checking how a change actually looks without sitting through the
 ## game. Needs a real window, so it can't run with --headless.
@@ -28,6 +29,9 @@ const BOSS_FIGHTS := [
 ]
 ## A generated floor in each biome band, clear of the ones shot elsewhere.
 const BAND_FLOORS := [5, 15, 27, 35, 45, 55, 65, 75, 85, 97]
+
+## The idle watch's clock in the --idle pass, wound by hand.
+var _idle_now := 0.0
 
 
 ## The cracked wall in every way a wall is drawn -- trees, cliffs (green, sandstone,
@@ -97,6 +101,11 @@ func _ready() -> void:
 		return
 	if "--title" in OS.get_cmdline_user_args():
 		await _capture_title(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--idle" in OS.get_cmdline_user_args():
+		await _capture_idle(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1263,6 +1272,31 @@ func _capture_villages(main: Node) -> void:
 ## Puts [param player] on a free cell beside [param npc], facing them.
 ## The title screen's three pages and a notice, and the pause menu over a death
 ## game. Saves into a directory of its own, never the player's slots.
+## A marathon left alone: the countdown early and late, the avatar shattering, and
+## the title saying why.
+func _capture_idle(main: Node) -> void:
+	_idle_now = 1000.0
+	IdleWatch.clock = func() -> float: return _idle_now
+	GameState.mode = GameState.Mode.MARATHON
+	IdleWatch.touch()
+	await _frames(2)
+	_idle_now += IdleWatch.limit - 45.0
+	await _wait(0.8)
+	await _capture("60_idle_warning")
+	_idle_now += 40.0
+	await _wait(1.5)
+	await _capture("61_idle_last_seconds")
+	_idle_now += 10.0
+	await _wait(IdleWatch.SHATTER_TIME * 0.12 + 0.35)
+	await _capture("62_idle_shatter")
+	await _wait(0.5)
+	await _capture("62b_idle_shatter_late")
+	await _until(func() -> bool:
+		return (main.get_node("TitleScreen") as CanvasLayer).visible and not SceneRouter.is_busy(), 10.0)
+	await _wait(0.6)
+	await _capture("63_idle_title")
+
+
 func _capture_title(main: Node) -> void:
 	SaveGame.directory = "user://screenshot_saves"
 	for n in range(1, SaveGame.SLOTS + 1):

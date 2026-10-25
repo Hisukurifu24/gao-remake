@@ -43,6 +43,7 @@ func _ready() -> void:
 		if _open:
 			_paint())
 	CombatManager.combat_began.connect(_on_combat_began)
+	EventBus.screens_close_requested.connect(close)
 	for i in ROWS_SHOWN:
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_STOP

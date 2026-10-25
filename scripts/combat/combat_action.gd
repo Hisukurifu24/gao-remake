@@ -9,13 +9,18 @@ extends RefCounted
 ## A plain attack is a [Skill] like any other (see
 ## [method SkillLibrary.basic_attack]), so [constant Kind.SKILL] covers it.
 
-enum Kind { SKILL, DEFEND, FLEE, ITEM }
+## [constant Kind.FORFEIT] is never the player's choice: it is how
+## [method CombatManager.forfeit] answers for a player who isn't there, and
+## [method CombatManager.submit] refuses it.
+enum Kind { SKILL, DEFEND, FLEE, ITEM, FORFEIT }
 
 var kind: Kind = Kind.SKILL
 var skill: Skill = null
 ## Set for [constant Kind.ITEM]. The bottle is emptied by [CombatManager], not
 ## here -- an action is a decision, not a transaction.
 var item: Item = null
+## What a [constant Kind.FORFEIT] says as the player falls.
+var text := ""
 ## The chosen target for single-target skills and items; ignored by the rest.
 var target: Combatant = null
 
@@ -48,4 +53,11 @@ static func defend() -> CombatAction:
 static func flee() -> CombatAction:
 	var action := CombatAction.new()
 	action.kind = Kind.FLEE
+	return action
+
+
+static func forfeit(saying: String) -> CombatAction:
+	var action := CombatAction.new()
+	action.kind = Kind.FORFEIT
+	action.text = saying
 	return action

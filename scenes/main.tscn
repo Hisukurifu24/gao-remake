@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="2_hud"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://ui/forge_screen.tscn" id="12_forge"]
 [ext_resource type="PackedScene" path="res://ui/game_menu/game_menu.tscn" id="13_menu"]
 [ext_resource type="PackedScene" path="res://ui/title_screen.tscn" id="14_title"]
+[ext_resource type="Script" path="res://ui/signal_lost.gd" id="15_signal"]
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
@@ -31,5 +32,9 @@ script = ExtResource("1_main")
 [node name="DialogueBox" parent="." instance=ExtResource("3_dialogue")]
 
 [node name="GameMenu" parent="." instance=ExtResource("13_menu")]
+
+[node name="SignalLost" type="CanvasLayer" parent="."]
+layer = 9
+script = ExtResource("15_signal")
 
 [node name="TitleScreen" parent="." instance=ExtResource("14_title")]

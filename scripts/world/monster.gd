@@ -220,7 +220,7 @@ func _level() -> int:
 ## the monster that beat you is still standing over it. In a hardcore game, losing
 ## is the end of the save.
 func _knock_out(defeated: bool) -> void:
-	if defeated and SaveGame.end_if_hardcore():
+	if defeated and SaveGame.end_if_fatal():
 		return
 	GameState.set_hp(maxi(1, roundi(GameState.total_max_hp() * 0.35)))
 	var lines := PackedStringArray([

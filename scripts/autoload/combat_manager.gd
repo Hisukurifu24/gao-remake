@@ -129,6 +129,8 @@ func submit(action: CombatAction) -> bool:
 		CombatAction.Kind.FLEE:
 			if not _encounter.can_flee:
 				return false
+		CombatAction.Kind.FORFEIT:
+			return false
 		CombatAction.Kind.ITEM:
 			# Checked here and not only in the menu: the bag can empty between
 			# the menu being drawn and the answer arriving.
@@ -139,6 +141,20 @@ func submit(action: CombatAction) -> bool:
 	_awaiting = false
 	_pending = action
 	_command_submitted.emit(action)
+	return true
+
+
+## Answers the command being waited on for a player who isn't there: they fall
+## where they stand, saying [param text], and the fight is lost. [IdleWatch] is
+## the one caller -- a marathon left at the command menu would otherwise wait on
+## it forever. False, and nothing changes, unless the player's command is being
+## waited on.
+func forfeit(text: String) -> bool:
+	if not _awaiting or _actor == null or not _actor.is_player:
+		return false
+	_awaiting = false
+	_pending = CombatAction.forfeit(text)
+	_command_submitted.emit(_pending)
 	return true
 
 
@@ -296,6 +312,9 @@ func _resolve(actor: Combatant, action: CombatAction, result: CombatResult) -> v
 			await _resolve_skill(actor, action)
 		CombatAction.Kind.ITEM:
 			await _resolve_item(actor, action)
+		CombatAction.Kind.FORFEIT:
+			actor.take_damage(actor.hp)
+			await _report(CombatReport.make(CombatReport.Kind.DEFEAT, actor, action.text))
 
 
 ## Spending an item costs the turn but no cooldown and no post-motion: reaching

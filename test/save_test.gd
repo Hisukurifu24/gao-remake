@@ -17,6 +17,11 @@ var _checks := 0
 var _saved_events: Array[Array] = []
 var _loaded_events: Array[int] = []
 var _title_notices: PackedStringArray = PackedStringArray()
+var _countdowns: Array[int] = []
+var _cleared := 0
+var _fight_result: CombatResult = null
+## The idle watch's clock, wound by hand: nobody waits five minutes for a test.
+var _now := 1000.0
 var _main: Node = null
 
 
@@ -64,6 +69,7 @@ func _run() -> void:
 	await _test_game_menu()
 	await _test_new_game()
 	await _test_marathon()
+	await _test_idle_logout()
 	await _test_hardcore()
 	await _test_title_screen()
 
@@ -490,6 +496,131 @@ func _test_marathon() -> void:
 	rows.choose()
 	_check(not menu.call(&"is_open") and not GameState.is_input_locked(),
 			"Resume closes it and lets go of the lock")
+
+
+# --- marathon's idle watch ------------------------------------------------------
+
+func _test_idle_logout() -> void:
+	IdleWatch.clock = _clock
+	IdleWatch.shatter_time = 0.0
+	EventBus.idle_countdown.connect(_on_idle_countdown)
+	EventBus.idle_cleared.connect(_on_idle_cleared)
+	var limit := IdleWatch.limit
+	var warning := IdleWatch.warning
+
+	IdleWatch.touch()
+	await _idle(2)
+	_check(IdleWatch.is_watching() and is_equal_approx(IdleWatch.seconds_left(), limit),
+			"a marathon on a map is watched for a player who has gone")
+	GameState.mode = GameState.Mode.STANDARD
+	_check(not IdleWatch.is_watching(), "a standard game is not")
+	GameState.mode = GameState.Mode.MARATHON
+
+	_now += limit - warning - 1.0
+	await _idle(2)
+	_check(_countdowns.is_empty(), "nothing shows until the last %d seconds" % warning)
+	_now += 2.0
+	await _idle(2)
+	_check(_countdowns.size() == 1 and _countdowns[0] <= int(warning) and _countdowns[0] > int(warning) - 3,
+			"then the countdown starts (%s)" % [_countdowns])
+	_now += 20.0
+	await _idle(2)
+	_check(_countdowns.size() == 2 and _countdowns[1] < _countdowns[0], "and counts down (%s)" % [_countdowns])
+
+	_cleared = 0
+	var key := InputEventKey.new()
+	key.keycode = KEY_F12
+	key.physical_keycode = KEY_F12
+	key.pressed = true
+	Input.parse_input_event(key)
+	await _idle(2)
+	_check(_cleared == 1 and is_equal_approx(IdleWatch.seconds_left(), limit),
+			"any key stops it and winds the clock back up (cleared %d, %.0f s left)"
+			% [_cleared, IdleWatch.seconds_left()])
+	key = key.duplicate() as InputEventKey
+	key.pressed = false
+	Input.parse_input_event(key)
+
+	# Run out with the game menu open: nowhere is safe to stand still.
+	var menu := _main.get_node("GameMenu")
+	menu.call(&"open", 1)
+	_title_notices.clear()
+	_now += limit + 1.0
+	await _idle(1)
+	_check(IdleWatch.is_logging_out() and SaveGame.end_if_fatal(),
+			"run out, the avatar is being logged out, and a defeat now is the end of the game")
+	await _until_true(func() -> bool:
+		return not _title_notices.is_empty() and not SceneRouter.is_busy() and not IdleWatch.is_logging_out())
+	_check(not menu.call(&"is_open") and SceneRouter.current_map() == null and SaveGame.slot == 0,
+			"the menu closes under it and the run is over")
+	_check(_title_notices.size() == 1 and _title_notices[0].contains("logged out")
+			and _title_notices[0].contains("marathon"),
+			"and the title says why (%s)" % [_title_notices])
+	_check(not IdleWatch.is_watching() and is_equal_approx(IdleWatch.seconds_left(), limit),
+			"the title is not watched")
+	_now += limit * 3.0
+	await _idle(3)
+	_check(_title_notices.size() == 1, "and sitting on it ends nothing")
+
+	# A fight is the hiding place that has to be closed: the command menu would
+	# otherwise wait on a player forever.
+	_main.get_node("TitleScreen").call(&"_hand_over")
+	await SaveGame.new_game(3, GameState.Mode.MARATHON)
+	await _until_unlocked()
+	await _idle(3)
+	var step_delay := CombatManager.step_delay
+	CombatManager.step_delay = 0.0
+	_fight_result = null
+	_title_notices.clear()
+	_start_fight(Bestiary.single_encounter(Bestiary.get_enemy(Bestiary.ENEMIES[0]), 1, 1))
+	await _until_true(func() -> bool: return CombatManager.is_awaiting_command())
+	await _test_forfeit_refused()
+	_now += limit + 1.0
+	await _until_true(func() -> bool: return _fight_result != null)
+	_check(_fight_result != null and not _fight_result.victory and not _fight_result.fled
+			and GameState.hp == 0,
+			"run out in a fight, the avatar stands still and the fight is lost")
+	var knocked_out := (load("res://scenes/world/monster.tscn") as PackedScene).instantiate()
+	knocked_out.call(&"_knock_out", true)
+	knocked_out.free()
+	_check(GameState.hp == 0 and GameState.dropped_col().is_empty(),
+			"and losing it neither revives the player nor spills their purse")
+	await _until_true(func() -> bool:
+		return not _title_notices.is_empty() and not SceneRouter.is_busy() and not IdleWatch.is_logging_out())
+	_check(_title_notices.size() == 1 and _title_notices[0].contains("logged out")
+			and SceneRouter.current_map() == null,
+			"then the run ends the same way (%s)" % [_title_notices])
+
+	CombatManager.step_delay = step_delay
+	EventBus.idle_countdown.disconnect(_on_idle_countdown)
+	EventBus.idle_cleared.disconnect(_on_idle_cleared)
+	IdleWatch.clock = func() -> float: return Time.get_unix_time_from_system()
+	IdleWatch.shatter_time = IdleWatch.SHATTER_TIME
+	_main.get_node("TitleScreen").call(&"_hand_over")
+	await SaveGame.new_game(3, GameState.Mode.STANDARD)
+	await _until_unlocked()
+
+
+func _test_forfeit_refused() -> void:
+	_check(not CombatManager.submit(CombatAction.forfeit("nobody")),
+			"the command menu can't forfeit a fight: only the idle watch can")
+	await _idle(1)
+
+
+func _start_fight(encounter: Encounter) -> void:
+	_fight_result = await CombatManager.start(encounter)
+
+
+func _clock() -> float:
+	return _now
+
+
+func _on_idle_countdown(seconds_left: int) -> void:
+	_countdowns.append(seconds_left)
+
+
+func _on_idle_cleared() -> void:
+	_cleared += 1
 
 
 # --- hardcore ------------------------------------------------------------------

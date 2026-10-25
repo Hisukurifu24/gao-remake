@@ -27,6 +27,7 @@ DialogueRunner="*res://scripts/autoload/dialogue_runner.gd"
 CombatManager="*res://scripts/autoload/combat_manager.gd"
 SaveGame="*res://scripts/autoload/save_game.gd"
 Settings="*res://scripts/autoload/settings.gd"
+IdleWatch="*res://scripts/autoload/idle_watch.gd"
 
 [display]
 

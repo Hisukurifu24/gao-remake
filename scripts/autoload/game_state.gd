@@ -16,7 +16,7 @@ const XP_STEP := 40
 
 ## How this game is played, chosen at new game and fixed for it. A hardcore game
 ## ([constant HARDCORE]) saves like any other, and losing a fight deletes the save
-## ([method SaveGame.end_if_hardcore]); a marathon ([constant MARATHON]) is
+## ([method SaveGame.end_if_fatal]); a marathon ([constant MARATHON]) is
 ## never saved at all, so closing the game ends it.
 enum Mode { STANDARD, HARDCORE, MARATHON }
 ## How [enum Mode] is spelled in a save file, so a reordered enum can't turn every

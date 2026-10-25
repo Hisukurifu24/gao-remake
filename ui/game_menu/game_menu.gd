@@ -48,6 +48,7 @@ func _ready() -> void:
 	CombatManager.combat_began.connect(
 			func(_e: Encounter, _p: Array[Combatant], _en: Array[Combatant]) -> void: close())
 	EventBus.col_changed.connect(func(_amount: int) -> void: _paint_col())
+	EventBus.screens_close_requested.connect(close)
 
 
 # --- opening and closing ---------------------------------------------------

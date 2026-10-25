@@ -1912,6 +1912,18 @@ the first slice is **the save/load core and its tests** -- no menus yet.
   *Renamed 2026-10-23 (the user): Death Game became Hardcore, and the old Hardcore
   became Marathon. Saves are version 2; `_migrate()` reads a version 1 "death_game"
   as "hardcore" -- no version 1 file spells the old hardcore, which never saved.*
+- [x] **Marathon's idle logout** (`IdleWatch`, 2026-10-23, asked for by the user: a
+  marathon can't be kept by leaving the game open). Five minutes with no input at all
+  and Cardinal logs the avatar out, as SAO's NerveGear would: the last minute counts
+  down in a system notice ("WARNING: NO SIGNAL") while the world dims and the avatar
+  flickers, any key stops it, and at zero the avatar shatters into shards of light and
+  the game goes to the title -- "Kirito was logged out for idling on Floor 7. The
+  marathon is over." Nowhere is safe: menus close under it, a fight waiting on a
+  command is lost on the spot (`CombatManager.forfeit()`). Wall clock, so a laptop shut
+  overnight counts. The save test winds a fake clock through it (in a menu and in a
+  fight); `tools/screenshot.gd -- --idle` shoots it.
+  *Calls of mine, flag if wrong:* 5 minutes / last 60 s counted down; mouse movement
+  counts as input; it ends the run outright rather than costing a death's worth.
 - [x] **A new game is an empty save loaded** (`SaveGame.new_game(slot, mode)` runs
   every autoload's `from_save({})`), so a new game and a save with nothing in it can
   never disagree. Leaving for the title is `SceneRouter.leave()`, a fade onto no map.

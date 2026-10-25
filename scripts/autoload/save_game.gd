@@ -285,10 +285,13 @@ func quit_to_title(notice := "", save_first := true) -> void:
 
 ## A real defeat has happened -- [Monster] and [BossGate] ask before deciding
 ## what it costs. In a hardcore game it costs the save: the slot is deleted, the
-## player is told, and the game goes back to the title. Returns whether it was a
-## hardcore game, in which case the caller does nothing more -- no revive, no walk
-## back to the entrance.
-func end_if_hardcore() -> bool:
+## player is told, and the game goes back to the title. Returns whether the game
+## is over, in which case the caller does nothing more -- no revive, no walk back
+## to the entrance. It is also over when the defeat was a marathon's idle avatar
+## falling ([method IdleWatch.is_logging_out]), which is already on its way out.
+func end_if_fatal() -> bool:
+	if IdleWatch.is_logging_out():
+		return true
 	if GameState.mode != GameState.Mode.HARDCORE:
 		return false
 	var lost := slot
@@ -350,7 +353,7 @@ func _on_combat_started(_encounter_id: StringName) -> void:
 
 
 ## Every fight ends here, won, fled or lost. A loss is settled straight after, by
-## [method end_if_hardcore], which takes the save with it.
+## [method end_if_fatal], which takes the save with it.
 func _on_combat_ended(_victory: bool) -> void:
 	_clear_fight(slot)
 

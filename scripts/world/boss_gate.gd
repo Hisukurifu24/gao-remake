@@ -214,7 +214,7 @@ func _step_back(_result: CombatResult) -> void:
 ## fell: the walk back to it is the walk back the floor already makes you take.
 ## In a hardcore game there is no coming to: the save goes, and so does the game.
 func _revive(defeated: bool) -> void:
-	if defeated and SaveGame.end_if_hardcore():
+	if defeated and SaveGame.end_if_fatal():
 		return
 	# total_max_hp(), not the base stat: a coat with +HP has to count towards
 	# what "on your last legs" means.

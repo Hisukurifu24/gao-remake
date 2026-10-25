@@ -37,6 +37,7 @@ func _ready() -> void:
 	visible = false
 	EventBus.teleport_requested.connect(_on_teleport_requested)
 	CombatManager.combat_began.connect(_on_combat_began)
+	EventBus.screens_close_requested.connect(close)
 	for i in ROWS_SHOWN:
 		var row := Label.new()
 		row.clip_text = true
