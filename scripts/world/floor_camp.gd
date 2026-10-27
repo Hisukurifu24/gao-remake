@@ -110,6 +110,24 @@ const ROLES := {
 	"local_cleared": [
 		"Floor {floor}'s cleared and here I still am. Someone has to keep the fire going for whoever comes up next.",
 	],
+	# An open field's: no labyrinth, an arena in plain sight and waystones sealing it.
+	"open_scout": [
+		"No labyrinth on this floor. Just the field, and an arena on the {side} side of it -- sealed. There are waystones out in the far clearings; wake them all and the gate opens, they say.",
+		"You can see the arena from half the field. It's {side} of here. Walk up to the gate if you like; it won't open till every waystone's lit.",
+	],
+	"open_scout_found": [
+		"The arena's open? Then the waystones are done with. Go in rested -- {boss} won't wait politely.",
+	],
+	"open_scout_cleared": [
+		"The stairs to Floor {next} are open, they say. Good. I was sick of walking this field end to end.",
+	],
+	"open_veteran": [
+		"The front line's calling the thing in the arena {boss}. I wouldn't walk in before level {level}.",
+		"{boss}. That's who's waiting in the arena. Level {level} at the least, and bring more potions than you think.",
+	],
+	"open_veteran_found": [
+		"So the arena's open. {boss}'s in there. Level {level}, and don't go in on half a health bar.",
+	],
 }
 ## The order the camp's people are drawn in: the first two always, the third only
 ## in a camp of three.
@@ -141,6 +159,9 @@ var fire := Rect2i()
 var people: Array[Vector2i] = []
 ## Whether the camp has grown into a village (see the class docs).
 var village := false
+## Whether the floor is an open field, which its people talk about instead of a
+## labyrinth. Set before [method place].
+var open_field := false
 ## Each house's whole rect, in tiles, and which of the band's village tiles it
 ## is; planned whether or not the camp has settled, built only once it has.
 var houses: Array[Rect2i] = []
@@ -668,17 +689,22 @@ func _talk(index: int, role: String, handle: String, portrait: Texture2D,
 	found.test = DialogueCondition.Test.FLAG_SET
 	found.flag = BossGate.found_flag(floor_number)
 
-	var cleared_key := role + "_cleared"
+	var cleared_key := _role_key(role + "_cleared")
 	if ROLES.has(cleared_key):
 		talk.lines.append(_line(_pick(ROLES[cleared_key], words), [cleared]))
-	var found_key := role + "_found"
+	var found_key := _role_key(role + "_found")
 	if ROLES.has(found_key):
 		talk.lines.append(_line(_pick(ROLES[found_key], words), [found]))
-	var openings: Array = ROLES[role].duplicate()
+	var openings: Array = ROLES[_role_key(role)].duplicate()
 	if role == "local" and BIOME_LINES.has(_biome.id):
 		openings.append(BIOME_LINES[_biome.id])
 	talk.lines.append(_line(_pick(openings, words), []))
 	return talk
+
+
+## [param key]'s open-field lines on an open field, where it has them.
+func _role_key(key: String) -> String:
+	return "open_" + key if open_field and ROLES.has("open_" + key) else key
 
 
 func _line(text: String, conditions: Array[DialogueCondition]) -> DialogueLine:

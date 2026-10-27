@@ -9,6 +9,13 @@ extends Resource
 ## Authored floors live in resources/floors/ and are listed in FloorRegistry.
 ## Generated ones are synthesised on demand from the biome band + FloorTuning.
 
+## What a generated floor is laid out as -- see [method FloorRegistry.shape_of],
+## which decides it per world. [b]CLASSIC[/b] is a field with a labyrinth on one
+## side and the door hidden in it; [b]OPEN_FIELD[/b] has no labyrinth, a bigger
+## field, and the boss in an arena in plain sight, sealed by waystones out in the
+## field; [b]TOWER[/b] is several small maps joined by stairs (not built yet).
+enum Shape { CLASSIC, OPEN_FIELD, TOWER }
+
 @export var floor_number := 1
 @export var display_name := ""
 

@@ -17,6 +17,8 @@ var _checks := 0
 # so a lambda writing to a local would silently drop the result.
 var _last_target: Node = null
 var _last_speaker := ""
+## Every line shown while [method _spy_text] listens.
+var _line_spy: PackedStringArray = PackedStringArray()
 ## How many figures a [BossGate] stood on the map for the last fight staged, or
 ## -1 for none. A member, not a captured local: lambdas capture by value.
 var _staged_figures := -1
@@ -228,6 +230,7 @@ func _run() -> void:
 	await _test_teleport(main, world_root)
 	await _test_puzzles(world_root)
 	await _test_village(world_root)
+	await _test_open_field(world_root)
 
 
 ## The hidden door on a real generated floor: not there until you walk into its
@@ -764,6 +767,75 @@ func _test_village(world_root: Node2D) -> void:
 			"and they have found their own way out by the time you come back")
 
 
+## An open field, built as floor 2 for the occasion: the door in plain view in an
+## arena whose gate is sealed, examining the gate says so, and waking the waystones
+## out in the field -- by walking up and pressing E -- breaks it, from wherever the
+## last of them stands, and marks the door found.
+func _test_open_field(world_root: Node2D) -> void:
+	FloorGenerator.shape_override = FloorDefinition.Shape.OPEN_FIELD
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	var map := world_root.get_child(0) as GameMap
+	var player := map.get_node("Player") as Player
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	await _physics(2)
+	var gate := map.get_node("BossGate") as BossGate
+	var seal := map.get_node_or_null("ArenaSeal") as SealedDoor
+	_check(seal != null and gate.revealed and not map.dark_area.has_area()
+			and map.get_node_or_null("Waystone2") != null,
+			"an open field's door stands in plain view in an arena, under the open sky")
+	if seal == null:
+		FloorGenerator.shape_override = -1
+		return
+	for flag in seal.sigils:
+		GameState.set_flag(flag, false)
+	for flag: StringName in [seal.opened_flag, BossGate.found_flag(2)]:
+		GameState.set_flag(flag, false)
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	player = map.get_node("Player") as Player
+	seal = map.get_node("ArenaSeal") as SealedDoor
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	await _physics(2)
+
+	_line_spy.clear()
+	DialogueRunner.line_shown.connect(_spy_text)
+	seal.interact(player)
+	await _close_dialogue()
+	DialogueRunner.line_shown.disconnect(_spy_text)
+	_check(not seal.is_opened() and _line_spy.size() > 0 and "Waystones" in _line_spy[-1],
+			"the arena's gate is sealed, and says the waystones are what opens it")
+	var stones: Array[Waystone] = []
+	for child in map.get_children():
+		if child is Waystone:
+			stones.append(child as Waystone)
+	for i in stones.size():
+		player.global_position = stones[i].global_position + Vector2(0, 14)
+		player.facing = Vector2.UP
+		await _physics(4)
+		# The box before this one has just closed, and E is deaf for a moment after.
+		await get_tree().create_timer(Player.INTERACT_GRACE + 0.05).timeout
+		await _tap(&"interact")
+		await _close_dialogue()
+		await _idle(2)
+		if i < stones.size() - 1:
+			_check(stones[i].is_woken() and not seal.is_opened(),
+					"a waystone wakes under your hand, and the gate holds while any sleeps (%d)" % i)
+	_check(stones.all(func(stone: Waystone) -> bool: return stone.is_woken()), "every waystone is woken")
+	_check(seal.is_opened() and GameState.has_flag(BossGate.found_flag(2)),
+			"waking the last waystone breaks the seal from across the field, and the door counts as found")
+	# The stone fades for half a second before the gate stops being solid.
+	await get_tree().create_timer(SealedDoor.OPEN_TIME + 0.2).timeout
+	await _physics(2)
+	_check(seal.get_node("Solid").get_child(0).disabled, "and the gate can be walked through")
+	FloorGenerator.shape_override = -1
+
+
 ## Opens a sealed chest and says whether it paid out -- its item into the bag
 ## and, if it hides one, its sigil.
 func _open_sealed(chest: Chest, player: Player, with_sigil := true) -> bool:
@@ -1077,6 +1149,10 @@ func _spy_target(target: Node) -> void:
 
 func _spy_line(speaker: String, _text: String, _portrait: Texture2D) -> void:
 	_last_speaker = speaker
+
+
+func _spy_text(_speaker: String, text: String, _portrait: Texture2D) -> void:
+	_line_spy.append(text)
 
 
 func _check(condition: bool, description: String) -> void:

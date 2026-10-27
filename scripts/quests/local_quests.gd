@@ -310,6 +310,10 @@ static func _plan(floor_number: int) -> Dictionary:
 
 	var kinds := Array(KINDS)
 	_shuffle(kinds, rng)
+	# Nobody is lost where there is no labyrinth to be lost in. Taken out after the
+	# shuffle, so every draw after it is the one a classic floor makes.
+	if FloorRegistry.shape_of(floor_number) != FloorDefinition.Shape.CLASSIC:
+		kinds.erase("lost")
 	var names := Array(SETTLERS)
 	_shuffle(names, rng)
 	var sheets := Array(SETTLER_SHEETS)

@@ -79,6 +79,10 @@ var _whole_villages := 0
 var _streets := 0
 var _lost_jobs := 0
 var _lost_players := 0
+## Gathered by [method _audit_arena] across every open field.
+var _arenas := 0
+var _whole_arenas := 0
+var _open_safe_zones := 0
 
 
 func _ready() -> void:
@@ -339,12 +343,20 @@ func _run() -> void:
 			"" if broken.is_empty() else " -- " + ", ".join(broken)])
 	# The door is somewhere in the far third of the maze, not in its farthest corner
 	# every time -- or the labyrinth is a corridor with a known end.
-	_check(_lab_floors == generated and _lab_not_farthest * 4 >= _lab_floors,
+	_check(_lab_floors + _arenas == generated and _lab_not_farthest * 4 >= _lab_floors,
 			"the boss room is not always the labyrinth's farthest point (%d of %d floors aren't)" % [
 				_lab_not_farthest, _lab_floors])
 	# Some floors, not all and not one in ten: the peddler is a stroke of luck.
-	_check(_merchants * 5 >= generated and _merchants * 5 <= generated * 3,
-			"a peddler keeps shop in %d of %d safe zones" % [_merchants, generated])
+	_check(_merchants * 5 >= _lab_floors and _merchants * 5 <= _lab_floors * 3,
+			"a peddler keeps shop in %d of %d labyrinths' safe zones" % [_merchants, _lab_floors])
+	# Open fields: some, not most -- the classic floor is still the climb's shape --
+	# each arena sealed by its full set of waystones and a safe zone by a fire on
+	# nearly every one. Measured at 14 of 97 floors on this seed.
+	_check(_arenas * 10 >= generated and _arenas * 2 <= generated,
+			"%d of %d generated floors are open fields, the rest classic" % [_arenas, generated])
+	_check(_whole_arenas * 10 >= _arenas * 9 and _open_safe_zones * 10 >= _arenas * 9,
+			"%d of %d arenas are sealed by all %d waystones, %d with a safe zone in the field" % [
+				_whole_arenas, _arenas, FloorGenerator.WAYSTONES, _open_safe_zones])
 	var shortest := 1 << 30
 	for walk in _lab_walks:
 		shortest = mini(shortest, walk)
@@ -646,36 +658,142 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 	# which nothing is ever allowed to carve, is checked directly.
 	# The map is the field plus the labyrinth's strip, side by side, so its ring is
 	# the used rect's, not the field's -- which the doorstep corridor does cut through.
+	# An open field is its bigger field plus the arena's strip, the same way.
+	var open_field := map.has_meta(&"arena")
 	var bounds := walls.get_used_rect()
 	var strip := definition.labyrinth * FloorGenerator.LAB_PITCH \
 			+ Vector2i(FloorGenerator.LAB_WALL, FloorGenerator.LAB_WALL)
 	var field := definition.size
+	if open_field:
+		strip = FloorGenerator.ARENA_ROOM + Vector2i(FloorGenerator.LAB_WALL, FloorGenerator.LAB_WALL) * 2
+		field = FloorTuning.open_field_size(floor_number)
 	if bounds.position != Vector2i.ZERO or not (bounds.size in [
 			Vector2i(field.x + strip.x, maxi(field.y, strip.y)),
 			Vector2i(maxi(field.x, strip.x), field.y + strip.y)]):
-		return "floor %d is %s, not its field plus a labyrinth" % [floor_number, bounds.size]
+		return "floor %d is %s, not its field plus a%s" % [floor_number, bounds.size,
+				"n arena" if open_field else " labyrinth"]
 	for x in bounds.size.x:
 		if not _sealed(walls, Vector2i(x, 0)) or not _sealed(walls, Vector2i(x, bounds.size.y - 1)):
 			return "floor %d has a hole in its outer wall" % floor_number
 	for y in bounds.size.y:
 		if not _sealed(walls, Vector2i(0, y)) or not _sealed(walls, Vector2i(bounds.size.x - 1, y)):
 			return "floor %d has a hole in its outer wall" % floor_number
-	var lost := _audit_labyrinth(map, walls, gate, start, reachable)
+	var lost := _audit_arena(map as GameMap, walls, gate, start, floor_number) if open_field \
+			else _audit_labyrinth(map, walls, gate, start, reachable)
 	if lost.is_empty():
+		# The puzzles are walked with the arena open, as the door is once you can
+		# fight what is behind it; shut, it is the arena audit's.
+		_open_seal(map, "ArenaSeal")
 		lost = _audit_puzzles(map as GameMap, walls, start, reachable, floor_number)
 	if lost.is_empty():
 		# With the vault open: a monster can follow you into it, so a fight has to
 		# be stageable in there too -- and outside, an open doorway is only more room.
-		var seal := map.get_node_or_null("SealedDoor")
-		if seal != null:
-			for shape in seal.get_node("Solid").get_children():
-				(shape as CollisionShape2D).disabled = true
+		_open_seal(map, "SealedDoor")
 		# And with the cracked wall broken, which the puzzle audit has done: its
 		# hollow is floor now, and somewhere a fight can follow you into.
 		reachable = _flood(walls, start)
 		_audit_formations(map, walls, start, reachable, "floor %d" % floor_number)
 		_audit_boss_formations(map, walls, gate, reachable, floor_number, "floor %d" % floor_number)
 	return lost
+
+
+## Takes the solid out of [param map]'s [SealedDoor] called [param seal_name], as
+## opening it does.
+func _open_seal(map: Node2D, seal_name: String) -> void:
+	var seal := map.get_node_or_null(seal_name)
+	if seal != null:
+		for shape in seal.get_node("Solid").get_children():
+			(shape as CollisionShape2D).disabled = true
+
+
+## An open field's arena stands in plain sight with its door in it, walled all
+## round but for its gate; the gate's seal keeps you out until every waystone is
+## woken, and each of them can be walked up to while it does. And the field has a
+## safe zone: the fire's room, which no monster starts in.
+##
+## The open field's half of what [method _audit_labyrinth] is to a classic floor:
+## a sealed door the waystones cannot open, or a stone behind the seal, is the
+## dead end a flood fill of the walls never sees.
+func _audit_arena(map: GameMap, walls: TileMapLayer, gate: Node, start: Vector2i,
+		floor_number: int) -> String:
+	var label := "floor %d" % floor_number
+	if not (map.has_meta(&"arena_room") and map.has_meta(&"arena_door")):
+		return "%s is an open field with no arena" % label
+	var arena: Rect2i = map.get_meta(&"arena")
+	var room: Rect2i = map.get_meta(&"arena_room")
+	var door: Rect2i = map.get_meta(&"arena_door")
+	var gate_cell := walls.local_to_map((gate as Node2D).position)
+	if not room.has_point(gate_cell) or not arena.encloses(room):
+		return "%s's door is not in its arena" % label
+	if (gate.get(&"reveal_area") as Rect2).has_area() or map.dark_area.has_area():
+		return "%s hides its door or darkens its field, and it is an open field" % label
+
+	# Walled all round but for its gate, and the gate is the way in.
+	for y in range(arena.position.y, arena.end.y):
+		for x in range(arena.position.x, arena.end.x):
+			var cell := Vector2i(x, y)
+			var open := walls.get_cell_source_id(cell) == -1
+			if door.has_point(cell) and not open:
+				return "%s's arena gate is walled up at %s" % [label, cell]
+			if open and not room.has_point(cell) and not door.has_point(cell):
+				return "%s's arena wall is open at %s" % [label, cell]
+	if _flood_except(walls, start, door).has(gate_cell):
+		return "%s's door can be reached without going through the arena gate" % label
+
+	# The seal stands in the gate, and its hollows are the waystones'.
+	var seal := map.get_node_or_null("ArenaSeal") as SealedDoor
+	if seal == null or not door.has_point(walls.local_to_map(seal.position)):
+		return "%s's arena gate has no seal in it" % label
+	var stones: Array[Waystone] = []
+	var flags: Array[StringName] = []
+	for child in map.get_children():
+		if child is Waystone:
+			var stone := child as Waystone
+			if stone.flag == &"" or flags.has(stone.flag) or stone.all_flags != seal.sigils:
+				return "%s's %s is not one of the seal's hollows" % [label, stone.name]
+			stones.append(stone)
+			flags.append(stone.flag)
+	if flags.size() != seal.sigils.size():
+		return "%s's seal wants %d waystones and the field has %d" % [label, seal.sigils.size(), flags.size()]
+	if not seal.opens_itself or not seal.also_sets.has(BossGate.found_flag(floor_number)):
+		return "%s's seal does not open itself and mark the door found" % label
+	_arenas += 1
+	if stones.size() == FloorGenerator.WAYSTONES:
+		_whole_arenas += 1
+
+	# Shut, it keeps you out and every stone can be walked up to; open, it lets you in.
+	map.refresh_solids()
+	var shut := _flood_standable(map, start)
+	for stone in stones:
+		if not _approachable(walls, stone, shut):
+			return "%s's %s cannot be walked up to with the arena shut" % [label, stone.name]
+		if arena.has_point(walls.local_to_map(stone.position)):
+			return "%s's %s stands in the arena" % [label, stone.name]
+	if not _approachable(walls, seal, shut):
+		return "%s's arena gate cannot be walked up to" % label
+	if _approachable(walls, gate as Node2D, shut):
+		return "%s's arena can be walked into with its gate shut" % label
+	_open_seal(map, "ArenaSeal")
+	map.refresh_solids()
+	if not _approachable(walls, gate as Node2D, _flood_standable(map, start)):
+		return "%s's door cannot be walked up to with the arena open" % label
+
+	# A safe zone in the field, where there is one: the fire in it, nothing that
+	# fights starting in it.
+	if not map.has_meta(&"safe_zone"):
+		return ""
+	var camp: Rect2i = map.get_meta(&"safe_zone")
+	if not map.safe_zones.has(camp) or camp.intersects(arena) \
+			or camp.intersects(map.get_meta(&"camp", Rect2i())):
+		return "%s's safe zone %s is not a clearing of its own the map keeps monsters out of" % [label, camp]
+	var fire := map.get_node_or_null("Campfire") as Campfire
+	if fire == null or not fire.rests or not camp.has_point(walls.local_to_map(fire.position - Vector2(0, 8))):
+		return "%s's safe zone has no fire in it" % label
+	for child in map.get_children():
+		if child is Monster and camp.has_point(walls.local_to_map((child as Node2D).position)):
+			return "%s has %s starting in its safe zone" % [label, child.name]
+	_open_safe_zones += 1
+	return ""
 
 
 ## Every chest can be reached -- but the one behind a cracked wall, which is rock

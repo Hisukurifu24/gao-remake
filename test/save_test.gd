@@ -415,6 +415,25 @@ func _test_modes_in_memory() -> void:
 	var old := SaveGame._migrate({"game": {"mode": "death_game"}, "meta": {"mode": "death_game"}}, 1)
 	_check(old["game"]["mode"] == "hardcore" and old["meta"]["mode"] == "hardcore",
 			"a version 1 Death Game loads as Hardcore, slot card included")
+	# Version 2 knew only classic floors: what it explored of a floor that is an
+	# open field now was another map, and is forgotten; a classic floor's is kept.
+	var open_floor := 0
+	var classic_floor := 0
+	for n in range(3, FloorTuning.TOP_FLOOR):
+		var shape := FloorRegistry.shape_in(12345, n)
+		if shape == FloorDefinition.Shape.OPEN_FIELD and open_floor == 0:
+			open_floor = n
+		elif shape == FloorDefinition.Shape.CLASSIC and not FloorRegistry.AUTHORED.has(n) and classic_floor == 0:
+			classic_floor = n
+	var charted := {"floor_%d" % open_floor: "x", "floor_%d" % classic_floor: "y"}
+	var shaped := SaveGame._migrate({"game": {"world_seed": 12345, "explored": charted.duplicate(),
+			"walked": charted.duplicate()}}, 2)
+	_check(open_floor > 0 and classic_floor > 0
+			and not shaped["game"]["explored"].has("floor_%d" % open_floor)
+			and not shaped["game"]["walked"].has("floor_%d" % open_floor)
+			and shaped["game"]["explored"].has("floor_%d" % classic_floor),
+			"a version 2 save forgets what it explored of a floor that is an open field now (%d), and keeps a classic one's (%d)" % [
+				open_floor, classic_floor])
 	GameState.from_save({"mode": "nonsense"})
 	_check(GameState.mode == GameState.Mode.STANDARD, "a mode nobody knows loads as standard")
 	GameState.from_save({})

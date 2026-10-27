@@ -23,7 +23,7 @@ extends Node
 ## (a [code].fight[/code] file beside the slot), so closing the game to get out of
 ## a losing one is losing it. A marathon is never saved at all.
 
-const VERSION := 2
+const VERSION := 3
 const SLOTS := 3
 const DIRECTORY := "user://saves"
 
@@ -248,6 +248,19 @@ func _migrate(data: Dictionary, from_version: int) -> Dictionary:
 		for part in ["game", "meta"]:
 			if data.get(part) is Dictionary and data[part].get("mode") == "death_game":
 				data[part]["mode"] = "hardcore"
+	if from_version < 3:
+		# Version 2 knew one floor shape. A floor its world now lays out another way
+		# ([method FloorRegistry.shape_in]) is a different map under the same id, and
+		# what was explored of the old one would chart rock on the new: forget it.
+		var game: Variant = data.get("game")
+		if game is Dictionary and game.has("world_seed"):
+			var world := SaveCodec.whole(game["world_seed"])
+			for part in ["explored", "walked"]:
+				if not game.get(part) is Dictionary:
+					continue
+				for n in range(2, FloorTuning.TOP_FLOOR + 1):
+					if FloorRegistry.shape_in(world, n) != FloorDefinition.Shape.CLASSIC:
+						game[part].erase("floor_%d" % n)
 	return data
 
 

@@ -844,6 +844,11 @@ func _test_door_intel() -> void:
 	GameState.clear_floor(1)
 	GameState.clear_floor(2)
 	GameState.set_flag(BossGate.found_flag(3))
+	# An arena's door is never hidden, so she has nothing to sell on an open field.
+	FloorGenerator.shape_override = FloorDefinition.Shape.OPEN_FIELD
+	_check(DoorIntel.offers().is_empty(), "she sells no door on an open field, where it stands in plain view")
+	# The rest is about labyrinths: whichever floors this world made open fields.
+	FloorGenerator.shape_override = FloorDefinition.Shape.CLASSIC
 	_check(DoorIntel.offers() == [5, 4],
 			"she sells doors you have stood near and not found, highest first (%s)" % [DoorIntel.offers()])
 	_check(DoorIntel.price(5) == FloorTuning.kill_col(5) * FloorTuning.monster_count(5)
@@ -875,6 +880,7 @@ func _test_door_intel() -> void:
 			"on floor 5 the door stands and its room is charted")
 	_check(not seen.has(mouth), "but the way through the labyrinth is not")
 	map.free()
+	FloorGenerator.shape_override = -1
 	GameState._explored.clear()
 	GameState._visited_floors.clear()
 	_reset()

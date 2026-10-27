@@ -7,6 +7,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --gates     # the teleport gates only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --camps     # the adventurers' camps only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --villages  # the camps settled into villages
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --shapes    # open fields: arena, waystones
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --title     # the title screen and its pages
@@ -27,6 +28,8 @@ const BOSS_FIGHTS := [
 	[25, "", "karvos"],
 	[52, "", "f52_escort"],
 ]
+## Floors shot as open fields: the meadow, the cave, the desert, the sky and the castle.
+const OPEN_FIELD_FLOORS := [3, 24, 55, 85, 95]
 ## A generated floor in each biome band, clear of the ones shot elsewhere.
 const BAND_FLOORS := [5, 15, 27, 35, 45, 55, 65, 75, 85, 97]
 
@@ -79,6 +82,11 @@ func _ready() -> void:
 		return
 	if "--villages" in OS.get_cmdline_user_args():
 		await _capture_villages(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--shapes" in OS.get_cmdline_user_args():
+		await _capture_shapes(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1231,6 +1239,68 @@ func _capture_camps(main: Node) -> void:
 				DialogueRunner.advance()
 				await _frames(2)
 		await _capture_map(main, "04z_camp_map")
+
+
+## Open fields, built as such on a floor of several bands: the arrival, the arena's
+## sealed gate, a waystone woken, the gate open, and the whole field on the map.
+func _capture_shapes(main: Node) -> void:
+	FloorGenerator.shape_override = FloorDefinition.Shape.OPEN_FIELD
+	for floor_number: int in OPEN_FIELD_FLOORS:
+		GameState.clear_floor(floor_number - 1)
+		SceneRouter.enter_floor(floor_number, &"default")
+		var map := await _arrived(floor_number)
+		for child in map.get_children():
+			if child is Monster:
+				child.queue_free()
+		await _wait(0.3)
+		await _capture("04zo_open_floor%02d" % floor_number)
+		var player := map.get_node("Player") as Player
+		var seal := map.get_node("ArenaSeal") as SealedDoor
+		var room: Rect2i = map.get_meta(&"arena_room")
+		var outward := (seal.position - Vector2(room.get_center() * 16)).normalized()
+		outward = Vector2(signf(outward.x), 0) if absf(outward.x) > absf(outward.y) else Vector2(0, signf(outward.y))
+		player.position = seal.position + outward * 28
+		player.facing = -outward
+		await _settle_camera(player)
+		await _capture("04zo_open_gate%02d" % floor_number)
+		var stone := map.get_node("Waystone0") as Waystone
+		_stand_by(map, player, stone)
+		await _settle_camera(player)
+		if floor_number == OPEN_FIELD_FLOORS[0]:
+			await _capture("04zo_open_waystone")
+			stone.interact(player)
+			await _typed(main)
+			await _capture("04zo_open_waystone_wakes")
+			while DialogueRunner.is_running():
+				DialogueRunner.advance()
+				await _frames(2)
+		for flag in seal.sigils:
+			GameState.set_flag(flag)
+		await _wait(1.0)
+		while DialogueRunner.is_running():
+			DialogueRunner.advance()
+			await _frames(2)
+		player.position = seal.position - outward * 40
+		player.facing = outward
+		await _settle_camera(player)
+		await _capture("04zo_open_arena%02d" % floor_number)
+		var all: Array[Vector2i] = []
+		var used := (map.get_node("Walls") as TileMapLayer).get_used_rect()
+		for y in range(used.position.y, used.end.y):
+			for x in range(used.position.x, used.end.x):
+				all.append(Vector2i(x, y))
+		GameState.explore(map.map_id, all)
+		await _capture_map(main, "04zo_open_map%02d" % floor_number)
+	FloorGenerator.shape_override = -1
+
+
+## Waits out the camera's smoothing after [param player] has been put somewhere
+## far from where it was looking.
+func _settle_camera(player: Player) -> void:
+	var camera := player.get_node_or_null("Camera2D") as Camera2D
+	if camera != null:
+		camera.reset_smoothing()
+	await _wait(0.3)
 
 
 ## The same camps settled into villages, three floors behind the front line; a

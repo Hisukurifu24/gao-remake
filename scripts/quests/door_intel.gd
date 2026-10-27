@@ -32,7 +32,9 @@ static func price(floor_number: int) -> int:
 
 ## Whether she will sell [param floor_number]'s door right now.
 static func on_offer(floor_number: int) -> bool:
+	# Only a labyrinth's door is hidden; an arena stands in plain sight.
 	return floor_number > 1 and GameState.has_visited(floor_number) \
+			and FloorRegistry.shape_of(floor_number) == FloorDefinition.Shape.CLASSIC \
 			and not GameState.is_floor_cleared(floor_number) \
 			and not GameState.has_flag(BossGate.found_flag(floor_number))
 

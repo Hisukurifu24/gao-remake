@@ -896,6 +896,13 @@ func _clear(cell: Vector2i, radius: int, free := true) -> bool:
 	return true
 
 
+## Keeps the puzzles off [param cell] and the [param radius] round it -- something the
+## floor stands there that they must not crowd (an open field's waystones and fire).
+## Before [method plan].
+func keep_clear(cell: Vector2i, radius: int) -> void:
+	_reserve(cell, radius)
+
+
 func _reserve(cell: Vector2i, radius: int) -> void:
 	for y in range(-radius, radius + 1):
 		for x in range(-radius, radius + 1):

@@ -68,8 +68,22 @@ static func chest_col(floor_number: int, tier: int) -> int:
 	return roundi(kill_col(floor_number) * CHEST_COL_KILLS[clampi(tier, 0, 2)])
 
 
+## An open field's field ([enum FloorDefinition.Shape]): with no labyrinth to walk,
+## the field is the floor, so it takes about the ground the maze would have --
+## 65x49 on floor 2 where a classic floor is 50x38 plus a 50x30 maze. The arena
+## stands on one side of it, like the labyrinth.
+static func open_field_size(floor_number: int) -> Vector2i:
+	return Vector2i(roundi(map_size(floor_number).x * 1.3), roundi(map_size(floor_number).y * 1.3))
+
+
 static func room_count(floor_number: int) -> int:
 	return clampi(6 + floor_number / 8, 6, 18)
+
+
+## An open field's clearings: half as many again as a classic field's rooms, over
+## the bigger field, so the walk between them is about as long.
+static func open_room_count(floor_number: int) -> int:
+	return room_count(floor_number) * 3 / 2
 
 
 static func chest_count(floor_number: int) -> int:

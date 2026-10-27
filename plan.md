@@ -1544,7 +1544,7 @@ you *do*, the first two what you *see*, so those are where to start:
   *place* — a lake you walk round, a collapsed bridge, a great tree, a ruined tower.
   `GameMap.landmarks` already labels named places on **M**, so a cleared floor is
   remembered as "the one with the broken bridge".
-- [ ] **Floor shapes, not just floor content.** Not every floor is field → labyrinth →
+- [~] **Floor shapes, not just floor content.** *(open field built 2026-10-26; tower next)* Not every floor is field → labyrinth →
   boss; the generator picks a shape per floor:
   - *Open field* — no labyrinth; the boss roams the overworld, or holds an arena you can
     see from a distance.
@@ -1556,6 +1556,70 @@ you *do*, the first two what you *see*, so those are where to start:
   The biggest single lever: floors start to *play* differently. Every shape still needs
   the floor test's completability walk and formation sweep, and the authored floors'
   multi-map walk already handles stairs between maps.
+
+  **Decided 2026-10-26** (asked): build **open field** and **tower**, open field first.
+  - *Open field*: no labyrinth and no dark; a bigger field of bigger clearings, and the
+    boss in an **arena** standing in plain sight on one side of it, its gate **sealed by
+    three waystones** out in the far clearings -- touch all three and it opens. The
+    floor stays about searching; the search is across the field rather than a maze.
+  - *Tower*: several small maps joined by stairs, the boss at the top. Second slice.
+  - *Which floor gets which*: **seeded, mostly classic** -- its own stream
+    (`hash("<seed>:shape")`), about 60% classic and the rest split between the new
+    shapes, never the same new shape two floors running; floor 2 always classic.
+
+  **Open field — built 2026-10-26.**
+  - [x] **The pick** (`FloorRegistry.shape_of(n)` / `shape_in(seed, n)`,
+    `FloorDefinition.Shape`): its own stream, 60% classic, the rest open field or
+    tower, no new shape twice running, authored floors, floor 2 and floor 100 classic.
+    Tower is picked already and builds classic until it exists (`BUILT_SHAPES`), so its
+    landing changes only the floors that picked it. 14 of 97 floors are open fields on
+    the test's seed (17 on 999). `FloorGenerator.shape_override` for tests and tools.
+  - [x] **Classic floors untouched**: every classic floor of two worlds, camp and
+    village tier, fingerprinted against HEAD -- tiles, every node and its contents,
+    metadata -- each floor in its own process: byte for byte the same. (In one process
+    a floor's people's *names* can depend on what was generated before it -- in HEAD
+    too, so not this change; see the note below.)
+  - [x] **The field** (`FloorTuning.open_field_size`, 1.3x each way -- 65x49 on floor
+    2, about a classic floor's field plus its maze) of **clearings** half as many again
+    and bigger (9-16 x 8-12, `open_room_count`). No dark anywhere.
+  - [x] **The arena**: a 12x12 room walled two thick, on a strip of its own on a
+    seeded side of the field, exactly as the labyrinth's (`_place_strip`, shared, same
+    draws); the boss door in plain view in its middle; its gate a 2x2 through the middle
+    of the side facing the field, the corridor from the nearest clearing to its doorstep.
+    Named "The Arena" on **M**.
+  - [x] **Waystones** (`Waystone`, the pack's orb pedestal, dull to lit): three, in the
+    clearings farthest from the arrival and from each other, each on the cell nearest
+    its clearing's middle off every corridor's sweep. **E** wakes one for good
+    (`waystone_<n>_<i>`, "two of three"); the gate is a `SealedDoor` with a hollow per
+    stone that **opens itself** on the last, wherever you are ("Far across the field,
+    stone grinds on stone"), setting `arena_<n>_open` and `boss_found_<n>`. Examined
+    shut, it says where the stones are. Unwoken stones glint on **M**.
+  - [x] **A safe zone in the field**: the clearing the gate's corridor leaves from, its
+    fire on a 2x2 by rule off every corridor, monsters kept out as in a labyrinth's.
+  - [x] Puzzles on open fields too, kept clear of the stones and the fire
+    (`FloorPuzzles.keep_clear`). Camps talk about the arena instead of the maze. No
+    lost player (no labyrinth to be lost in: `LocalQuests` drops the job after its
+    shuffle, so no classic floor's jobs moved). Argo doesn't sell an arena's door.
+  - [x] **Save version 3**: what a version 2 save explored of a floor that is an open
+    field now is forgotten -- it charted another map under the same id.
+  - [x] **Tests**: the floor test's `_audit_arena` on every open field (door in the
+    arena, walled but for the gate, the gate the only way in, the seal's hollows exactly
+    the stones, every stone walkable up to with the seal shut and the door not, the door
+    walkable up to once open, the safe zone's fire and no monster in it) -- 14 of 14
+    whole -- plus the completability walk, puzzles and formation sweeps they already
+    had; the smoke test builds floor 2 as an open field and wakes its stones with real
+    **E** presses; the quest test checks Argo skips an open field; the save test the
+    migration. `tools/screenshot.gd -- --shapes` shoots five bands.
+  - *Calls of mine, flag if wrong:* three waystones on every floor (not scaling with
+    the floor); the gate opens itself rather than wanting a last press at it; the
+    field's safe zone has no peddler yet (the peddler's spots are the maze room's
+    geometry); an open field's field is 1.3x a classic one each way.
+  - *Found on the way, not fixed:* generating floors one after another in a single
+    process, a settled floor's settlers' names and a camp's campers' handles can come
+    out differently than when that floor is generated alone (HEAD does it too). The
+    layout never moves. If it happens in play, a village's giver could be named one
+    thing in the journal and another on the map -- worth tracking down.
+  - **Next: the tower.**
 - [ ] **Floor modifiers.** A seeded twist on some floors, stackable: fog everywhere (the
   `Darkness` over the whole floor, not just the maze), night, flooded, an elite hunting
   you, double treasure but no camp. Cheap, and it gives a floor a headline.
@@ -2204,6 +2268,12 @@ ice, stilt huts over the bog — and the people who stopped climbing have jobs f
 Thin out the boars at the door, bring in three wolf fangs, or go back into the
 labyrinth after the mapmaker who never came out.
 
+And not every floor is a maze any more. About one floor in seven is an open field:
+no labyrinth and no dark, a wider spread of clearings, and the boss's arena standing in
+plain sight at one edge -- walk up to its gate and it is sealed, three hollows cut in
+the stone. The waystones that fit them are out in the far clearings; wake the last and
+the gate grinds open from across the field.
+
 And it keeps your place now. The game opens on a title screen over the Town of
 Beginnings: continue, start a new game, load one of three saves, the settings, the
 credits. Start a new game as a standard one, saving anywhere and autosaving as you
@@ -2216,13 +2286,13 @@ the settings or quit to the title. A loaded game puts you on the very spot you s
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 167-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 141-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 176-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 143-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 61-check dialogue test
-"$GODOT" --headless --path . res://test/inventory_test.tscn # 202-check inventory test
+"$GODOT" --headless --path . res://test/inventory_test.tscn # 206-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 88-check combat test
-"$GODOT" --headless --path . res://test/quest_test.tscn     # 204-check quest test
-"$GODOT" --headless --path . res://test/save_test.tscn      # 103-check save test
+"$GODOT" --headless --path . res://test/quest_test.tscn     # 205-check quest test
+"$GODOT" --headless --path . res://test/save_test.tscn      # 149-check save test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -2270,9 +2340,11 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    every floor has one where it is entered, the town's plaza has one, and any visited
    floor is a touch away. **Camps on generated floors (the camp tier) are built too**
    (2026-10-06), and **so is settling** (2026-10-06): three floors behind the front
-   line a camp becomes a village with houses, settlers and local quests. Next on that
-   track: the other "Floor variety" levers (floor shapes, modifiers, events, room shapes,
-   landmarks), or the villages' floor-exclusive stock, now that M5.6's shops exist.
+   line a camp becomes a village with houses, settlers and local quests. **Floor shapes
+   decided 2026-10-26** (open field and tower); **the open field is built** -- no maze,
+   an arena in plain sight sealed by three waystones. Next on that track: **the tower**,
+   then the other levers (modifiers, events, room shapes, landmarks), or the villages'
+   floor-exclusive stock.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where

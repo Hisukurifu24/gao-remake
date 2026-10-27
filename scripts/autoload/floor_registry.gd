@@ -30,7 +30,14 @@ const BIOME_BANDS: Array[Dictionary] = [
 
 const BIOME_PATH := "res://resources/biomes/%s.tres"
 
+## The share of floors a world lays out the classic way. See [method shape_of].
+const SHAPE_CLASSIC := 0.6
+## The shapes [FloorGenerator] can build. A floor that picks any other is classic.
+const BUILT_SHAPES: Array[int] = [FloorDefinition.Shape.CLASSIC, FloorDefinition.Shape.OPEN_FIELD]
+
 var _floors: Dictionary[int, FloorDefinition] = {}
+## world seed -> every floor's picked shape, by [method _pick_shapes].
+var _shapes: Dictionary[int, Array] = {}
 var _biomes: Dictionary[StringName, BiomeKit] = {}
 
 
@@ -71,7 +78,58 @@ func biome_id(floor_number: int) -> StringName:
 ## Seeded from the save, so a floor is stable for a given playthrough but
 ## differs between saves.
 func seed_for(floor_number: int) -> int:
-	return hash("%d:%d" % [GameState.world_seed, floor_number])
+	return seed_in(GameState.world_seed, floor_number)
+
+
+## [method seed_for] in the world [param world_seed] rather than this one: what a
+## save's migration asks about a world that isn't loaded yet.
+static func seed_in(world_seed: int, floor_number: int) -> int:
+	return hash("%d:%d" % [world_seed, floor_number])
+
+
+## What floor [param floor_number] is laid out as ([enum FloorDefinition.Shape]) in
+## this world. Its own stream,
+## [code]hash("<seed>:shape")[/code], never the floor's: picking a shape draws nothing
+## a classic floor's layout reads, so a classic floor is the floor it always was.
+##
+## About [constant SHAPE_CLASSIC] of floors are classic and the rest split between
+## the other shapes, never the same new one two floors running. Authored floors,
+## floor 2 (the first generated one, which the smoke test walks) and the top floor
+## are always classic -- an authored floor is what its scene is. A shape picked but
+## not built yet ([constant BUILT_SHAPES]) is built classic; the picks don't change
+## when it lands, only the floors that picked it.
+func shape_of(floor_number: int) -> FloorDefinition.Shape:
+	if FloorGenerator.shape_override >= 0:
+		return FloorGenerator.shape_override as FloorDefinition.Shape
+	return shape_in(GameState.world_seed, floor_number)
+
+
+## [method shape_of] in the world [param world_seed], overrides aside.
+func shape_in(world_seed: int, floor_number: int) -> FloorDefinition.Shape:
+	if not _shapes.has(world_seed):
+		_shapes[world_seed] = _pick_shapes(world_seed)
+	var picked: int = _shapes[world_seed][clampi(floor_number, 1, FloorTuning.TOP_FLOOR)]
+	return (picked if picked in BUILT_SHAPES else FloorDefinition.Shape.CLASSIC) \
+			as FloorDefinition.Shape
+
+
+## Every floor's pick, 1 to the top, in [param world_seed]. Index 0 is unused.
+func _pick_shapes(world_seed: int) -> Array[int]:
+	var picks: Array[int] = [FloorDefinition.Shape.CLASSIC]
+	var rng := RandomNumberGenerator.new()
+	for n in range(1, FloorTuning.TOP_FLOOR + 1):
+		var pick := FloorDefinition.Shape.CLASSIC
+		if not (AUTHORED.has(n) or n <= 2 or n >= FloorTuning.TOP_FLOOR):
+			rng.seed = hash("%d:shape" % seed_in(world_seed, n))
+			var roll := rng.randf()
+			if roll >= SHAPE_CLASSIC:
+				pick = FloorDefinition.Shape.OPEN_FIELD \
+						if roll < SHAPE_CLASSIC + (1.0 - SHAPE_CLASSIC) / 2.0 \
+						else FloorDefinition.Shape.TOWER
+			if pick == picks[n - 1]:
+				pick = FloorDefinition.Shape.CLASSIC
+		picks.append(pick)
+	return picks
 
 
 func build_floor(floor_number: int) -> Node2D:

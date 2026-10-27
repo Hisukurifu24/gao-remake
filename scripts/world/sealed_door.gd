@@ -7,15 +7,31 @@ extends Interactable
 ## Solid while shut, which is all that keeps you out: the doorway behind it is
 ## open floor, so the floor test's flood fill reaches the vault and the chest in it
 ## either way, and walls round the vault are joined like any other.
+##
+## An open field's arena gate is the same door with [member opens_itself] on: its
+## hollows are the floor's [Waystone]s, and it breaks the moment the last is woken,
+## wherever the player is.
 
 const SIGIL_HELD := Rect2(32, 32, 16, 16)
 const SIGIL_EMPTY := Rect2(96, 32, 16, 16)
 const LOGIC := preload("res://assets/ninja_adventure/Backgrounds/Tilesets/TilesetLogic.png")
 const SMOKE := preload("res://assets/ninja_adventure/FX/Smoke/Smoke/SpriteSheet.png")
+## How long the stone takes to fade as it opens.
+const OPEN_TIME := 0.5
 
 ## The flags of the sigils that open it, one hollow each.
 @export var sigils: Array[StringName] = []
 @export var opened_flag: StringName = &""
+## Breaks as the last sigil is set rather than waiting to be examined.
+@export var opens_itself := false
+## Flags set as it opens, beside [member opened_flag] -- an arena's sets its
+## floor's [method BossGate.found_flag].
+@export var also_sets: Array[StringName] = []
+## What it says as it opens itself, from wherever the last sigil was set.
+@export var opening_lines: PackedStringArray = PackedStringArray()
+## What examining it shut says: the door, then where its sigils are.
+@export var described := "A door of fitted stone, sealed."
+@export var hint := "Somewhere on this floor are the sigils that fit them."
 
 var _marks: Array[Sprite2D] = []
 
@@ -36,6 +52,9 @@ func _ready() -> void:
 		_stone.add_child(mark)
 		_marks.append(mark)
 	_refresh()
+	if not is_opened() and opens_itself and held() == sigils.size():
+		# Every stone woken but the door still shut: it broke while nobody was here.
+		_set_opened()
 	if is_opened():
 		_show_open()
 	else:
@@ -65,23 +84,38 @@ func interact(by: Node) -> void:
 	var have := held()
 	if have < sigils.size():
 		var hollows := "all of them empty" if have == 0 else "%d of them glowing" % have
-		_say("A door of fitted stone, sealed. %s hollows are cut into it, %s." % [
-				_count_word(sigils.size()).capitalize(), hollows],
-				"Somewhere on this floor are the sigils that fit them.")
+		_say("%s %s hollows are cut into it, %s." % [described,
+				_count_word(sigils.size()).capitalize(), hollows], hint)
 		return
+	_set_opened()
+	_say("The sigils sink into the stone one by one, and the seal breaks.")
+	await _break()
+
+
+func _set_opened() -> void:
 	if opened_flag != &"":
 		GameState.set_flag(opened_flag)
-	_say("The sigils sink into the stone one by one, and the seal breaks.")
+	for flag in also_sets:
+		GameState.set_flag(flag)
+
+
+func _break() -> void:
 	var tween := create_tween()
-	tween.tween_property(_stone, ^"modulate:a", 0.0, 0.5)
+	tween.tween_property(_stone, ^"modulate:a", 0.0, OPEN_TIME)
 	_puff()
 	await tween.finished
 	_show_open()
 
 
 func _on_flag_changed(flag: StringName, _value: Variant) -> void:
-	if flag in sigils:
-		_refresh()
+	if not flag in sigils:
+		return
+	_refresh()
+	if opens_itself and not is_opened() and held() == sigils.size():
+		_set_opened()
+		if not opening_lines.is_empty():
+			EventBus.message_requested.emit("", opening_lines)
+		_break()
 
 
 func _show_open() -> void:

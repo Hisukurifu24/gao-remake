@@ -66,6 +66,8 @@ const MONSTER_SCENE := preload("res://scenes/world/monster.tscn")
 const CAMPFIRE_SCENE := preload("res://scenes/world/campfire.tscn")
 const TELEPORT_GATE_SCENE := preload("res://scenes/world/teleport_gate.tscn")
 const NPC_SCENE := preload("res://scenes/world/npc.tscn")
+const WAYSTONE_SCENE := preload("res://scenes/world/waystone.tscn")
+const SEAL_SCENE := preload("res://scenes/world/sealed_door.tscn")
 ## Where the teleport gate stands from the entrance room's centre, and where you
 ## arrive through it: off the centre's row and column, which is where the room's
 ## three-wide corridors run, so the gate's base never narrows one below two.
@@ -104,6 +106,21 @@ const MERCHANT_SPOTS: Array[Vector2i] = [
 	Vector2i(2, 0), Vector2i(3, 0), Vector2i(0, 2), Vector2i(5, 2),
 	Vector2i(0, 3), Vector2i(5, 3), Vector2i(2, 5), Vector2i(3, 5),
 ]
+
+## An open field's arena ([enum FloorDefinition.Shape]), inside its wall: square,
+## so it needs no turning, and roomier than a boss room -- it is seen from the field
+## before it is walked into. Its gate is a [SealedDoor]'s 2x2 through the
+## [constant LAB_WALL] facing the field, in the middle of that side.
+const ARENA_ROOM := Vector2i(12, 12)
+## The waystones sealing it, one to a clearing.
+const WAYSTONES := 3
+## An open field's clearings, bigger than a classic field's rooms.
+const CLEARING_W := Vector2i(9, 16)
+const CLEARING_H := Vector2i(8, 12)
+
+## Builds every generated floor as this [enum FloorDefinition.Shape] when set, for
+## the tests; -1 leaves it to [method FloorRegistry.shape_of].
+static var shape_override := -1
 
 ## Whether floors get their puzzles ([FloorPuzzles]). Off only for the floor test,
 ## which proves a floor without them is the same floor: they draw on a stream of
@@ -176,14 +193,22 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	_walls = _new_layer(map, "Walls", true)
 
 	var lab := Labyrinth.new()
-	var field := Rect2i(Vector2i.ZERO, definition.size)
-	_lay_out(field, lab)
-	field = lab.field
+	var arena: Arena = null
+	if FloorRegistry.shape_of(definition.floor_number) == FloorDefinition.Shape.OPEN_FIELD:
+		arena = Arena.new()
+	var field: Rect2i
+	if arena == null:
+		field = Rect2i(Vector2i.ZERO, definition.size)
+		_lay_out(field, lab)
+		field = lab.field
+	else:
+		field = _lay_out_arena(arena)
 	for y in _size.y:
 		for x in _size.x:
 			_paint(_walls, Vector2i(x, y), _biome.wall_tile)
 
-	var rooms := _place_rooms(field)
+	var rooms := _place_rooms(field) if arena == null else _place_rooms(field,
+			FloorTuning.open_room_count(definition.floor_number), CLEARING_W, CLEARING_H)
 	for room in rooms:
 		_carve(room, _biome.floor_tile)
 	for i in range(1, rooms.size()):
@@ -192,7 +217,12 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	var entry: Rect2i
 	var boss_room: Rect2i
 	var gate_cell: Vector2i
-	if lab.has_maze():
+	if arena != null:
+		_carve_arena(arena)
+		entry = _connect_to(arena.doorstep, arena.side, rooms)
+		boss_room = Rect2i()
+		gate_cell = _center(arena.room)
+	elif lab.has_maze():
 		_carve_labyrinth(lab)
 		entry = _connect_labyrinth(lab, rooms)
 		boss_room = Rect2i()
@@ -235,11 +265,18 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 		Rect2i(arrival + GATE_ARRIVAL, Vector2i.ONE),
 		Rect2i(arrival + STAIRS_OFFSET, Vector2i.ONE),
 	] as Array[Rect2i])
+	if arena != null:
+		_plan_arena_field(arena, rooms, entry, chest_cells)
 	# Before dressing: the vault is carved out of the rock, and its walls join like any.
 	var puzzles: FloorPuzzles = null
-	if with_puzzles and lab.has_maze():
+	if with_puzzles and (lab.has_maze() or arena != null):
 		puzzles = FloorPuzzles.new(_definition.floor_number, generation_seed, _biome,
 				_ground, _walls, _open, field)
+		if arena != null:
+			for cell in arena.waystones:
+				puzzles.keep_clear(cell, 1)
+			if arena.fire.has_area():
+				puzzles.keep_clear(arena.fire.position, 2)
 		puzzles.plan(rooms, entry, chest_cells, field_chests)
 	MapDresser.dress(map, _biome, _ground, _walls, generation_seed)
 
@@ -247,17 +284,20 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	_add_teleport_gate(map, _center(entry))
 	for index in chest_cells.size():
 		_add_chest(map, chest_cells[index], index, index < field_chests, deep)
-	_add_monsters(map, rooms, entry, boss_room, lab)
+	_add_monsters(map, rooms, entry, arena.safe_room if arena != null else boss_room, lab)
 	if puzzles != null:
 		puzzles.place(map)
 	_add_boss_gate(map, gate_cell, lab.boss_room)
 	if lab.camp_room.has_area():
 		_add_campfire(map, lab.camp_room)
 		_add_merchant(map, lab.camp_room, generation_seed)
+	if arena != null:
+		_add_arena(map, arena)
 	if _definition.floor_number > 1:
 		_add_stairs(map, _center(entry) + STAIRS_OFFSET)
-	camp.place(map, lab.side if lab.has_maze() else -1, _definition.boss_name,
-			_lost_spots(lab, free_ends))
+	camp.open_field = arena != null
+	camp.place(map, arena.side if arena != null else lab.side if lab.has_maze() else -1,
+			_definition.boss_name, _lost_spots(lab, free_ends))
 
 	if lab.has_maze():
 		# Inside the labyrinth you see only what is in line of sight.
@@ -273,6 +313,20 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 		map.set_meta(&"labyrinth", lab.rect)
 		map.set_meta(&"labyrinth_mouth", lab.mouth)
 		map.set_meta(&"boss_room", lab.boss_room)
+	elif arena != null:
+		# No dark anywhere: an open field is seen as you walk it, arena and all.
+		var places: Dictionary[String, Rect2i] = {"The Arena": arena.rect,
+				"Village" if camp.village else "Camp": camp.plot}
+		if arena.fire.has_area():
+			places["Safe Zone"] = arena.safe_room
+			map.set(&"safe_zones", [arena.safe_room] as Array[Rect2i])
+			map.set_meta(&"safe_zone", arena.safe_room)
+		map.set(&"landmarks", places)
+		# For the tests, as the labyrinth's are.
+		map.set_meta(&"arena", arena.rect)
+		map.set_meta(&"arena_room", arena.room)
+		map.set_meta(&"arena_door", arena.door)
+		map.set_meta(&"waystones", arena.waystones)
 	map.set_meta(&"camp", camp.plot)
 	if camp.village:
 		map.set_meta(&"village", camp.houses)
@@ -304,39 +358,63 @@ func _lay_out(field: Rect2i, lab: Labyrinth) -> void:
 	var tiles := cells * LAB_PITCH + Vector2i(LAB_WALL, LAB_WALL)
 	lab.cells = cells
 	lab.side = _rng.randi() % 4
-	# Along the side they share, whichever is shorter is slid along the longer one;
-	# what neither covers is rock. A labyrinth longer than the field is the usual
-	# case -- it is meant to be the bigger half of the floor.
-	var shared := 1 if lab.side == Side.EAST or lab.side == Side.WEST else 0
-	var span := maxi(field.size[shared], tiles[shared])
-	var field_along := _rng.randi_range(0, span - field.size[shared])
-	var lab_along := _rng.randi_range(0, span - tiles[shared])
-	var field_at := Vector2i.ZERO
-	var lab_at := Vector2i.ZERO
-	field_at[shared] = field_along
-	lab_at[shared] = lab_along
-	match lab.side:
-		Side.EAST:
-			lab_at.x = field.size.x
-		Side.WEST:
-			field_at.x = tiles.x
-		Side.SOUTH:
-			lab_at.y = field.size.y
-		Side.NORTH:
-			field_at.y = tiles.y
-	lab.field.position = field_at
-	lab.rect = Rect2i(lab_at, tiles)
+	var at := _place_strip(field.size, tiles, lab.side)
+	lab.field.position = at[0]
+	lab.rect = Rect2i(at[1], tiles)
 	_size = lab.field.end.max(lab.rect.end)
 
 
-func _place_rooms(field: Rect2i) -> Array[Rect2i]:
+## Where the field and a strip of [param tiles] built onto its [param side] go,
+## as [code][the field's corner, the strip's corner][/code]. Along the side they
+## share, whichever is shorter is slid along the longer one; what neither covers is
+## rock. A labyrinth longer than the field is the usual case -- it is meant to be the
+## bigger half of the floor -- and an arena is always the shorter.
+func _place_strip(field: Vector2i, tiles: Vector2i, side: int) -> Array[Vector2i]:
+	var shared := 1 if side == Side.EAST or side == Side.WEST else 0
+	var span := maxi(field[shared], tiles[shared])
+	var field_along := _rng.randi_range(0, span - field[shared])
+	var strip_along := _rng.randi_range(0, span - tiles[shared])
+	var field_at := Vector2i.ZERO
+	var strip_at := Vector2i.ZERO
+	field_at[shared] = field_along
+	strip_at[shared] = strip_along
+	match side:
+		Side.EAST:
+			strip_at.x = field.x
+		Side.WEST:
+			field_at.x = tiles.x
+		Side.SOUTH:
+			strip_at.y = field.y
+		Side.NORTH:
+			field_at.y = tiles.y
+	return [field_at, strip_at]
+
+
+## An open field's layout: the field, bigger than a classic one, and the arena's
+## strip on a seeded side of it, laid out as the labyrinth's is. Returns the field.
+func _lay_out_arena(arena: Arena) -> Rect2i:
+	var size := FloorTuning.open_field_size(_definition.floor_number)
+	var tiles := ARENA_ROOM + Vector2i(LAB_WALL, LAB_WALL) * 2
+	arena.side = _rng.randi() % 4
+	var at := _place_strip(size, tiles, arena.side)
+	arena.rect = Rect2i(at[1], tiles)
+	arena.room = arena.rect.grow(-LAB_WALL)
+	var field := Rect2i(at[0], size)
+	_size = field.end.max(arena.rect.end)
+	return field
+
+
+func _place_rooms(field: Rect2i, count := -1, widths := Vector2i(7, 12),
+		heights := Vector2i(6, 9)) -> Array[Rect2i]:
+	if count < 0:
+		count = _definition.room_count
 	var rooms: Array[Rect2i] = []
 	var size := field.size
-	var attempts := _definition.room_count * 20
-	while rooms.size() < _definition.room_count and attempts > 0:
+	var attempts := count * 20
+	while rooms.size() < count and attempts > 0:
 		attempts -= 1
-		var w := _rng.randi_range(7, 12)
-		var h := _rng.randi_range(6, 9)
+		var w := _rng.randi_range(widths.x, widths.y)
+		var h := _rng.randi_range(heights.x, heights.y)
 		if size.x - w - 3 < 2 or size.y - h - 3 < 2:
 			continue
 		var candidate := Rect2i(
@@ -649,16 +727,29 @@ func _place_block(cells: Vector2i, start: Vector2i, block_size: Vector2i) -> Rec
 ## rooms in the far half from the mouth, so the walk crosses the field first.
 func _connect_labyrinth(lab: Labyrinth, rooms: Array[Rect2i]) -> Rect2i:
 	_open_mouth(lab)
-	var doorstep := lab.doorstep
-	var by_distance := rooms.duplicate()
-	by_distance.sort_custom(func(a: Rect2i, b: Rect2i) -> bool:
-		return (_center(a) - doorstep).length_squared() < (_center(b) - doorstep).length_squared())
-	# Across the field first, then along its edge to the doorstep: the labyrinth
+	return _connect_to(lab.doorstep, lab.side, rooms)
+
+
+## Runs a corridor to [param doorstep] -- a strip's way in, on the field's
+## [param side] -- from the nearest room, and returns the room the player arrives
+## in: a seeded pick from the rooms in the far half from it, so the walk crosses
+## the field first.
+func _connect_to(doorstep: Vector2i, side: int, rooms: Array[Rect2i]) -> Rect2i:
+	var by_distance := _by_distance(rooms, doorstep)
+	# Across the field first, then along its edge to the doorstep: the strip
 	# stands beyond that edge, so neither leg can cut into it.
-	_carve_elbow(_center(by_distance[0]), doorstep, lab.side == Side.EAST or lab.side == Side.WEST)
+	_carve_elbow(_center(by_distance[0]), doorstep, side == Side.EAST or side == Side.WEST)
 
 	var far_half := by_distance.slice(by_distance.size() / 2)
 	return far_half[_rng.randi() % far_half.size()]
+
+
+## [param rooms], nearest [param to] first.
+func _by_distance(rooms: Array[Rect2i], to: Vector2i) -> Array[Rect2i]:
+	var by_distance := rooms.duplicate()
+	by_distance.sort_custom(func(a: Rect2i, b: Rect2i) -> bool:
+		return (_center(a) - to).length_squared() < (_center(b) - to).length_squared())
+	return by_distance
 
 
 ## The gap through the labyrinth's own wall, from its first cell to the field;
@@ -715,6 +806,163 @@ func _gap_rect(lab: Labyrinth, a: Vector2i, b: Vector2i) -> Rect2i:
 	if a.y == b.y:
 		return Rect2i(low.position + Vector2i(LAB_PASSAGE, 0), Vector2i(LAB_WALL, LAB_PASSAGE))
 	return Rect2i(low.position + Vector2i(0, LAB_PASSAGE), Vector2i(LAB_PASSAGE, LAB_WALL))
+
+
+# --- the arena -------------------------------------------------------------
+
+## The arena's floor, and its gate through the middle of the wall facing the field:
+## a [SealedDoor]'s 2x2, carved as floor -- the door is a solid node, not wall, so
+## the flood fill reaches the arena either way. The doorstep is two out from it,
+## square to it, as the labyrinth's mouth's is.
+func _carve_arena(arena: Arena) -> void:
+	_carve(arena.room, _biome.special_tile)
+	var middle := ARENA_ROOM / 2 - Vector2i.ONE
+	var across := Vector2i(LAB_WALL, 2)
+	var down := Vector2i(2, LAB_WALL)
+	match arena.side:
+		Side.EAST:
+			arena.door = Rect2i(Vector2i(arena.rect.position.x, arena.room.position.y + middle.y), across)
+			arena.doorstep = Vector2i(arena.door.position.x - 2, arena.door.position.y)
+		Side.WEST:
+			arena.door = Rect2i(Vector2i(arena.room.end.x, arena.room.position.y + middle.y), across)
+			arena.doorstep = Vector2i(arena.door.end.x + 1, arena.door.position.y)
+		Side.SOUTH:
+			arena.door = Rect2i(Vector2i(arena.room.position.x + middle.x, arena.rect.position.y), down)
+			arena.doorstep = Vector2i(arena.door.position.x, arena.door.position.y - 2)
+		Side.NORTH:
+			arena.door = Rect2i(Vector2i(arena.room.position.x + middle.x, arena.room.end.y), down)
+			arena.doorstep = Vector2i(arena.door.position.x, arena.door.end.y + 1)
+	_carve(arena.door, _biome.floor_tile)
+
+
+## What an open field puts in its clearings, by rule rather than by the rng: a
+## safe zone in the clearing nearest the arena's gate (the corridor to the gate
+## leaves from it), and the waystones in the clearings farthest from the arrival
+## and from each other -- so waking them is a walk round the whole field. Each
+## stands on the clearing's cell nearest its middle that is off every corridor's
+## sweep with open ground all round it, and comes out of [member _open]: it is solid.
+func _plan_arena_field(arena: Arena, rooms: Array[Rect2i], entry: Rect2i,
+		chest_cells: Array[Vector2i]) -> void:
+	var taken: Dictionary[Vector2i, bool] = {}
+	for cell in chest_cells:
+		taken[cell] = true
+	for room in _by_distance(rooms, arena.doorstep):
+		if room == entry:
+			continue
+		var fire := _fire_spot(room, taken)
+		if fire.has_area():
+			arena.safe_room = room
+			arena.fire = fire
+			_open.erase(fire.end - Vector2i.ONE)
+			_open.erase(fire.end - Vector2i(2, 1))
+			break
+
+	var spots: Dictionary[Rect2i, Vector2i] = {}
+	for room in rooms:
+		if room == entry or room == arena.safe_room:
+			continue
+		var cell := _stone_spot(room, taken)
+		if cell.x >= 0:
+			spots[room] = cell
+	var anchors: Array[Vector2i] = [_center(entry)]
+	while arena.waystones.size() < WAYSTONES and not spots.is_empty():
+		var best := Rect2i()
+		var best_gap := -1.0
+		for room: Rect2i in spots:
+			var gap := INF
+			for anchor in anchors:
+				gap = minf(gap, Vector2(_center(room) - anchor).length())
+			if gap > best_gap:
+				best_gap = gap
+				best = room
+		arena.waystones.append(spots[best])
+		_open.erase(spots[best])
+		anchors.append(_center(best))
+		spots.erase(best)
+
+
+## A 2x2 for a safe zone's fire in [param room] (the pit along its bottom row),
+## nearest the middle, with a cell of open ground all round it and none of it in a
+## corridor's sweep. Empty if the clearing has none.
+func _fire_spot(room: Rect2i, taken: Dictionary[Vector2i, bool]) -> Rect2i:
+	var best := Rect2i()
+	var best_off := INF
+	for y in range(room.position.y + 1, room.end.y - 2):
+		for x in range(room.position.x + 1, room.end.x - 2):
+			var spot := Rect2i(x, y, 2, 2)
+			var off := (Vector2(spot.get_center()) - Vector2(room.get_center())).length()
+			if off < best_off and _clear_round(spot.grow(1), taken):
+				best = spot
+				best_off = off
+	return best
+
+
+## The cell in [param room] nearest its middle for a waystone: off every corridor's
+## sweep, with open ground all round it. (-1, -1) if there is none.
+func _stone_spot(room: Rect2i, taken: Dictionary[Vector2i, bool]) -> Vector2i:
+	var best := Vector2i(-1, -1)
+	var best_off := INF
+	for y in range(room.position.y + 1, room.end.y - 1):
+		for x in range(room.position.x + 1, room.end.x - 1):
+			var cell := Vector2i(x, y)
+			var off := (Vector2(cell) + Vector2(0.5, 0.5) - Vector2(room.get_center())).length()
+			if off < best_off and _clear_round(Rect2i(cell - Vector2i.ONE, Vector2i(3, 3)), taken):
+				best = cell
+				best_off = off
+	return best
+
+
+## Whether every cell of [param rect] is open, clear of corridors and not
+## [param taken].
+func _clear_round(rect: Rect2i, taken: Dictionary[Vector2i, bool]) -> bool:
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			var cell := Vector2i(x, y)
+			if not _open.has(cell) or _lanes.has(cell) or taken.has(cell):
+				return false
+	return true
+
+
+## The arena's waystones, its sealed gate and the safe zone's fire. Waking a
+## stone sets [code]waystone_<n>_<i>[/code]; the gate opens itself on the last,
+## setting [code]arena_<n>_open[/code] and the floor's
+## [method BossGate.found_flag] -- the door was never hidden, but until now it
+## could not be walked to.
+func _add_arena(map: Node2D, arena: Arena) -> void:
+	var n := _definition.floor_number
+	var flags: Array[StringName] = []
+	for i in arena.waystones.size():
+		flags.append(StringName("waystone_%d_%d" % [n, i]))
+	for i in arena.waystones.size():
+		var stone := WAYSTONE_SCENE.instantiate()
+		stone.name = "Waystone%d" % i
+		stone.position = _world(arena.waystones[i])
+		stone.set(&"flag", flags[i])
+		stone.set(&"all_flags", flags)
+		map.add_child(stone)
+	var seal := SEAL_SCENE.instantiate()
+	seal.name = "ArenaSeal"
+	seal.position = Vector2(arena.door.position * TILE) + Vector2(arena.door.size * TILE) / 2.0
+	seal.set(&"display_name", "the arena gate")
+	seal.set(&"sigils", flags)
+	seal.set(&"opened_flag", StringName("arena_%d_open" % n))
+	seal.set(&"opens_itself", true)
+	seal.set(&"also_sets", [BossGate.found_flag(n)] as Array[StringName])
+	seal.set(&"described", "The arena's gate: one slab of stone, fitted to the wall.")
+	seal.set(&"hint", "Waystones stand out in the far clearings. Wake them all and it opens.")
+	seal.set(&"opening_lines", PackedStringArray([
+		"Far across the field, stone grinds on stone.",
+		"The arena's gate is open.",
+	]))
+	map.add_child(seal)
+	var gate := map.get_node_or_null("BossGate")
+	if gate != null:
+		gate.set(&"display_name", "the arena door")
+	if arena.fire.has_area():
+		var fire := CAMPFIRE_SCENE.instantiate()
+		fire.name = "Campfire"
+		fire.position = Vector2((arena.fire.position.x + 1) * TILE, arena.fire.end.y * TILE)
+		map.add_child(fire)
 
 
 # --- contents --------------------------------------------------------------
@@ -863,7 +1111,9 @@ func _add_monsters(map: Node2D, rooms: Array[Rect2i], entry: Rect2i, boss_room: 
 	# A two-room floor still has to be levellable, so fall back to the entrance.
 	if candidates.is_empty():
 		candidates.append(entry)
-	var passages := lab.passages() if lab.has_maze() else [] as Array[Rect2i]
+	var passages: Array[Rect2i] = []
+	if lab.has_maze():
+		passages = lab.passages()
 
 	var count := FloorTuning.monster_count(_definition.floor_number)
 	var in_lab := count / LAB_MONSTER_SHARE if not passages.is_empty() else 0
@@ -1053,3 +1303,22 @@ class Labyrinth:
 			into[b] = []
 		into[a].append(b)
 		into[b].append(a)
+
+
+## Everything an open field's arena is, while it is being built.
+class Arena:
+	## The arena in tiles, its wall included, and inside it.
+	var rect := Rect2i()
+	var room := Rect2i()
+	## Which side of the field it stands on ([enum Side]).
+	var side := 0
+	## The gate through its wall, in tiles: the only way in.
+	var door := Rect2i()
+	## Where the corridor from the field meets the gate: two out from it, square to it.
+	var doorstep := Vector2i.ZERO
+	## Each waystone's cell, in tiles.
+	var waystones: Array[Vector2i] = []
+	## The clearing that is the field's safe zone, and its fire's 2x2. Empty when no
+	## clearing had room for one.
+	var safe_room := Rect2i()
+	var fire := Rect2i()
