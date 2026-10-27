@@ -238,6 +238,14 @@ func _build_level(definition: FloorDefinition, generation_seed: int, level: int)
 	if not _top:
 		_add_level_monsters(map, rooms, entry, landing, chest_cells,
 				share_of(FloorTuning.monster_count(n), _levels - 1, _level - 1))
+		if FloorRegistry.modifier_of(n) == FloorModifier.Kind.INFESTED:
+			var swarm_rooms: Array[Rect2i] = []
+			for room in rooms:
+				if room != entry and room != landing:
+					swarm_rooms.append(room)
+			var keep: Array[Vector2i] = [_warden_cell]
+			_add_swarm(map, swarm_rooms, [] as Array[Rect2i], keep,
+					share_of(FloorTuning.infested_count(n), _levels - 1, _level - 1), own_seed)
 	if fire.has_area():
 		var hearth := CAMPFIRE_SCENE.instantiate()
 		hearth.name = "Campfire"
@@ -260,6 +268,7 @@ func _build_level(definition: FloorDefinition, generation_seed: int, level: int)
 		map.add_child(up)
 	if camp != null:
 		camp.dungeon = true
+		_brief_camp(camp)
 		camp.place(map, chamber.side, definition.boss_name)
 
 	# Dark everywhere, as a labyrinth is -- but for the lamplit hall and the boss's.
@@ -290,6 +299,7 @@ func _build_level(definition: FloorDefinition, generation_seed: int, level: int)
 	if not _top:
 		map.set_meta(&"seal", SEAL_NAMES[_seal])
 
+	_mark_modifier(map)
 	var player := PLAYER_SCENE.instantiate()
 	player.name = "Player"
 	player.position = _world(arrival)

@@ -39,6 +39,8 @@ const BUILT_SHAPES: Array[int] = [FloorDefinition.Shape.CLASSIC, FloorDefinition
 var _floors: Dictionary[int, FloorDefinition] = {}
 ## world seed -> every floor's picked shape, by [method _pick_shapes].
 var _shapes: Dictionary[int, Array] = {}
+## world seed -> every floor's modifier, by [method _pick_modifiers].
+var _modifiers: Dictionary[int, Array] = {}
 var _biomes: Dictionary[StringName, BiomeKit] = {}
 
 
@@ -129,6 +131,44 @@ func _pick_shapes(world_seed: int) -> Array[int]:
 						else FloorDefinition.Shape.DUNGEON
 			if pick == picks[n - 1]:
 				pick = FloorDefinition.Shape.CLASSIC
+		picks.append(pick)
+	return picks
+
+
+## Floor [param floor_number]'s modifier ([enum FloorModifier.Kind]) in this world.
+## Its own stream, [code]hash("<seed>:modifier")[/code], like the shape's: a floor
+## with a modifier is the floor it would be without one, plus what the modifier adds.
+##
+## About [constant FloorModifier.CHANCE] of generated floors carry one, never the
+## authored floors, floor 2 or the top. A storm wants a sky
+## ([method FloorModifier.weather_for]) and not a dungeon's roof; a floor that rolls
+## one without either is infested instead.
+func modifier_of(floor_number: int) -> FloorModifier.Kind:
+	if FloorGenerator.modifier_override >= 0:
+		return FloorGenerator.modifier_override as FloorModifier.Kind
+	return modifier_in(GameState.world_seed, floor_number)
+
+
+## [method modifier_of] in the world [param world_seed], overrides aside.
+func modifier_in(world_seed: int, floor_number: int) -> FloorModifier.Kind:
+	if not _modifiers.has(world_seed):
+		_modifiers[world_seed] = _pick_modifiers(world_seed)
+	return _modifiers[world_seed][clampi(floor_number, 1, FloorTuning.TOP_FLOOR)] as FloorModifier.Kind
+
+
+## Every floor's modifier, 1 to the top, in [param world_seed]. Index 0 is unused.
+func _pick_modifiers(world_seed: int) -> Array[int]:
+	var picks: Array[int] = [FloorModifier.Kind.NONE]
+	var rng := RandomNumberGenerator.new()
+	for n in range(1, FloorTuning.TOP_FLOOR + 1):
+		var pick := FloorModifier.Kind.NONE
+		if not (AUTHORED.has(n) or n <= 2 or n >= FloorTuning.TOP_FLOOR):
+			rng.seed = hash("%d:modifier" % seed_in(world_seed, n))
+			if rng.randf() < FloorModifier.CHANCE:
+				pick = FloorModifier.Kind.INFESTED if rng.randf() < 0.5 else FloorModifier.Kind.STORM
+				if pick == FloorModifier.Kind.STORM and (FloorModifier.weather_for(biome_id(n)) == &""
+						or shape_in(world_seed, n) == FloorDefinition.Shape.DUNGEON):
+					pick = FloorModifier.Kind.INFESTED
 		picks.append(pick)
 	return picks
 

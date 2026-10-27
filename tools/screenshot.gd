@@ -9,6 +9,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --villages  # the camps settled into villages
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shapes    # open fields: arena, waystones
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --dungeons  # dungeons: hall, seals, ladder, top
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --modifiers # storms per band, an infested floor
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --title     # the title screen and its pages
@@ -33,6 +34,10 @@ const BOSS_FIGHTS := [
 const OPEN_FIELD_FLOORS := [3, 24, 55, 85, 95]
 ## Floors shot as dungeons: the meadow, the forest, the ruins, the ice and the castle.
 const DUNGEON_FLOORS := [4, 16, 33, 64, 96]
+## A storm in each weather -- rain on the meadow, the swamp's and the sky's, the
+## desert's sand, the ice's snow, the volcanic band's ash -- and an infested floor.
+const STORM_FLOORS := [3, 45, 85, 55, 65, 75]
+const INFESTED_FLOOR := 14
 ## A generated floor in each biome band, clear of the ones shot elsewhere.
 const BAND_FLOORS := [5, 15, 27, 35, 45, 55, 65, 75, 85, 97]
 
@@ -90,6 +95,11 @@ func _ready() -> void:
 		return
 	if "--shapes" in OS.get_cmdline_user_args():
 		await _capture_shapes(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--modifiers" in OS.get_cmdline_user_args():
+		await _capture_modifiers(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1374,6 +1384,49 @@ func _capture_dungeons(main: Node) -> void:
 
 ## Waits out the camera's smoothing after [param player] has been put somewhere
 ## far from where it was looking.
+## Floor modifiers: a storm's headline as you arrive, then the storm over a field
+## room and over the labyrinth's dark -- in every weather -- and an infested floor,
+## its swarm left standing.
+func _capture_modifiers(main: Node) -> void:
+	FloorGenerator.modifier_override = FloorModifier.Kind.STORM
+	FloorGenerator.shape_override = FloorDefinition.Shape.CLASSIC
+	for floor_number: int in STORM_FLOORS:
+		GameState.clear_floor(floor_number - 1)
+		SceneRouter.enter_floor(floor_number, &"default")
+		var map := await _arrived(floor_number)
+		for child in map.get_children():
+			if child is Monster:
+				child.queue_free()
+		await _wait(0.6)
+		await _capture("04zm_storm%02d_arrival" % floor_number)
+		var player := map.get_node("Player") as Player
+		var lab: Rect2i = map.get_meta(&"labyrinth", Rect2i())
+		var mouth: Rect2i = map.get_meta(&"labyrinth_mouth", Rect2i())
+		if lab.has_area() and mouth.has_area():
+			player.position = Vector2(mouth.position * 16) + Vector2(8, 8)
+			await _settle_camera(player)
+			await _wait(0.6)
+			await _capture("04zm_storm%02d_maze" % floor_number)
+	FloorGenerator.modifier_override = FloorModifier.Kind.INFESTED
+	GameState.clear_floor(INFESTED_FLOOR - 1)
+	SceneRouter.enter_floor(INFESTED_FLOOR, &"default")
+	var infested := await _arrived(INFESTED_FLOOR)
+	for child in infested.get_children():
+		if child is Monster:
+			(child as Monster).calm()
+	await _wait(0.6)
+	await _capture("04zm_infested%02d_arrival" % INFESTED_FLOOR)
+	var all: Array[Vector2i] = []
+	var used := (infested.get_node("Walls") as TileMapLayer).get_used_rect()
+	for y in range(used.position.y, used.end.y):
+		for x in range(used.position.x, used.end.x):
+			all.append(Vector2i(x, y))
+	GameState.explore(infested.map_id, all)
+	await _capture_map(main, "04zm_infested_map")
+	FloorGenerator.modifier_override = -1
+	FloorGenerator.shape_override = -1
+
+
 func _settle_camera(player: Player) -> void:
 	var camera := player.get_node_or_null("Camera2D") as Camera2D
 	if camera != null:

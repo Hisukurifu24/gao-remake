@@ -13,6 +13,9 @@ const KILL_COL_GROWTH := 2.0
 ## A chest's Col, in kills of its floor: plain, gilded, sealed. The sealed chest is
 ## a solved puzzle and pays the most; the gilded one is a gamble and pays for it.
 const CHEST_COL_KILLS: Array[float] = [3.0, 6.0, 15.0]
+## How far a monster notices you in a storm ([enum FloorModifier.Kind]), as a share
+## of [constant Monster.AGGRO_RADIUS]: half, so a storm is a floor to sneak through.
+const STORM_NOTICE := 0.5
 
 ## Boss names are assembled rather than authored: 10 affixes x 10 archetypes is
 ## plenty of variety for the ~88 generated floors. Milestone floors override it.
@@ -114,6 +117,13 @@ static func chest_count(floor_number: int) -> int:
 ## without backtracking.
 static func monster_count(floor_number: int) -> int:
 	return clampi(8 + floor_number / 10, 8, 16)
+
+
+## The monsters an infested floor ([enum FloorModifier.Kind]) carries on top of its
+## [method monster_count]: half as many again. On top, never instead -- the count is
+## the boss's balance, and an infested floor is a floor to level on.
+static func infested_count(floor_number: int) -> int:
+	return monster_count(floor_number) / 2
 
 
 static func boss_name(floor_number: int) -> String:

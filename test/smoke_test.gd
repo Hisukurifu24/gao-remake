@@ -232,6 +232,7 @@ func _run() -> void:
 	await _test_village(world_root)
 	await _test_open_field(world_root)
 	await _test_dungeon(world_root)
+	await _test_modifiers(main, world_root)
 
 
 ## The hidden door on a real generated floor: not there until you walk into its
@@ -985,6 +986,71 @@ func _test_dungeon(world_root: Node2D) -> void:
 	_check(map.map_id == &"floor_2_3" and player.position.distance_to(Vector2(place["x"], place["y"])) < 1.0,
 			"and loading it puts you back on that level, on the spot")
 	FloorGenerator.shape_override = -1
+
+
+## Floor modifiers on a real floor 2: a storm says so as you arrive, hangs its
+## weather over the map and has the scout mention it, and a monster notices you
+## from only half as far in it; an infested floor carries its swarm; and a plain
+## floor announces nothing.
+func _test_modifiers(main: Node, world_root: Node2D) -> void:
+	var hud := main.get_node("Hud")
+	FloorGenerator.modifier_override = FloorModifier.Kind.STORM
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	var map := world_root.get_child(0) as GameMap
+	var player := map.get_node("Player") as Player
+	_check(hud.call(&"headline") == "Rainstorm" and "Rainstorm" in map.region,
+			"arriving on a storm floor puts its name up over the map, and on the map screen")
+	var storm := map.get_node_or_null("Weather") as Weather
+	_check(storm != null and storm.kind == &"rain" and storm.is_processing()
+			and map.notice_scale == FloorTuning.STORM_NOTICE,
+			"a storm on the meadow is rain, falling over the map")
+	var scout := map.get_node_or_null("Camper0") as Npc
+	var mentioned := false
+	if scout != null and scout.dialogue != null:
+		for line in scout.dialogue.lines:
+			mentioned = mentioned or line.text == FloorModifier.camp_line(FloorModifier.Kind.STORM, &"rain")
+	_check(scout == null or mentioned, "and the camp's scout has a word about the weather")
+
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	await _physics(2)
+	var walls: TileMapLayer = map.get_node("Walls")
+	var block := _open_block(walls, Vector2i(5, 5))
+	if block.size != Vector2i.ZERO:
+		player.global_position = walls.map_to_local(block.position + Vector2i(0, 2))
+		# Three cells off: inside a monster's reach in clear weather, outside it in a storm.
+		var monster := _spawn_monster(map, walls.map_to_local(block.position + Vector2i(3, 2)))
+		await _physics(2)
+		var in_storm: bool = monster.call(&"_notices", player)
+		map.notice_scale = 1.0
+		var in_clear: bool = monster.call(&"_notices", player)
+		map.notice_scale = FloorTuning.STORM_NOTICE
+		monster.global_position = player.global_position + Vector2(24, 0)
+		var close: bool = monster.call(&"_notices", player)
+		_check(not in_storm and in_clear and close,
+				"in a storm a monster three cells off doesn't notice you, as it would in the clear -- only one close by")
+		monster.queue_free()
+
+	FloorGenerator.modifier_override = FloorModifier.Kind.INFESTED
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	var swarm := 0
+	for child in map.get_children():
+		if child is Monster and String(child.name).begins_with("Swarm"):
+			swarm += 1
+	_check(hud.call(&"headline") == "Infested" and swarm == FloorTuning.infested_count(2)
+			and map.get_node_or_null("Weather") == null,
+			"an infested floor says so too, and carries half as many monsters again (%d more)" % swarm)
+
+	# Straight on to a plain floor, the headline still up: it goes.
+	FloorGenerator.modifier_override = -1
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	_check(hud.call(&"headline") == "" and world_root.get_child(0).get_node_or_null("Weather") == null,
+			"floor 2 itself is plain: nothing announced -- the last floor's headline taken down -- and no weather")
 
 
 ## Opens a sealed chest and says whether it paid out -- its item into the bag

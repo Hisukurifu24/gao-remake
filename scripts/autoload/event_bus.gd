@@ -128,6 +128,10 @@ signal floor_cleared(floor_number: int)
 signal teleport_requested(floor_number: int)
 ## The player walked into a floor's hidden boss room and the door showed itself.
 signal boss_room_found(floor_number: int)
+## A map has been arrived on, and this is its headline: a floor's modifier
+## ([FloorModifier]) and what it means, or empty for none. For the HUD; nothing
+## reacts to it but views.
+signal floor_announced(title: String, line: String)
 
 # --- The save ---
 ## The game was written to [param slot] -- asked for, or an autosave. For the

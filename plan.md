@@ -1725,9 +1725,54 @@ you *do*, the first two what you *see*, so those are where to start:
   - *Seen, not fixed:* where a chamber's doorway is in a side wall of a forest-walled
     level, the tree below the doorway hangs its crown over the slab's lower half (the
     open field's arena gate in a side wall does the same).
-- [ ] **Floor modifiers.** A seeded twist on some floors, stackable: fog everywhere (the
-  `Darkness` over the whole floor, not just the maze), night, flooded, an elite hunting
-  you, double treasure but no camp. Cheap, and it gives a floor a headline.
+- [x] **Floor modifiers.** *(decided and built 2026-10-27: infested and storm)* A seeded
+  twist on some floors: fog everywhere (the `Darkness` over the whole floor, not just
+  the maze), night, flooded, an elite hunting you, double treasure but no camp. Cheap,
+  and it gives a floor a headline.
+
+  **Decided 2026-10-27** (asked): ship **Infested** and **Storm** -- the user didn't
+  want fog, the hunting elite or double treasure -- on **about one floor in five**.
+
+  **Built 2026-10-27** (`FloorModifier`, `scripts/world/floor_modifier.gd`).
+  - [x] **The pick** (`FloorRegistry.modifier_of(n)` / `modifier_in(seed, n)`): its own
+    stream, `hash("<seed>:modifier")`, 20% of generated floors (`FloorModifier.CHANCE`),
+    one modifier at most, never an authored floor, floor 2 or the top. A storm wants a
+    sky (`FloorModifier.WEATHER`: not the caves, not the Ruby Palace) and not a dungeon's
+    roof; a floor that rolls one without either is infested instead.
+    `FloorGenerator.modifier_override` for tests and tools.
+  - [x] **Infested**: `FloorTuning.infested_count(n)` -- half the floor's count again --
+    on top of it (the count is the boss's balance), each paying as any monster does.
+    Placed after the floor's own monsters from `hash("<seed>:infested")`, a third in
+    the labyrinth's passages as the floor's are, never in the arrival room, a safe zone
+    or the camp, drawn again rather than dropped where a cell is taken; named `Swarm<i>`.
+    A dungeon shares them out between its levels below the top as it does its own.
+  - [x] **Storm**: monsters notice you from `FloorTuning.STORM_NOTICE` (half) as far
+    (`GameMap.notice_scale`, read by `Monster._notices`), and a `Weather` node hangs over
+    the map -- by band, rain (meadow, forest, ruins, swamp, sky), a **Blizzard** (ice), a
+    **Sandstorm** (desert) or **Ashfall** (volcanic): the pack's rain with its splashes,
+    its snowflakes (drawn again in sand and in ash), and its fog drifting, over everything
+    on the map but the dark (so a labyrinth stays black), kept over whichever camera is
+    current; the map tinted to match.
+  - [x] **Told**: the arrival puts the modifier's name and a line under it up over the map
+    for a few seconds (`EventBus.floor_announced` → the HUD's headline; a plain arrival
+    takes the last one down); the map screen's region reads "Green Meadow - Rainstorm";
+    the gate menu's line under a floor names it; and the camp's scout says a word about
+    it after their opening (a continuation line, fixed words, so no camp stream moved).
+  - [x] **Nothing moved**: every generated floor of two worlds, every level, camp and
+    village tier, fingerprinted with the modifier forced off against HEAD, each floor in
+    its own process -- byte for byte the same. Nothing to save: the pick grows from the
+    world seed, and monsters aren't saved.
+  - [x] **Tests**: the floor test checks the picks (how many, where, another world's
+    differ) and, on every modified floor, that it is the floor without its modifier plus
+    exactly the swarm (the full count) or the storm (weather, tint, notice, name) and
+    the scout's line -- and the completability, camp, safe-zone and formation audits it
+    already ran now run over the swarms too. The smoke test arrives on a storm floor 2
+    (headline, rain, scout, a monster three cells off noticing only in the clear) and an
+    infested one, then a plain one that takes the headline down.
+    `tools/screenshot.gd -- --modifiers` shoots every weather and an infested floor.
+  - *Calls of mine, flag if wrong:* one modifier a floor, never two; a storm only notices
+    you later -- chases, leashes and fights are as ever; infested floors aren't marked on
+    the map beyond their name; the headline shows on every arrival, not only the first.
 - [ ] **Things happening on the floor.** SAO encounters: a stranded player to escort, a
   player-killer ambush, a field boss guarding a treasure room (passed over in §4), a rival
   party racing you to the door. Most content per floor, and what makes a floor a story
@@ -2379,6 +2424,13 @@ plain sight at one edge -- walk up to its gate and it is sealed, three hollows c
 the stone. The waystones that fit them are out in the far clearings; wake the last and
 the gate grinds open from across the field.
 
+And now and then a floor has weather, or worse. About one floor in five announces
+itself as you arrive: a **rainstorm** over the meadow, a blizzard on the ice, a
+sandstorm in the desert, ash falling on the volcanic floors -- and in all of it the
+monsters see you late, so it is a floor to slip through. Or it is **infested**: half
+as many monsters again, a floor to level on if you have the potions for it. The scout
+in the camp will tell you which, and the gate says so before you go.
+
 And it keeps your place now. The game opens on a title screen over the Town of
 Beginnings: continue, start a new game, load one of three saves, the settings, the
 credits. Start a new game as a standard one, saving anywhere and autosaving as you
@@ -2450,8 +2502,9 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    an arena in plain sight sealed by three waystones. **The tower, renamed the dungeon,
    is built (2026-10-27)**: levels of small dark maps climbed by ladders, each sealed by
    a warden, levers, braziers or statues, a landing halfway, the camp in a lamplit
-   entrance hall and the boss in a lit hall at the top. Next on that track: the other
-   levers (modifiers, events, room shapes, landmarks), or the villages'
+   entrance hall and the boss in a lit hall at the top. **Floor modifiers are built
+   (2026-10-27)**: about one floor in five is infested or under a storm. Next on that
+   track: the other levers (events, room shapes, landmarks), or the villages'
    floor-exclusive stock.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,

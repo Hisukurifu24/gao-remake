@@ -22,11 +22,21 @@ extends CanvasLayer
 
 ## How long "Saved" stays up, fading for the last third.
 const SAVED_TIME := 1.2
+## A floor's headline ([signal EventBus.floor_announced]): held this long once in,
+## after waiting out the fade the map arrived behind.
+const HEADLINE_DELAY := 0.6
+const HEADLINE_FADE := 0.5
+const HEADLINE_TIME := 2.8
 
 var _target: Interactable = null
 ## "Saved", bottom-right, for a moment after the game is written.
 var _saved: Label = null
 var _saved_fade: Tween = null
+## A floor's modifier, top-centre, for a moment after arriving on it.
+var _headline: VBoxContainer = null
+var _headline_title: Label = null
+var _headline_line: Label = null
+var _headline_fade: Tween = null
 ## The player in the fight on now; null on the map.
 var _fighter: Combatant = null
 
@@ -48,7 +58,9 @@ func _ready() -> void:
 	# The game menu's dim is see-through, and its tab strip stands where the plate
 	# does: the Status tab already says everything the plate would.
 	EventBus.game_menu_toggled.connect(func(open: bool) -> void: _vitals.visible = not open)
+	EventBus.floor_announced.connect(_on_floor_announced)
 	_build_saved_note()
+	_build_headline()
 	_refresh_vitals()
 
 
@@ -66,6 +78,51 @@ func _build_saved_note() -> void:
 	_saved.offset_bottom = -4.0
 	_saved.modulate.a = 0.0
 	add_child(_saved)
+
+
+## Two shadowed lines straight on the map, centred under the top edge: the floor's
+## modifier and what it means. Built here for the same reason as "Saved".
+func _build_headline() -> void:
+	_headline = VBoxContainer.new()
+	_headline.name = "Headline"
+	_headline.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_headline.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_headline.offset_top = 52.0
+	_headline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_headline.add_theme_constant_override(&"separation", 0)
+	_headline.modulate.a = 0.0
+	_headline_title = Label.new()
+	_headline_title.theme_type_variation = &"TitleLabel"
+	_headline_line = Label.new()
+	_headline_line.theme_type_variation = &"FieldLabel"
+	for label in [_headline_title, _headline_line]:
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_headline.add_child(label)
+	add_child(_headline)
+
+
+## The headline of a floor with a modifier, faded in once the map is up. A map
+## with none puts out whatever the last one left up.
+func _on_floor_announced(title: String, line: String) -> void:
+	if _headline_fade != null:
+		_headline_fade.kill()
+		_headline_fade = null
+	_headline.modulate.a = 0.0
+	if title.is_empty():
+		return
+	_headline_title.text = title
+	_headline_line.text = line
+	UiLayout.shrink_wrap(_headline)
+	_headline_fade = create_tween()
+	_headline_fade.tween_interval(HEADLINE_DELAY)
+	_headline_fade.tween_property(_headline, "modulate:a", 1.0, HEADLINE_FADE)
+	_headline_fade.tween_interval(HEADLINE_TIME)
+	_headline_fade.tween_property(_headline, "modulate:a", 0.0, HEADLINE_FADE * 2.0)
+
+
+## What the headline says while it is up, or empty -- for the tests.
+func headline() -> String:
+	return _headline_title.text if _headline_fade != null and _headline_fade.is_running() else ""
 
 
 func _on_game_saved(_slot: int, _auto: bool) -> void:

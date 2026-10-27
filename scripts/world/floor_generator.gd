@@ -123,6 +123,10 @@ const CLEARING_H := Vector2i(8, 12)
 ## the tests; -1 leaves it to [method FloorRegistry.shape_of].
 static var shape_override := -1
 
+## Builds every generated floor with this [enum FloorModifier.Kind] when set, for the
+## tests and tools; -1 leaves it to [method FloorRegistry.modifier_of].
+static var modifier_override := -1
+
 ## Whether floors get their puzzles ([FloorPuzzles]). Off only for the floor test,
 ## which proves a floor without them is the same floor: they draw on a stream of
 ## their own and must never move anything the floor's rng put down.
@@ -290,7 +294,19 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	_add_teleport_gate(map, _center(entry))
 	for index in chest_cells.size():
 		_add_chest(map, chest_cells[index], index, index < field_chests, deep)
-	_add_monsters(map, rooms, entry, arena.safe_room if arena != null else boss_room, lab)
+	var hunting := arena.safe_room if arena != null else boss_room
+	_add_monsters(map, rooms, entry, hunting, lab)
+	# Before the puzzles go down, which step a monster off any piece it stands on.
+	if FloorRegistry.modifier_of(_definition.floor_number) == FloorModifier.Kind.INFESTED:
+		var swarm_rooms: Array[Rect2i] = []
+		for room in rooms:
+			if room != entry and room != hunting:
+				swarm_rooms.append(room)
+		var passages: Array[Rect2i] = []
+		if lab.has_maze():
+			passages = lab.passages()
+		_add_swarm(map, swarm_rooms, passages, [] as Array[Vector2i],
+				FloorTuning.infested_count(_definition.floor_number), generation_seed)
 	if puzzles != null:
 		puzzles.place(map)
 	_add_boss_gate(map, gate_cell, lab.boss_room)
@@ -302,6 +318,7 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	if _definition.floor_number > 1:
 		_add_stairs(map, _center(entry) + STAIRS_OFFSET)
 	camp.open_field = arena != null
+	_brief_camp(camp)
 	camp.place(map, arena.side if arena != null else lab.side if lab.has_maze() else -1,
 			_definition.boss_name, _lost_spots(lab, free_ends))
 
@@ -339,6 +356,7 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	if camp.lost_cell.x >= 0:
 		map.set_meta(&"lost_player", camp.lost_cell)
 
+	_mark_modifier(map)
 	var player := PLAYER_SCENE.instantiate()
 	player.name = "Player"
 	player.position = _world(_center(entry))
@@ -1148,6 +1166,80 @@ func _add_monsters(map: Node2D, rooms: Array[Rect2i], entry: Rect2i, boss_room: 
 		monster.set(&"level", _definition.enemy_level)
 		monster.set(&"floor_number", _definition.floor_number)
 		map.add_child(monster)
+
+
+## An infested floor's swarm ([enum FloorModifier.Kind]): [param count] monsters
+## more, through [param rooms] and -- a third of them, as the floor's own -- through
+## [param passages]. [method _add_monsters]' way, but from a stream of its own
+## ([code]hash("<seed>:infested")[/code]) and after everything the floor's rng put
+## down, so they move nothing; a cell already taken, by a monster, a chest or
+## anything in [param taken], is drawn again rather than dropped.
+func _add_swarm(map: Node2D, rooms: Array[Rect2i], passages: Array[Rect2i],
+		taken: Array[Vector2i], count: int, swarm_seed: int) -> void:
+	var pool := Bestiary.pool_for_floor(_definition.floor_number)
+	if pool.is_empty() or rooms.is_empty() or count <= 0:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%d:infested" % swarm_seed)
+	var placed: Dictionary[Vector2i, bool] = {}
+	for cell in taken:
+		placed[cell] = true
+	for child in map.get_children():
+		if child is Monster or child is Chest:
+			placed[Vector2i((child as Node2D).position / TILE)] = true
+	var in_passages := count / LAB_MONSTER_SHARE if not passages.is_empty() else 0
+	var tries := count * 20
+	var index := 0
+	while index < count and tries > 0:
+		tries -= 1
+		var cell: Vector2i
+		if index < in_passages:
+			var passage: Rect2i = passages[rng.randi() % passages.size()]
+			cell = passage.position + Vector2i(rng.randi_range(0, 1), rng.randi_range(0, 1))
+		else:
+			var room: Rect2i = rooms[rng.randi() % rooms.size()]
+			cell = Vector2i(
+				rng.randi_range(room.position.x + 1, room.end.x - 2),
+				rng.randi_range(room.position.y + 1, room.end.y - 2))
+		if placed.has(cell) or not _open.has(cell):
+			continue
+		placed[cell] = true
+		var monster := MONSTER_SCENE.instantiate()
+		monster.name = "Swarm%d" % index
+		monster.position = _world(cell)
+		monster.set(&"enemy", pool[rng.randi() % pool.size()])
+		monster.set(&"level", _definition.enemy_level)
+		monster.set(&"floor_number", _definition.floor_number)
+		map.add_child(monster)
+		index += 1
+
+
+## Tells the camp's people what the floor's modifier is, for the scout to mention.
+func _brief_camp(camp: FloorCamp) -> void:
+	camp.modifier = FloorRegistry.modifier_of(_definition.floor_number)
+	if camp.modifier == FloorModifier.Kind.STORM:
+		camp.weather = FloorModifier.weather_for(_biome.id)
+
+
+## What the floor's modifier ([FloorModifier]) does to the map itself: names it under
+## the map's title, and for a storm sets its weather, its tint and how late monsters
+## notice you. The camp has been told already ([method _brief_camp]).
+func _mark_modifier(map: Node2D) -> void:
+	var kind := FloorRegistry.modifier_of(_definition.floor_number)
+	if kind == FloorModifier.Kind.NONE:
+		return
+	var weather := FloorModifier.weather_for(_biome.id) if kind == FloorModifier.Kind.STORM else &""
+	map.set(&"modifier", kind)
+	map.set(&"region", "%s - %s" % [map.get(&"region"), FloorModifier.title(kind, weather)])
+	map.set_meta(&"modifier", kind)
+	if kind != FloorModifier.Kind.STORM or weather == &"":
+		return
+	map.set(&"weather", weather)
+	map.set(&"notice_scale", FloorTuning.STORM_NOTICE)
+	map.modulate *= Weather.tint(weather)
+	var storm := Weather.new()
+	storm.setup(weather)
+	map.add_child(storm)
 
 
 ## [param hidden_in] is the boss room the door hides in, in cells; empty puts it

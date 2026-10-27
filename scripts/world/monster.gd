@@ -274,7 +274,14 @@ func _notices(player: Player) -> bool:
 	if player == null or _calm > 0.0 or _sheltered(player):
 		return false
 	var offset := player.global_position - global_position
-	return offset.length() <= AGGRO_RADIUS and _can_see(player)
+	return offset.length() <= AGGRO_RADIUS * _notice_scale() and _can_see(player)
+
+
+## How far it notices you, as a share of [constant AGGRO_RADIUS]: its map's
+## ([member GameMap.notice_scale]) -- less in a storm.
+func _notice_scale() -> float:
+	var map := get_parent() as GameMap
+	return map.notice_scale if map != null else 1.0
 
 
 func _loses(player: Player, delta: float) -> bool:

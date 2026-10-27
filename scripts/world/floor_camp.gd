@@ -186,6 +186,10 @@ var village := false
 var open_field := false
 ## Whether it is a dungeon's, in its entrance hall: its people talk about levels.
 var dungeon := false
+## The floor's modifier ([enum FloorModifier.Kind]) and, in a storm, its weather:
+## the scout says a word about it. Set before [method place].
+var modifier := 0
+var weather: StringName = &""
 ## Each house's whole rect, in tiles, and which of the band's village tiles it
 ## is; planned whether or not the camp has settled, built only once it has.
 var houses: Array[Rect2i] = []
@@ -723,7 +727,14 @@ func _talk(index: int, role: String, handle: String, portrait: Texture2D,
 	var openings: Array = ROLES[_role_key(role)].duplicate()
 	if role == "local" and BIOME_LINES.has(_biome.id):
 		openings.append(BIOME_LINES[_biome.id])
-	talk.lines.append(_line(_pick(openings, words), []))
+	var opening := _line(_pick(openings, words), [])
+	talk.lines.append(opening)
+	# The scout's word on the floor's modifier, after the opening it falls through
+	# from: a continuation, never an entry. Fixed words, so no stream moves.
+	var remark := FloorModifier.camp_line(modifier, weather) if role == "scout" else ""
+	if not remark.is_empty():
+		opening.next = &""
+		talk.lines.append(_line(remark, []))
 	return talk
 
 

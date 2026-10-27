@@ -210,8 +210,10 @@ static func floor_name(floor_number: int) -> String:
 func _state_line(floor_number: int) -> String:
 	if floor_number <= 0:
 		return " "
+	var state := "The front line: its boss stands."
 	if floor_number == _here:
-		return "You are standing on it."
-	if GameState.is_floor_cleared(floor_number):
-		return "Cleared."
-	return "The front line: its boss stands."
+		state = "You are standing on it."
+	elif GameState.is_floor_cleared(floor_number):
+		state = "Cleared."
+	var twist := FloorModifier.name_of(floor_number)
+	return state if twist.is_empty() else "%s  %s." % [state, twist]

@@ -54,6 +54,13 @@ const DROPPED_COL_SCENE := preload("res://scenes/world/dropped_col.tscn")
 ## Rooms inside [member dark_area] that are never dark, in cells: a dungeon's
 ## entrance hall, where its camp keeps the lamps lit, and its boss hall.
 @export var lit_areas: Array[Rect2i] = []
+## The floor's modifier ([enum FloorModifier.Kind]), announced on arrival; and, for
+## a storm, its weather -- the [Weather] the generator hangs over the map.
+@export var modifier := 0
+@export var weather: StringName = &""
+## How far a [Monster] notices you, as a share of [constant Monster.AGGRO_RADIUS]:
+## less in a storm.
+@export var notice_scale := 1.0
 
 var _player: Player = null
 var _walls: TileMapLayer = null
@@ -101,6 +108,9 @@ func _ready() -> void:
 	if not pile.is_empty():
 		_on_col_dropped(pile["map"], pile["position"], pile["amount"])
 	EventBus.col_dropped.connect(_on_col_dropped)
+	if tracks:
+		EventBus.floor_announced.emit(FloorModifier.title(modifier, weather),
+				FloorModifier.blurb(modifier, weather))
 
 
 ## A loaded game puts the player back on the spot they saved on, facing the way

@@ -454,6 +454,49 @@ func _run() -> void:
 	_check(moved.is_empty(), "a floor's puzzles move nothing its own seed put down%s" % (
 			"" if moved.is_empty() else " -- they do on " + ", ".join(moved)))
 
+	# --- modifiers ---
+	# About one generated floor in five carries a twist, on a stream of its own:
+	# never an authored floor, floor 2 or the top, and a storm only under a sky.
+	var modified := 0
+	var by_modifier: Dictionary[int, int] = {}
+	var misplaced := PackedStringArray()
+	var picks_here := PackedStringArray()
+	var picks_there := PackedStringArray()
+	for floor_number in range(1, FloorTuning.TOP_FLOOR + 1):
+		var kind := FloorRegistry.modifier_of(floor_number)
+		picks_here.append(str(kind))
+		picks_there.append(str(FloorRegistry.modifier_in(999, floor_number)))
+		if kind == FloorModifier.Kind.NONE:
+			continue
+		modified += 1
+		by_modifier[kind] = by_modifier.get(kind, 0) + 1
+		if FloorRegistry.get_floor(floor_number).is_authored() or floor_number <= 2 \
+				or floor_number >= FloorTuning.TOP_FLOOR:
+			misplaced.append("%d" % floor_number)
+		elif kind == FloorModifier.Kind.STORM and (
+				FloorModifier.weather_for(FloorRegistry.biome_id(floor_number)) == &""
+				or FloorRegistry.shape_of(floor_number) == FloorDefinition.Shape.DUNGEON):
+			misplaced.append("%d (a storm with no sky)" % floor_number)
+	var infested: int = by_modifier.get(FloorModifier.Kind.INFESTED, 0)
+	var storms: int = by_modifier.get(FloorModifier.Kind.STORM, 0)
+	_check(misplaced.is_empty() and modified * 10 >= generated and modified * 10 <= generated * 3
+			and infested > 0 and storms > 0,
+			"%d of %d generated floors carry a modifier (%d infested, %d storms), where they may%s" % [
+				modified, generated, infested, storms,
+				"" if misplaced.is_empty() else " -- not on " + ", ".join(misplaced)])
+	_check(picks_here != picks_there, "another world puts its modifiers on other floors")
+	# And a modifier moves nothing the floor puts down: the floor without it, plus
+	# its swarm or its storm, and the scout in its camp saying so.
+	var twisted := PackedStringArray()
+	for floor_number in range(2, FloorTuning.TOP_FLOOR + 1):
+		if FloorRegistry.modifier_of(floor_number) != FloorModifier.Kind.NONE:
+			var problem := _audit_modifier(floor_number)
+			if not problem.is_empty():
+				twisted.append(problem)
+	_check(twisted.is_empty(),
+			"every modified floor is the floor it would be without, plus its swarm or its storm%s" % (
+				"" if twisted.is_empty() else " -- " + ", ".join(twisted)))
+
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
 	for floor_number in FloorRegistry.AUTHORED:
@@ -2313,6 +2356,83 @@ func _monsters_stay(with: Node2D, without: Node2D) -> bool:
 			if twin == null or twin.position.distance_to((child as Node2D).position) > TILE + 0.5:
 				return false
 	return true
+
+
+## A floor with a modifier against the same floor without one (see [FloorModifier]),
+## level by level: everything the floor puts down where it was, and on top only what
+## the modifier adds -- [method FloorTuning.infested_count] more monsters, or the
+## storm's weather, tint and late noticing. Empty if so.
+func _audit_modifier(floor_number: int) -> String:
+	var kind := FloorRegistry.modifier_of(floor_number)
+	var weather := FloorModifier.weather_for(FloorRegistry.biome_id(floor_number)) \
+			if kind == FloorModifier.Kind.STORM else &""
+	var title := FloorModifier.title(kind, weather)
+	var label := "floor %d (%s)" % [floor_number, title]
+	var swarm := 0
+	for level in range(1, FloorRegistry.levels_of(floor_number) + 1):
+		var with := FloorRegistry.build_floor(floor_number, level) as GameMap
+		FloorGenerator.modifier_override = FloorModifier.Kind.NONE
+		var without := FloorRegistry.build_floor(floor_number, level) as GameMap
+		FloorGenerator.modifier_override = -1
+		var problem := ""
+		var storm := with.get_node_or_null("Weather") as Weather
+		if _plain_signature(with) != _plain_signature(without):
+			problem = "%s level %d moved what the floor put down" % [label, level]
+		elif with.modifier != kind or not with.region.ends_with(" - " + title):
+			problem = "%s level %d is not named for it (%s)" % [label, level, with.region]
+		elif kind == FloorModifier.Kind.STORM and (storm == null or storm.kind != weather
+				or with.weather != weather or with.notice_scale != FloorTuning.STORM_NOTICE
+				or not with.modulate.is_equal_approx(without.modulate * Weather.tint(weather))):
+			problem = "%s level %d has no storm over it" % [label, level]
+		elif kind != FloorModifier.Kind.STORM and (storm != null or with.notice_scale != 1.0):
+			problem = "%s level %d has a storm it shouldn't" % [label, level]
+		elif level == 1 and with.get_node_or_null("Camper0") is Npc \
+				and not _says(with.get_node("Camper0") as Npc, FloorModifier.camp_line(kind, weather)):
+			problem = "%s's scout says nothing about it" % label
+		for child in with.get_children():
+			if child is Monster and String(child.name).begins_with("Swarm"):
+				swarm += 1
+		with.free()
+		without.free()
+		if not problem.is_empty():
+			return problem
+	var wanted := FloorTuning.infested_count(floor_number) if kind == FloorModifier.Kind.INFESTED else 0
+	if swarm != wanted:
+		return "%s carries %d monsters more, not %d" % [label, swarm, wanted]
+	return ""
+
+
+## Everything on [param map] but what a modifier adds or changes: its tiles, every
+## node but the swarm and the weather where it stands, and the map's own settings
+## bar its tint and its region.
+func _plain_signature(map: GameMap) -> String:
+	var parts := PackedStringArray()
+	for layer_name in ["Ground", "Walls", MapDresser.PROPS, MapDresser.DECOR]:
+		parts.append(_layer_signature(map, layer_name))
+	for child in map.get_children():
+		if String(child.name).begins_with("Swarm") or child is Weather:
+			continue
+		var line := "%s %s" % [child.name, child.get_class()]
+		if child is Node2D:
+			line += " %s" % (child as Node2D).position
+		if child is Monster:
+			line += " %s %d" % [(child as Monster).enemy.id, (child as Monster).level]
+		parts.append(line)
+	parts.append("%s %s %s %s %s" % [map.map_id, map.dark_area, map.landmarks, map.safe_zones, map.lit_areas])
+	for meta in map.get_meta_list():
+		if meta != &"modifier":
+			parts.append("%s=%s" % [meta, map.get_meta(meta)])
+	return "\n".join(parts)
+
+
+## Whether [param npc]'s conversation has a line saying [param text].
+func _says(npc: Npc, text: String) -> bool:
+	if npc.dialogue == null:
+		return false
+	for line in npc.dialogue.lines:
+		if line.text == text:
+			return true
+	return false
 
 
 ## Cheap structural hash of a generated map, for comparing two generations.
