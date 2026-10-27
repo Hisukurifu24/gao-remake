@@ -13,8 +13,9 @@ extends Resource
 ## which decides it per world. [b]CLASSIC[/b] is a field with a labyrinth on one
 ## side and the door hidden in it; [b]OPEN_FIELD[/b] has no labyrinth, a bigger
 ## field, and the boss in an arena in plain sight, sealed by waystones out in the
-## field; [b]TOWER[/b] is several small maps joined by stairs (not built yet).
-enum Shape { CLASSIC, OPEN_FIELD, TOWER }
+## field; [b]DUNGEON[/b] is levels of small dark maps joined by sealed stairs,
+## climbed to the boss at the top -- see [DungeonGenerator].
+enum Shape { CLASSIC, OPEN_FIELD, DUNGEON }
 
 @export var floor_number := 1
 @export var display_name := ""

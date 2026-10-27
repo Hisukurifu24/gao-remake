@@ -231,6 +231,7 @@ func _run() -> void:
 	await _test_puzzles(world_root)
 	await _test_village(world_root)
 	await _test_open_field(world_root)
+	await _test_dungeon(world_root)
 
 
 ## The hidden door on a real generated floor: not there until you walk into its
@@ -833,6 +834,156 @@ func _test_open_field(world_root: Node2D) -> void:
 	await get_tree().create_timer(SealedDoor.OPEN_TIME + 0.2).timeout
 	await _physics(2)
 	_check(seal.get_node("Solid").get_child(0).disabled, "and the gate can be walked through")
+	FloorGenerator.shape_override = -1
+
+
+## A dungeon, built as floor 2 for the occasion, on a world whose first level is
+## sealed by levers and second by a warden: the entrance hall is lit and the rest is
+## dark, the seal says what opens it, pulling the levers with real E presses opens
+## it, the ladder climbs to level 2 (its own map, [code]floor://2/2[/code]) and the
+## stairs there come back down to the ladder; beating the warden opens level 2's,
+## the top level's door is found as you arrive, a save made up there comes back up
+## there.
+func _test_dungeon(world_root: Node2D) -> void:
+	FloorGenerator.shape_override = FloorDefinition.Shape.DUNGEON
+	var picked := 0
+	for candidate in range(1, 600):
+		GameState.new_world_seed(candidate)
+		var kinds := DungeonGenerator.seal_kinds(FloorRegistry.seed_for(2), FloorRegistry.levels_of(2))
+		if kinds[1] != DungeonGenerator.Seal.LEVERS or kinds[2] != DungeonGenerator.Seal.WARDEN:
+			continue
+		var probe := FloorRegistry.build_floor(2, 1)
+		var by_levers: bool = probe.get_meta(&"seal", "") == "levers"
+		probe.free()
+		if by_levers:
+			picked = candidate
+			break
+	_check(picked > 0, "some world seed's floor 2, built as a dungeon, is sealed by levers and then a warden")
+	if picked == 0:
+		FloorGenerator.shape_override = -1
+		return
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	var map := world_root.get_child(0) as GameMap
+	var player := map.get_node("Player") as Player
+	for child in map.get_children():
+		if child is Monster:
+			child.queue_free()
+	await _physics(2)
+	var seal := map.get_node_or_null("StairsSeal") as SealedDoor
+	_check(map.map_id == &"floor_2" and GameState.current_map_path == "floor://2"
+			and "Level 1 of 3" in map.region and map.darkness() != null
+			and map.lit_areas.has(map.get_meta(&"camp")) and seal != null
+			and map.get_node_or_null("TeleportGate") != null,
+			"a dungeon's first level is the floor's own map: a lit entrance hall with the gate, then the dark")
+	_check(MapPage.status_line(map).ends_with("stairs sealed"), "the map screen says its stairs are sealed")
+
+	_line_spy.clear()
+	DialogueRunner.line_shown.connect(_spy_text)
+	seal.interact(player)
+	await _close_dialogue()
+	DialogueRunner.line_shown.disconnect(_spy_text)
+	_check(not seal.is_opened() and _line_spy.size() > 0 and "lever" in _line_spy[-1],
+			"the slab across the ladder is sealed, and says levers are what opens it")
+	var levers: Array[Waystone] = []
+	for child in map.get_children():
+		if child is Waystone:
+			levers.append(child as Waystone)
+	for lever in levers:
+		player.global_position = lever.global_position + Vector2(0, 14)
+		player.facing = Vector2.UP
+		await _physics(4)
+		await get_tree().create_timer(Player.INTERACT_GRACE + 0.05).timeout
+		await _tap(&"interact")
+		await _close_dialogue()
+		await _idle(2)
+	_check(levers.size() == 2 and seal.is_opened(), "pulling both levers opens the stairs")
+	await get_tree().create_timer(SealedDoor.OPEN_TIME + 0.2).timeout
+	await _physics(2)
+
+	# Up the ladder, onto a map of its own; and down again to the foot of the ladder.
+	player.global_position = (map.get_node("SpawnPoints/stairs_up") as Node2D).global_position
+	player.facing = Vector2.UP
+	await _physics(4)
+	await get_tree().create_timer(Player.INTERACT_GRACE + 0.05).timeout
+	await _tap(&"interact")
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	player = map.get_node("Player") as Player
+	_check(map.map_id == &"floor_2_2"
+			and GameState.current_map_path == "floor://2/2" and GameState.current_floor == 2
+			and _at_spawn(map, &"stairs_down"),
+			"the ladder climbs to level 2, its own map, arriving at its stairs down")
+	for child in map.get_children():
+		if child is Monster and child.name != "Warden":
+			child.queue_free()
+	await _physics(2)
+	player.global_position = (map.get_node("StairsDown") as Node2D).global_position + Vector2(0, 14)
+	player.facing = Vector2.UP
+	await _physics(4)
+	await get_tree().create_timer(Player.INTERACT_GRACE + 0.05).timeout
+	await _tap(&"interact")
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	_check(map.map_id == &"floor_2" and _at_spawn(map, &"stairs_up")
+			and (map.get_node("StairsSeal") as SealedDoor).is_opened(),
+			"the stairs down come back to the foot of the ladder, and the seal stays open")
+
+	# Level 2's warden: beaten, it stays beaten, and its fall opens the way up.
+	await SceneRouter.enter_floor(2, &"stairs_down", SceneRouter.FADE_TIME, 2)
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	player = map.get_node("Player") as Player
+	var warden := map.get_node_or_null("Warden") as Monster
+	_check(warden != null and warden.level > FloorTuning.enemy_level(2) and warden.defeat_flag != &"",
+			"level 2's stairs are kept by a warden, stronger than the level's monsters")
+	if warden == null:
+		FloorGenerator.shape_override = -1
+		return
+	for child in map.get_children():
+		if child is Monster and child != warden:
+			child.queue_free()
+	player.global_position = warden.global_position + Vector2(0, 16)
+	player.facing = Vector2.UP
+	await _physics(2)
+	warden.interact(player)
+	await _auto_battle()
+	await _idle(4)
+	seal = map.get_node("StairsSeal") as SealedDoor
+	_check(not is_instance_valid(warden) or warden.is_queued_for_deletion(), "the warden falls")
+	_check(seal.is_opened() and GameState.has_flag(DungeonGenerator.stairs_flag(2, 2)),
+			"and its fall opens level 2's stairs")
+	await _close_dialogue()
+	await SceneRouter.enter_floor(2, &"stairs_down", SceneRouter.FADE_TIME, 2)
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	_check(map.get_node_or_null("Warden") == null, "a beaten warden stays beaten when you come back")
+
+	# The top: the boss hall lit at the end of a short walk, its door found as you arrive.
+	GameState.set_flag(BossGate.found_flag(2), false)
+	await SceneRouter.enter_floor(2, &"stairs_down", SceneRouter.FADE_TIME, 3)
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	player = map.get_node("Player") as Player
+	var door := map.get_node_or_null("BossGate") as BossGate
+	_check(door != null and door.revealed and GameState.has_flag(BossGate.found_flag(2))
+			and map.get_node_or_null("LadderUp") == null and "Level 3 of 3" in map.region,
+			"the top level is the boss hall, its door in plain view and found as you arrive")
+
+	# A save on the top level comes back to the top level.
+	player.global_position = (map.get_node("SpawnPoints/default") as Node2D).global_position + Vector2(16, 0)
+	await _physics(2)
+	var snapshot := SaveGame.snapshot()
+	_check(snapshot["place"]["map"] == "floor://2/3", "a save on a dungeon's level names the level")
+	await SceneRouter.enter_floor(2, &"default")
+	await _until_unlocked()
+	var place: Dictionary = snapshot["place"]
+	await SceneRouter.resume(place["map"], Vector2(place["x"], place["y"]), Vector2.UP)
+	await _until_unlocked()
+	map = world_root.get_child(0) as GameMap
+	player = map.get_node("Player") as Player
+	_check(map.map_id == &"floor_2_3" and player.position.distance_to(Vector2(place["x"], place["y"])) < 1.0,
+			"and loading it puts you back on that level, on the spot")
 	FloorGenerator.shape_override = -1
 
 

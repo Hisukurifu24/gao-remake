@@ -76,6 +76,24 @@ static func open_field_size(floor_number: int) -> Vector2i:
 	return Vector2i(roundi(map_size(floor_number).x * 1.3), roundi(map_size(floor_number).y * 1.3))
 
 
+## A dungeon's levels ([enum FloorDefinition.Shape]): three low down, four from
+## floor 40, five from floor 80. The boss is on the top one.
+static func dungeon_levels(floor_number: int) -> int:
+	return clampi(3 + floor_number / 40, 3, 5)
+
+
+## A dungeon level's rooms and corridors, before the stair chamber is built onto a
+## side of it -- about a view and three-quarters across, two down, on floor 2 (34x24),
+## and 46x32 near the top. A level is small; the floor is its levels.
+static func dungeon_level_size(floor_number: int) -> Vector2i:
+	return Vector2i(34 + floor_number / 8, 24 + floor_number / 12)
+
+
+## Rooms on each of a dungeon's levels below the top.
+static func dungeon_room_count(floor_number: int) -> int:
+	return clampi(4 + floor_number / 30, 4, 7)
+
+
 static func room_count(floor_number: int) -> int:
 	return clampi(6 + floor_number / 8, 6, 18)
 

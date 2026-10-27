@@ -33,7 +33,8 @@ const BIOME_PATH := "res://resources/biomes/%s.tres"
 ## The share of floors a world lays out the classic way. See [method shape_of].
 const SHAPE_CLASSIC := 0.6
 ## The shapes [FloorGenerator] can build. A floor that picks any other is classic.
-const BUILT_SHAPES: Array[int] = [FloorDefinition.Shape.CLASSIC, FloorDefinition.Shape.OPEN_FIELD]
+const BUILT_SHAPES: Array[int] = [FloorDefinition.Shape.CLASSIC, FloorDefinition.Shape.OPEN_FIELD,
+		FloorDefinition.Shape.DUNGEON]
 
 var _floors: Dictionary[int, FloorDefinition] = {}
 ## world seed -> every floor's picked shape, by [method _pick_shapes].
@@ -125,18 +126,29 @@ func _pick_shapes(world_seed: int) -> Array[int]:
 			if roll >= SHAPE_CLASSIC:
 				pick = FloorDefinition.Shape.OPEN_FIELD \
 						if roll < SHAPE_CLASSIC + (1.0 - SHAPE_CLASSIC) / 2.0 \
-						else FloorDefinition.Shape.TOWER
+						else FloorDefinition.Shape.DUNGEON
 			if pick == picks[n - 1]:
 				pick = FloorDefinition.Shape.CLASSIC
 		picks.append(pick)
 	return picks
 
 
-func build_floor(floor_number: int) -> Node2D:
+## Builds floor [param floor_number] -- its [param level], on a dungeon, which is
+## several maps; every other floor has one and ignores it.
+func build_floor(floor_number: int, level := 1) -> Node2D:
 	var definition := get_floor(floor_number)
 	if definition.is_authored():
 		return definition.authored_scene.instantiate()
-	return FloorGenerator.generate(definition, seed_for(floor_number))
+	return FloorGenerator.generate(definition, seed_for(floor_number), level)
+
+
+## How many maps floor [param floor_number] is climbed through: a dungeon's levels,
+## or one.
+func levels_of(floor_number: int) -> int:
+	if get_floor(floor_number).is_authored() \
+			or shape_of(floor_number) != FloorDefinition.Shape.DUNGEON:
+		return 1
+	return FloorTuning.dungeon_levels(floor_number)
 
 
 func _synthesise(floor_number: int) -> FloorDefinition:

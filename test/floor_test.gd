@@ -83,6 +83,13 @@ var _lost_players := 0
 var _arenas := 0
 var _whole_arenas := 0
 var _open_safe_zones := 0
+## Gathered by [method _audit_dungeon] across every dungeon floor.
+var _dungeons := 0
+var _dungeon_levels := 0
+## Seals on dungeon levels, by [enum DungeonGenerator.Seal].
+var _seals: Dictionary[int, int] = {}
+var _landings := 0
+var _tightest_seal_burn := INF
 
 
 func _ready() -> void:
@@ -323,6 +330,11 @@ func _run() -> void:
 		if definition.is_authored():
 			continue
 		generated += 1
+		if FloorRegistry.shape_of(floor_number) == FloorDefinition.Shape.DUNGEON:
+			var climbed := _audit_dungeon(floor_number)
+			if not climbed.is_empty():
+				broken.append(climbed)
+			continue
 		var map := FloorGenerator.generate(definition, FloorRegistry.seed_for(floor_number))
 		# Before the audit breaks its cracked wall and opens its vault.
 		var unsettled := _outside(map, map.get_meta(&"camp", Rect2i()))
@@ -343,7 +355,7 @@ func _run() -> void:
 			"" if broken.is_empty() else " -- " + ", ".join(broken)])
 	# The door is somewhere in the far third of the maze, not in its farthest corner
 	# every time -- or the labyrinth is a corridor with a known end.
-	_check(_lab_floors + _arenas == generated and _lab_not_farthest * 4 >= _lab_floors,
+	_check(_lab_floors + _arenas + _dungeons == generated and _lab_not_farthest * 4 >= _lab_floors,
 			"the boss room is not always the labyrinth's farthest point (%d of %d floors aren't)" % [
 				_lab_not_farthest, _lab_floors])
 	# Some floors, not all and not one in ten: the peddler is a stroke of luck.
@@ -357,6 +369,24 @@ func _run() -> void:
 	_check(_whole_arenas * 10 >= _arenas * 9 and _open_safe_zones * 10 >= _arenas * 9,
 			"%d of %d arenas are sealed by all %d waystones, %d with a safe zone in the field" % [
 				_whole_arenas, _arenas, FloorGenerator.WAYSTONES, _open_safe_zones])
+	# Dungeons: about as many as open fields, each climbed level by level through
+	# sealed stairs (every level walked in the sweep above). Every kind of seal turns
+	# up, the warden -- who stands in for a seal with no room -- not the most of them,
+	# and nearly every dungeon rests you halfway up.
+	var wardens: int = _seals.get(DungeonGenerator.Seal.WARDEN, 0)
+	var sealed := 0
+	var by_kind := PackedStringArray()
+	for kind in DungeonGenerator.SEAL_NAMES.size():
+		sealed += _seals.get(kind, 0)
+		by_kind.append("%d %s" % [_seals.get(kind, 0), DungeonGenerator.SEAL_NAMES[kind]])
+	_check(_dungeons * 10 >= generated and _dungeons * 2 <= generated,
+			"%d of %d generated floors are dungeons, %d levels in all" % [_dungeons, generated, _dungeon_levels])
+	_check(_seals.size() == DungeonGenerator.SEAL_NAMES.size() and wardens * 2 <= sealed,
+			"every kind of seal holds a dungeon's stairs (%s)" % ", ".join(by_kind))
+	_check(_landings * 10 >= _dungeons * 8,
+			"%d of %d dungeons have a landing with a fire halfway up" % [_landings, _dungeons])
+	_check(_tightest_seal_burn >= 1.25,
+			"a timed rite on the stairs burns long enough to walk round (tightest: %.2fx the walk)" % _tightest_seal_burn)
 	var shortest := 1 << 30
 	for walk in _lab_walks:
 		shortest = mini(shortest, walk)
@@ -387,25 +417,27 @@ func _run() -> void:
 				plain, alarms, teleports])
 	# Puzzles: solvable wherever they are (in the audit above), and on nearly every
 	# floor -- a puzzle that only turns up on a third of them is a rumour.
+	# Not on a dungeon, whose puzzles are its seals (above).
+	var fields := generated - _dungeons
 	var timed: int = _rites.get(BrazierRite.Mode.TIMED, 0)
 	var ordered: int = _rites.get(BrazierRite.Mode.ORDERED, 0)
-	_check(_wisps * 10 >= generated * 9 and _shortest_wisp >= 12,
+	_check(_wisps * 10 >= fields * 9 and _shortest_wisp >= 12,
 			"a wisp leads somewhere on %d of %d floors (shortest lead: %d cells)" % [
-				_wisps, generated, _shortest_wisp])
-	_check((timed + ordered) * 10 >= generated * 9 and timed > 0 and ordered > 0,
+				_wisps, fields, _shortest_wisp])
+	_check((timed + ordered) * 10 >= fields * 9 and timed > 0 and ordered > 0,
 			"braziers wait on %d of %d floors (%d timed, %d ordered)" % [
-				timed + ordered, generated, timed, ordered])
+				timed + ordered, fields, timed, ordered])
 	_check(_tightest_burn >= 1.25,
 			"a timed rite always burns long enough to walk round (tightest: %.2fx the walk)" % _tightest_burn)
-	_check(_rings * 10 >= generated * 9 and _fewest_ring_turns >= FloorPuzzles.RING_TURNS_MIN,
+	_check(_rings * 10 >= fields * 9 and _fewest_ring_turns >= FloorPuzzles.RING_TURNS_MIN,
 			"statues turn on %d of %d floors, %d to %d turns from facing in" % [
-				_rings, generated, _fewest_ring_turns, _most_ring_turns])
-	_check(_vaults * 4 >= generated * 3 and _gilded_sigils > 0,
+				_rings, fields, _fewest_ring_turns, _most_ring_turns])
+	_check(_vaults * 4 >= fields * 3 and _gilded_sigils > 0,
 			"a sealed vault stands on %d of %d floors (a sigil under a gilded chest on %d)" % [
-				_vaults, generated, _gilded_sigils])
-	_check(_cracks * 4 >= generated * 3 and _cracks_in_trees > 0,
+				_vaults, fields, _gilded_sigils])
+	_check(_cracks * 4 >= fields * 3 and _cracks_in_trees > 0,
 			"a cracked wall hides a hollow on %d of %d floors (%d of them in a forest)" % [
-				_cracks, generated, _cracks_in_trees])
+				_cracks, fields, _cracks_in_trees])
 	print("       (%d of them in a north wall, facing you; the rest in a side wall)" % _cracks_facing)
 	# Puzzles draw on a stream of their own: the floor without them is the same
 	# floor -- the same chests, the same monsters, the same door.
@@ -794,6 +826,286 @@ func _audit_arena(map: GameMap, walls: TileMapLayer, gate: Node, start: Vector2i
 			return "%s has %s starting in its safe zone" % [label, child.name]
 	_open_safe_zones += 1
 	return ""
+
+
+## A dungeon floor is its levels, and each is held to what a classic floor is held
+## to on its own map -- sealed ring, reachable chests, a fight stageable wherever
+## one can start -- plus the one thing a level adds: its ladder up stands in a
+## chamber walled all round but for a doorway, the seal in the doorway keeps you
+## out until whatever this level hides opens it, every piece of that can be walked
+## up to with the seal shut, and the ladder can be walked up to with it open. The
+## first level is the entrance hall, with the camp and the gate; the top is the boss
+## hall, lit, with its door found as you arrive. Across the levels the floor carries
+## its full count of monsters, so the boss's balance is the floor's.
+func _audit_dungeon(floor_number: int) -> String:
+	var floor_label := "dungeon floor %d" % floor_number
+	var levels := FloorRegistry.levels_of(floor_number)
+	if levels != FloorTuning.dungeon_levels(floor_number) or levels < 3:
+		return "%s has %d levels" % [floor_label, levels]
+	var monsters := 0
+	var unsettled := ""
+	var camp := Rect2i()
+	for level in range(1, levels + 1):
+		var map := FloorRegistry.build_floor(floor_number, level) as GameMap
+		if level == 1:
+			camp = map.get_meta(&"camp", Rect2i())
+			unsettled = _outside(map, camp)
+		var problem := _audit_level(map, floor_number, level, levels)
+		for child in map.get_children():
+			if child is Monster and (child as Monster).defeat_flag == &"":
+				monsters += 1
+		map.free()
+		if not problem.is_empty():
+			return problem
+		_dungeon_levels += 1
+	if monsters < FloorTuning.monster_count(floor_number):
+		return "%s carries %d monsters across its levels, not %d" % [floor_label, monsters,
+				FloorTuning.monster_count(floor_number)]
+	if LocalQuests.settles(floor_number):
+		FloorCamp.settle_override = 1
+		var settled := FloorRegistry.build_floor(floor_number, 1) as GameMap
+		FloorCamp.settle_override = -1
+		var problem := _audit_village(settled, camp, unsettled, floor_number)
+		settled.free()
+		if not problem.is_empty():
+			return problem
+	_dungeons += 1
+	return ""
+
+
+## One of a dungeon's levels -- see [method _audit_dungeon].
+func _audit_level(map: GameMap, floor_number: int, level: int, levels: int) -> String:
+	var label := "floor %d level %d" % [floor_number, level]
+	var walls := map.get_node_or_null("Walls") as TileMapLayer
+	var spawns := map.get_node_or_null("SpawnPoints")
+	if walls == null or spawns == null:
+		return "%s is missing Walls/SpawnPoints" % label
+	if map.map_id != DungeonGenerator.map_id_for(floor_number, level) \
+			or map.get_meta(&"dungeon_level", 0) != level or map.floor_number != floor_number:
+		return "%s calls itself %s" % [label, map.map_id]
+	var start: Vector2i = walls.local_to_map((spawns.get_node("default") as Node2D).position)
+	if walls.get_cell_source_id(start) != -1:
+		return "%s spawns inside a wall" % label
+	for spawn_name in ["stairs_down", "stairs_up", "from_below", "from_above"]:
+		if spawns.get_node_or_null(spawn_name) == null:
+			return "%s has no %s spawn" % [label, spawn_name]
+
+	# Sealed all round and dark all over, as a labyrinth is.
+	var bounds := walls.get_used_rect()
+	if bounds.position != Vector2i.ZERO:
+		return "%s does not start at the origin" % label
+	for cell in _ring(bounds):
+		if not _sealed(walls, cell):
+			return "%s has a hole in its outer wall at %s" % [label, cell]
+	if map.dark_area != bounds:
+		return "%s is dark over %s, not all of its %s" % [label, map.dark_area, bounds]
+
+	var reachable := _flood(walls, start)
+	var trapped := _audit_chests(map, walls, reachable, label, true)
+	if not trapped.is_empty():
+		return trapped
+	var down := map.get_node_or_null("StairsDown") as Node2D
+	if down == null or not reachable.has(walls.local_to_map(down.position)):
+		return "%s's stairs down can't be reached" % label
+	if level == 1:
+		if down.get(&"target_floor") != floor_number - 1 or down.get(&"target_level") != 0:
+			return "%s's stairs down don't go to floor %d" % [label, floor_number - 1]
+		var gated := _audit_teleport_gate(map, walls, start, floor_number, label)
+		if not gated.is_empty():
+			return gated
+		var camped := _audit_camp(map, walls, start, floor_number)
+		if not camped.is_empty():
+			return camped.replace("floor %d" % floor_number, label)
+		if not map.lit_areas.has(map.get_meta(&"camp")):
+			return "%s's entrance hall is in the dark" % label
+	elif down.get(&"target_floor") != floor_number or down.get(&"target_level") != level - 1 \
+			or down.get(&"target_spawn") != &"stairs_up":
+		return "%s's stairs down don't go to level %d's ladder" % [label, level - 1]
+
+	var chamber: Rect2i = map.get_meta(&"chamber", Rect2i())
+	var room: Rect2i = map.get_meta(&"chamber_room", Rect2i())
+	var door: Rect2i = map.get_meta(&"chamber_door", Rect2i())
+	if not chamber.encloses(room) or not door.has_area() or not chamber.intersects(door):
+		return "%s has no chamber" % label
+	# Walled all round but for its doorway, and the doorway is the way in.
+	for y in range(chamber.position.y, chamber.end.y):
+		for x in range(chamber.position.x, chamber.end.x):
+			var cell := Vector2i(x, y)
+			var open := walls.get_cell_source_id(cell) == -1
+			if door.has_point(cell) and not open:
+				return "%s's chamber doorway is walled up at %s" % [label, cell]
+			if open and not room.has_point(cell) and not door.has_point(cell):
+				return "%s's chamber wall is open at %s" % [label, cell]
+	for child in map.get_children():
+		if (child is Monster or child is Chest) and chamber.has_point(walls.local_to_map((child as Node2D).position)):
+			return "%s has %s in its chamber" % [label, child.name]
+
+	if level == levels:
+		return _audit_top(map, walls, start, reachable, room, label, floor_number)
+
+	var ladder := map.get_node_or_null("LadderUp") as Node2D
+	var ladder_cell := walls.local_to_map(ladder.position) if ladder != null else Vector2i(-1, -1)
+	if ladder == null or not room.has_point(ladder_cell) or ladder.get(&"target_level") != level + 1 \
+			or ladder.get(&"target_spawn") != &"stairs_down" or not ladder.get(&"going_up"):
+		return "%s's ladder up is not in its chamber, or doesn't go to level %d" % [label, level + 1]
+	var arrives := walls.local_to_map((spawns.get_node("stairs_up") as Node2D).position)
+	if not room.has_point(arrives) or (arrives - ladder_cell).length() > 1.5:
+		return "%s's stairs_up spawn is not in front of its ladder" % label
+	if _flood_except(walls, start, door).has(ladder_cell):
+		return "%s's ladder can be reached without going through the chamber doorway" % label
+	var seal := map.get_node_or_null("StairsSeal") as SealedDoor
+	if seal == null or not door.has_point(walls.local_to_map(seal.position)):
+		return "%s's chamber doorway has no seal in it" % label
+	if not seal.opens_itself or seal.sigils.is_empty() \
+			or seal.opened_flag != DungeonGenerator.stairs_flag(floor_number, level):
+		return "%s's seal does not open itself on its pieces" % label
+	var kind := DungeonGenerator.SEAL_NAMES.find(str(map.get_meta(&"seal", "")))
+	if kind < 0:
+		return "%s has no seal kind" % label
+
+	# Shut: the ladder is out of reach, and the seal and every piece can be walked up to.
+	map.refresh_solids()
+	var shut := _flood_standable(map, start)
+	if shut.has(ladder_cell) or shut.has(arrives):
+		return "%s's ladder can be walked up to with the seal shut" % label
+	if not _beside_rect(door, shut):
+		return "%s's seal cannot be walked up to" % label
+	var piece_problem := _audit_seal_pieces(map, walls, kind, seal, shut, chamber, label)
+	if not piece_problem.is_empty():
+		return piece_problem
+	_seals[kind] = _seals.get(kind, 0) + 1
+
+	# A landing, where there is one: the middle level, a fire in a room no monster
+	# starts in.
+	if map.has_meta(&"safe_zone"):
+		var landing: Rect2i = map.get_meta(&"safe_zone")
+		if level != DungeonGenerator.landing_level(levels):
+			return "%s has a landing, and it is not the middle level" % label
+		var fire := map.get_node_or_null("Campfire") as Campfire
+		if not map.safe_zones.has(landing) or fire == null or not fire.rests \
+				or not landing.has_point(walls.local_to_map(fire.position - Vector2(0, 8))):
+			return "%s's landing has no fire in it" % label
+		if not _approachable(walls, fire, shut):
+			return "%s's landing fire cannot be walked up to" % label
+		for child in map.get_children():
+			if child is Monster and landing.has_point(walls.local_to_map((child as Node2D).position)):
+				return "%s has %s starting on its landing" % [label, child.name]
+		_landings += 1
+
+	# Open: the ladder can be walked up to, and a fight staged anywhere on the level.
+	_open_seal(map, "StairsSeal")
+	map.refresh_solids()
+	var open := _flood_standable(map, start)
+	if not open.has(arrives) or not _approachable(walls, ladder, open):
+		return "%s's ladder cannot be walked up to with the seal open" % label
+	_audit_formations(map, walls, start, _flood(walls, start), label)
+	return ""
+
+
+## The pieces of a level's seal: what each is, that each answers to one of the
+## seal's hollows, and that each can be walked up to -- [param shut] is every cell a
+## body can stand on with the seal shut -- outside the chamber.
+func _audit_seal_pieces(map: GameMap, walls: TileMapLayer, kind: int, seal: SealedDoor,
+		shut: Dictionary, chamber: Rect2i, label: String) -> String:
+	var pieces: Array[Node2D] = []
+	match kind:
+		DungeonGenerator.Seal.WARDEN:
+			var warden := map.get_node_or_null("Warden") as Monster
+			if warden == null or seal.sigils != ([warden.defeat_flag] as Array[StringName]):
+				return "%s's seal wants a warden's key and has no warden" % label
+			if warden.level <= FloorTuning.enemy_level(map.floor_number):
+				return "%s's warden is no stronger than its monsters" % label
+			if not shut.has(walls.local_to_map(warden.position)):
+				return "%s's warden stands where you can't walk" % label
+			if map.is_safe(warden.position):
+				return "%s's warden stands in a safe zone" % label
+		DungeonGenerator.Seal.LEVERS:
+			var flags: Array[StringName] = []
+			for child in map.get_children():
+				if child is Waystone:
+					var lever := child as Waystone
+					if lever.all_flags != seal.sigils or flags.has(lever.flag):
+						return "%s's %s is not one of the seal's hollows" % [label, lever.name]
+					flags.append(lever.flag)
+					pieces.append(lever)
+			if flags.size() != seal.sigils.size() or flags.size() != DungeonGenerator.LEVERS:
+				return "%s's seal wants %d levers and the level has %d" % [label, seal.sigils.size(), flags.size()]
+		DungeonGenerator.Seal.BRAZIERS:
+			var rite := map.get_node_or_null("BrazierRite") as BrazierRite
+			var tablet := map.get_node_or_null("Tablet") as Tablet
+			if rite == null or tablet == null or seal.sigils != ([rite.solved_flag] as Array[StringName]):
+				return "%s's seal wants its fires and has no rite" % label
+			if map.get_node_or_null("ChestRite") != null:
+				return "%s's rite pays in a chest as well as the stairs" % label
+			var approaches: Array = []
+			for brazier in rite.braziers:
+				pieces.append(brazier)
+				approaches.append(_beside(walls, brazier, shut))
+			pieces.append(tablet)
+			if rite.mode == BrazierRite.Mode.TIMED:
+				map.refresh_solids()
+				var seconds := _shortest_round(map, approaches) / FloorPuzzles.WALK_TILES_PER_SECOND
+				_tightest_seal_burn = minf(_tightest_seal_burn, rite.burn / maxf(seconds, 0.01))
+				if rite.burn < seconds * 1.25:
+					return "%s's fires burn %.1fs, and walking round them takes %.1fs" % [label, rite.burn, seconds]
+			elif tablet.lines[0].count(" the ") < rite.braziers.size():
+				return "%s's tablet does not name every fire" % label
+		DungeonGenerator.Seal.STATUES:
+			var ring := map.get_node_or_null("StatueRing") as StatueRing
+			var altar := map.get_node_or_null("StatueAltar") as StatueAltar
+			if ring == null or altar == null or seal.sigils != ([ring.solved_flag] as Array[StringName]):
+				return "%s's seal wants its statues turned and has no ring" % label
+			if map.get_node_or_null("ChestStatues") != null:
+				return "%s's ring pays in a chest as well as the stairs" % label
+			var facings: Array[int] = []
+			for statue in ring.statues:
+				pieces.append(statue)
+				facings.append(statue.facing)
+			pieces.append(altar)
+			var turns := StatueRing.turns_to_solve(facings, ring.targets)
+			var total := 0
+			for count in turns:
+				total += count
+			if turns.is_empty() or total < FloorPuzzles.RING_TURNS_MIN:
+				return "%s's statues are %d turns from facing in" % [label, total]
+	for piece in pieces:
+		if not _approachable(walls, piece, shut):
+			return "%s's %s cannot be walked up to with the seal shut" % [label, piece.name]
+		if chamber.has_point(walls.local_to_map(piece.position)):
+			return "%s's %s stands in the chamber it opens" % [label, piece.name]
+	return ""
+
+
+## A dungeon's top level: the boss hall, lit, its doorway open and its door in the
+## middle, found the moment the level is entered -- and the boss can be fought from
+## every cell the door can be challenged from.
+func _audit_top(map: GameMap, walls: TileMapLayer, start: Vector2i, reachable: Dictionary,
+		hall: Rect2i, label: String, floor_number: int) -> String:
+	var gate := map.get_node_or_null("BossGate") as BossGate
+	if gate == null or not hall.has_point(walls.local_to_map(gate.position)):
+		return "%s has no boss door in its hall" % label
+	if gate.reveal_area.has_area() or not gate.found_on_arrival:
+		return "%s hides its boss door" % label
+	if not reachable.has(walls.local_to_map(gate.position)):
+		return "%s's boss door can't be reached" % label
+	if not map.lit_areas.has(map.get_meta(&"chamber")):
+		return "%s's boss hall is in the dark" % label
+	if map.get_node_or_null("StairsSeal") != null or map.get_node_or_null("LadderUp") != null:
+		return "%s has a way further up" % label
+	map.refresh_solids()
+	if not _approachable(walls, gate, _flood_standable(map, start)):
+		return "%s's boss door cannot be walked up to" % label
+	_audit_boss_formations(map, walls, gate, reachable, floor_number, label)
+	return ""
+
+
+## Whether any cell next to [param rect] -- a doorway two cells square -- is in
+## [param walkable].
+func _beside_rect(rect: Rect2i, walkable: Dictionary) -> bool:
+	for cell in _ring(rect.grow(1)):
+		if walkable.has(cell):
+			return true
+	return false
 
 
 ## Every chest can be reached -- but the one behind a cracked wall, which is rock

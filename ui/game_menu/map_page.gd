@@ -77,7 +77,8 @@ func header() -> PackedStringArray:
 
 
 ## How much of the map is explored, and whether the door has been found -- the
-## two things a player opens the map to find out.
+## two things a player opens the map to find out. On a dungeon's level, whether its
+## stairs up are open.
 static func status_line(map: GameMap) -> String:
 	var ground := map.get_node_or_null("Ground") as TileMapLayer
 	var walls := map.get_node_or_null("Walls") as TileMapLayer
@@ -102,6 +103,10 @@ static func status_line(map: GameMap) -> String:
 			parts.append("door found")
 		else:
 			parts.append("door not found")
+	# A dungeon's level below the top: whether its way up is open yet.
+	var seal := map.get_node_or_null("StairsSeal") as SealedDoor
+	if seal != null:
+		parts.append("stairs open" if seal.is_opened() else "stairs sealed")
 	var pile := GameState.dropped_col()
 	if not pile.is_empty() and pile["map"] == map.map_id:
 		parts.append("%d col dropped" % pile["amount"])

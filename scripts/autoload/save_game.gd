@@ -23,7 +23,7 @@ extends Node
 ## (a [code].fight[/code] file beside the slot), so closing the game to get out of
 ## a losing one is losing it. A marathon is never saved at all.
 
-const VERSION := 3
+const VERSION := 4
 const SLOTS := 3
 const DIRECTORY := "user://saves"
 
@@ -261,6 +261,24 @@ func _migrate(data: Dictionary, from_version: int) -> Dictionary:
 				for n in range(2, FloorTuning.TOP_FLOOR + 1):
 					if FloorRegistry.shape_in(world, n) != FloorDefinition.Shape.CLASSIC:
 						game[part].erase("floor_%d" % n)
+	if from_version < 4:
+		# Version 3 built the floors that pick a dungeon as classic ones. Each is
+		# levels of other maps now, its first under the old id: forget what was
+		# explored of it, as version 3 did for open fields -- and a purse dropped on
+		# one is lying somewhere that may be rock now, so it goes back in the purse.
+		var game: Variant = data.get("game")
+		if game is Dictionary and game.has("world_seed"):
+			var world := SaveCodec.whole(game["world_seed"])
+			for n in range(2, FloorTuning.TOP_FLOOR + 1):
+				if FloorRegistry.shape_in(world, n) != FloorDefinition.Shape.DUNGEON:
+					continue
+				for part in ["explored", "walked"]:
+					if game.get(part) is Dictionary:
+						game[part].erase("floor_%d" % n)
+				var pile: Variant = game.get("dropped_col")
+				if pile is Dictionary and str(pile.get("map", "")) == "floor_%d" % n:
+					game["col"] = SaveCodec.whole(game.get("col"), 0) + SaveCodec.whole(pile.get("amount"), 0)
+					game["dropped_col"] = {}
 	return data
 
 

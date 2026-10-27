@@ -1,0 +1,29 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/floor_stairs.gd" id="1_stairs"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Backgrounds/Tilesets/TilesetReliefDetail.png" id="2_tex"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ladder"]
+atlas = ExtResource("2_tex")
+region = Rect2(48, 0, 16, 48)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_area"]
+radius = 14.0
+
+[node name="Ladder" type="Area2D"]
+collision_layer = 8
+collision_mask = 0
+monitoring = false
+script = ExtResource("1_stairs")
+going_up = true
+target_spawn = &"stairs_down"
+prompt_verb = "Climb"
+display_name = "the ladder up"
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = SubResource("AtlasTexture_ladder")
+offset = Vector2(0, -16)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -8)
+shape = SubResource("CircleShape2D_area")

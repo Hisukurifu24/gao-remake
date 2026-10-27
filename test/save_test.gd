@@ -434,6 +434,24 @@ func _test_modes_in_memory() -> void:
 			and shaped["game"]["explored"].has("floor_%d" % classic_floor),
 			"a version 2 save forgets what it explored of a floor that is an open field now (%d), and keeps a classic one's (%d)" % [
 				open_floor, classic_floor])
+	# Version 3 built the floors that pick a dungeon as classic ones: what it explored
+	# of one is forgotten, and a purse dropped on it goes back in the purse, since
+	# where it lay may be rock now. Every other floor's is kept.
+	var dungeon_floor := 0
+	for n in range(3, FloorTuning.TOP_FLOOR):
+		if FloorRegistry.shape_in(12345, n) == FloorDefinition.Shape.DUNGEON:
+			dungeon_floor = n
+			break
+	charted = {"floor_%d" % dungeon_floor: "x", "floor_%d" % classic_floor: "y"}
+	var climbed := SaveGame._migrate({"game": {"world_seed": 12345, "explored": charted.duplicate(),
+			"walked": charted.duplicate(), "col": 10,
+			"dropped_col": {"map": "floor_%d" % dungeon_floor, "x": 40.0, "y": 40.0, "amount": 25}}}, 3)
+	_check(dungeon_floor > 0
+			and not climbed["game"]["explored"].has("floor_%d" % dungeon_floor)
+			and not climbed["game"]["walked"].has("floor_%d" % dungeon_floor)
+			and climbed["game"]["explored"].has("floor_%d" % classic_floor)
+			and climbed["game"]["col"] == 35 and climbed["game"]["dropped_col"].is_empty(),
+			"a version 3 save forgets a floor that is a dungeon now (%d), and its purse dropped there comes back" % dungeon_floor)
 	GameState.from_save({"mode": "nonsense"})
 	_check(GameState.mode == GameState.Mode.STANDARD, "a mode nobody knows loads as standard")
 	GameState.from_save({})

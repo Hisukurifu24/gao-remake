@@ -128,6 +128,28 @@ const ROLES := {
 	"open_veteran_found": [
 		"So the arena's open. {boss}'s in there. Level {level}, and don't go in on half a health bar.",
 	],
+	# A dungeon's: no field, levels climbed by stairs that something on each level seals.
+	"dungeon_scout": [
+		"This whole floor's a dungeon -- {levels} levels of it, and {boss} at the top. Every ladder up is sealed. Something on the level opens it: a warden with the key, levers, old fires, statues.",
+		"The way up's {side} of the hall, behind a slab of stone. You don't break it -- you find what opens it. Every level's different.",
+	],
+	"dungeon_scout_found": [
+		"You've been to the top? Then you've seen the hall. Go back up rested -- {boss} won't wait politely.",
+	],
+	"dungeon_scout_cleared": [
+		"The stairs to Floor {next} are open, they say. Good. I was sick of ladders.",
+	],
+	"dungeon_veteran": [
+		"{boss}'s holed up on the top level. Level {level} at the least, and there's a fire to rest by on the way, halfway up.",
+		"They're calling the thing at the top {boss}. I wouldn't climb the last ladder before level {level}.",
+	],
+	"dungeon_veteran_found": [
+		"So you've seen the top. {boss}'s waiting there. Level {level}, and don't go in on half a health bar.",
+	],
+	"dungeon_local": [
+		"It's black as pitch past these lamps. You see what's in front of you and nothing else -- and neither does the {monster}, till it does.",
+		"Mind the chests down there. Some of the big red ones bite back.",
+	],
 }
 ## The order the camp's people are drawn in: the first two always, the third only
 ## in a camp of three.
@@ -162,6 +184,8 @@ var village := false
 ## Whether the floor is an open field, which its people talk about instead of a
 ## labyrinth. Set before [method place].
 var open_field := false
+## Whether it is a dungeon's, in its entrance hall: its people talk about levels.
+var dungeon := false
 ## Each house's whole rect, in tiles, and which of the band's village tiles it
 ## is; planned whether or not the camp has settled, built only once it has.
 var houses: Array[Rect2i] = []
@@ -671,6 +695,7 @@ func _words(side: int, boss_name: String) -> Dictionary:
 		"monster": monster,
 		"floor": floor_number,
 		"next": floor_number + 1,
+		"levels": FloorTuning.dungeon_levels(floor_number),
 	}
 
 
@@ -702,9 +727,11 @@ func _talk(index: int, role: String, handle: String, portrait: Texture2D,
 	return talk
 
 
-## [param key]'s open-field lines on an open field, where it has them.
+## [param key]'s open-field lines on an open field, or a dungeon's in a dungeon,
+## where it has them.
 func _role_key(key: String) -> String:
-	return "open_" + key if open_field and ROLES.has("open_" + key) else key
+	var shaped := "open_" + key if open_field else "dungeon_" + key if dungeon else key
+	return shaped if ROLES.has(shaped) else key
 
 
 func _line(text: String, conditions: Array[DialogueCondition]) -> DialogueLine:

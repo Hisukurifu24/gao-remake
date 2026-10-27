@@ -51,6 +51,9 @@ const DROPPED_COL_SCENE := preload("res://scenes/world/dropped_col.tscn")
 ## round a [Campfire]. Pressing [b]interact[/b] on a monster from inside still
 ## starts a fight -- the zone keeps them out, not you in.
 @export var safe_zones: Array[Rect2i] = []
+## Rooms inside [member dark_area] that are never dark, in cells: a dungeon's
+## entrance hall, where its camp keeps the lamps lit, and its boss hall.
+@export var lit_areas: Array[Rect2i] = []
 
 var _player: Player = null
 var _walls: TileMapLayer = null
@@ -87,6 +90,8 @@ func _ready() -> void:
 		_darkness.setup(dark_area, _walls.tile_set.tile_size, _walls.get_used_rect())
 		for zone in safe_zones:
 			_darkness.glow(zone)
+		for zone in lit_areas:
+			_darkness.clear(zone)
 		add_child(_darkness)
 	if tracks:
 		_chart_found_doors()

@@ -28,6 +28,9 @@ const ASIDE_ALPHA := 0.0
 ## The room the door hides in, in the map's coordinates. Empty -- the default, and
 ## every authored floor so far -- leaves it in plain view.
 @export var reveal_area := Rect2()
+## Found the moment its map is entered: a dungeon's boss hall stands lit at the end
+## of a short walk, its door in plain view ([DungeonGenerator]).
+@export var found_on_arrival := false
 
 ## Whether the door can be seen and challenged. Views read it; only the gate
 ## sets it.
@@ -45,6 +48,8 @@ static func found_flag(number: int) -> StringName:
 
 
 func _ready() -> void:
+	if found_on_arrival and not _is_found():
+		GameState.set_flag(found_flag(floor_number))
 	if not reveal_area.has_area() or _is_found():
 		return
 	revealed = false

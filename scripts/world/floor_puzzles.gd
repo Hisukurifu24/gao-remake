@@ -68,6 +68,12 @@ const UNCRACKABLE: Array[StringName] = [&"sky"]
 const STEPS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 
 var floor_number := 0
+## What every flag here starts with; empty is [code]puzzle_<n>[/code]. A dungeon's
+## level names its own ([DungeonGenerator]), since its pieces are that level's seal.
+var flag_prefix := ""
+## Whether a solved rite or ring pays in a sealed chest. Off on a dungeon, where
+## what it pays is the stairs.
+var with_chests := true
 ## The wisp's room and cell, the shrine it leads to, and the way there in cells.
 var wisp_room := Rect2i()
 var wisp_cell := Vector2i(-1, -1)
@@ -179,7 +185,8 @@ func has_crack() -> bool:
 
 ## The flag a puzzle sets once solved, as an opened chest sets its own.
 func flag(puzzle: String) -> StringName:
-	return StringName("puzzle_%d_%s" % [floor_number, puzzle])
+	var prefix := flag_prefix if not flag_prefix.is_empty() else "puzzle_%d" % floor_number
+	return StringName("%s_%s" % [prefix, puzzle])
 
 
 # --- an authored floor's -------------------------------------------------------
@@ -688,7 +695,8 @@ func place(map: Node2D) -> void:
 		if has_vault():
 			sigils.append(_sigil(chest, sigils.size()))
 	if has_rite():
-		var chest := _add_sealed_chest(map, "ChestRite", rite_chest, flag("braziers"))
+		var chest: Chest = _add_sealed_chest(map, "ChestRite", rite_chest, flag("braziers")) \
+				if with_chests else null
 		var rite := BrazierRite.new()
 		rite.name = "BrazierRite"
 		rite.mode = rite_mode
@@ -711,7 +719,8 @@ func place(map: Node2D) -> void:
 		if has_vault():
 			sigils.append(_sigil(chest, sigils.size()))
 	if has_statues():
-		var chest := _add_sealed_chest(map, "ChestStatues", statue_chest, flag("statues"))
+		var chest: Chest = _add_sealed_chest(map, "ChestStatues", statue_chest, flag("statues")) \
+				if with_chests else null
 		var ring := StatueRing.new()
 		ring.name = "StatueRing"
 		ring.targets = ring_targets()

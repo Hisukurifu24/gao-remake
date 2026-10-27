@@ -847,6 +847,9 @@ func _test_door_intel() -> void:
 	# An arena's door is never hidden, so she has nothing to sell on an open field.
 	FloorGenerator.shape_override = FloorDefinition.Shape.OPEN_FIELD
 	_check(DoorIntel.offers().is_empty(), "she sells no door on an open field, where it stands in plain view")
+	# Nor on a dungeon, whose door stands lit on its top level.
+	FloorGenerator.shape_override = FloorDefinition.Shape.DUNGEON
+	_check(DoorIntel.offers().is_empty(), "nor on a dungeon, whose door stands lit at the top")
 	# The rest is about labyrinths: whichever floors this world made open fields.
 	FloorGenerator.shape_override = FloorDefinition.Shape.CLASSIC
 	_check(DoorIntel.offers() == [5, 4],

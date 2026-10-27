@@ -8,6 +8,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --camps     # the adventurers' camps only
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --villages  # the camps settled into villages
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shapes    # open fields: arena, waystones
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --dungeons  # dungeons: hall, seals, ladder, top
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --title     # the title screen and its pages
@@ -30,6 +31,8 @@ const BOSS_FIGHTS := [
 ]
 ## Floors shot as open fields: the meadow, the cave, the desert, the sky and the castle.
 const OPEN_FIELD_FLOORS := [3, 24, 55, 85, 95]
+## Floors shot as dungeons: the meadow, the forest, the ruins, the ice and the castle.
+const DUNGEON_FLOORS := [4, 16, 33, 64, 96]
 ## A generated floor in each biome band, clear of the ones shot elsewhere.
 const BAND_FLOORS := [5, 15, 27, 35, 45, 55, 65, 75, 85, 97]
 
@@ -87,6 +90,11 @@ func _ready() -> void:
 		return
 	if "--shapes" in OS.get_cmdline_user_args():
 		await _capture_shapes(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--dungeons" in OS.get_cmdline_user_args():
+		await _capture_dungeons(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1291,6 +1299,76 @@ func _capture_shapes(main: Node) -> void:
 				all.append(Vector2i(x, y))
 		GameState.explore(map.map_id, all)
 		await _capture_map(main, "04zo_open_map%02d" % floor_number)
+	FloorGenerator.shape_override = -1
+
+
+## Dungeons, built as such on a floor of several bands: the lamplit entrance hall,
+## the dark past it, every level's sealed chamber and what opens it, the climb, the
+## landing's fire, the top's boss hall -- and each level on the map.
+func _capture_dungeons(main: Node) -> void:
+	FloorGenerator.shape_override = FloorDefinition.Shape.DUNGEON
+	for floor_number: int in DUNGEON_FLOORS:
+		GameState.clear_floor(floor_number - 1)
+		for level in range(1, FloorRegistry.levels_of(floor_number) + 1):
+			SceneRouter.enter_floor(floor_number, &"default", SceneRouter.FADE_TIME, level)
+			await _until(func() -> bool:
+				var at := SceneRouter.current_map() as GameMap
+				return at != null and at.map_id == DungeonGenerator.map_id_for(floor_number, level) \
+						and not GameState.is_input_locked(), 10.0)
+			await _wait(0.4)
+			var map := SceneRouter.current_map() as GameMap
+			for child in map.get_children():
+				if child is Monster and child.name != "Warden":
+					child.queue_free()
+			var player := map.get_node("Player") as Player
+			var tag := "04zd_f%02d_l%d" % [floor_number, level]
+			await _capture(tag + "_arrive")
+			var seal := map.get_node_or_null("StairsSeal") as SealedDoor
+			if seal != null:
+				# The slab, from the doorway, then the first piece that opens it.
+				var room: Rect2i = map.get_meta(&"chamber_room")
+				var outward := (seal.position - Vector2(room.get_center() * 16)).normalized()
+				outward = Vector2(signf(outward.x), 0) if absf(outward.x) > absf(outward.y) \
+						else Vector2(0, signf(outward.y))
+				player.position = seal.position + outward * 28
+				player.facing = -outward
+				await _settle_camera(player)
+				await _capture(tag + "_seal")
+				for piece_name in ["Warden", "Lever0", "Brazier0", "Statue0"]:
+					var piece := map.get_node_or_null(piece_name) as Node2D
+					if piece != null:
+						_stand_by(map, player, piece)
+						await _settle_camera(player)
+						await _capture(tag + "_" + str(map.get_meta(&"seal")))
+						break
+				for flag in seal.sigils:
+					GameState.set_flag(flag)
+				await _wait(1.0)
+				while DialogueRunner.is_running():
+					DialogueRunner.advance()
+					await _frames(2)
+				player.position = (map.get_node("SpawnPoints/stairs_up") as Node2D).position
+				player.facing = Vector2.UP
+				await _settle_camera(player)
+				await _capture(tag + "_ladder")
+			var fire := map.get_node_or_null("Campfire") as Node2D
+			if fire != null:
+				_stand_by(map, player, fire)
+				await _settle_camera(player)
+				await _capture(tag + "_landing")
+			var door := map.get_node_or_null("BossGate") as Node2D
+			if door != null:
+				player.position = door.position + Vector2(0, 48)
+				player.facing = Vector2.UP
+				await _settle_camera(player)
+				await _capture(tag + "_hall")
+			var all: Array[Vector2i] = []
+			var used := (map.get_node("Walls") as TileMapLayer).get_used_rect()
+			for y in range(used.position.y, used.end.y):
+				for x in range(used.position.x, used.end.x):
+					all.append(Vector2i(x, y))
+			GameState.explore(map.map_id, all)
+			await _capture_map(main, tag + "_map")
 	FloorGenerator.shape_override = -1
 
 

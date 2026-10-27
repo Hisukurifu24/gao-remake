@@ -42,6 +42,8 @@ var _width := 0
 var _arena: Array[Vector2i] = []
 ## Cells lit by something of their own -- a safe zone's fire -- once seen.
 var _glowing: Dictionary[Vector2i, bool] = {}
+## Cells never dark at all: a dungeon's lamplit entrance hall, its boss hall.
+var _clear: Dictionary[Vector2i, bool] = {}
 var _last_lit: Array[Vector2i] = []
 var _last_explored: Dictionary = {}
 
@@ -92,6 +94,8 @@ func light(lit: Array[Vector2i], explored: Dictionary, snap := false) -> void:
 	for cell in _arena:
 		if area.has_point(cell):
 			now[_index(cell - area.position)] = true
+	for cell in _clear:
+		now[_index(cell - area.position)] = true
 	for y in area.size.y:
 		for x in area.size.x:
 			var index := _index(Vector2i(x, y))
@@ -116,6 +120,14 @@ func glow(cells: Rect2i) -> void:
 	for y in range(cells.position.y, cells.end.y):
 		for x in range(cells.position.x, cells.end.x):
 			_glowing[Vector2i(x, y)] = true
+
+
+## Lights [param cells] for good, seen or not: the dark never covers them.
+func clear(cells: Rect2i) -> void:
+	for y in range(cells.position.y, cells.end.y):
+		for x in range(cells.position.x, cells.end.x):
+			if area.has_point(Vector2i(x, y)):
+				_clear[Vector2i(x, y)] = true
 
 
 ## Lights [param cells] for the length of a fight; an empty list puts it out.

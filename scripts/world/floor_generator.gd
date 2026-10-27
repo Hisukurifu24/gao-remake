@@ -68,6 +68,7 @@ const TELEPORT_GATE_SCENE := preload("res://scenes/world/teleport_gate.tscn")
 const NPC_SCENE := preload("res://scenes/world/npc.tscn")
 const WAYSTONE_SCENE := preload("res://scenes/world/waystone.tscn")
 const SEAL_SCENE := preload("res://scenes/world/sealed_door.tscn")
+const DUNGEON_SCRIPT := "res://scripts/world/dungeon_generator.gd"
 ## Where the teleport gate stands from the entrance room's centre, and where you
 ## arrive through it: off the centre's row and column, which is where the room's
 ## three-wide corridors run, so the gate's base never narrows one below two.
@@ -142,7 +143,12 @@ var _decor: Array[Vector2i] = []
 var _lanes: Dictionary[Vector2i, bool] = {}
 
 
-static func generate(definition: FloorDefinition, generation_seed: int) -> Node2D:
+## [param level] is which of a dungeon's maps ([DungeonGenerator]); every other
+## shape is one map and ignores it.
+static func generate(definition: FloorDefinition, generation_seed: int, level := 1) -> Node2D:
+	if FloorRegistry.shape_of(definition.floor_number) == FloorDefinition.Shape.DUNGEON:
+		# By path: DungeonGenerator extends this script, and naming it here would be a cycle.
+		return load(DUNGEON_SCRIPT).new()._build_level(definition, generation_seed, level)
 	return FloorGenerator.new()._build(definition, generation_seed)
 
 
@@ -810,13 +816,14 @@ func _gap_rect(lab: Labyrinth, a: Vector2i, b: Vector2i) -> Rect2i:
 
 # --- the arena -------------------------------------------------------------
 
-## The arena's floor, and its gate through the middle of the wall facing the field:
+## The arena's floor, and its gate through the middle of the wall facing the field
+## (a dungeon's stair chamber and boss hall are carved the same way):
 ## a [SealedDoor]'s 2x2, carved as floor -- the door is a solid node, not wall, so
 ## the flood fill reaches the arena either way. The doorstep is two out from it,
 ## square to it, as the labyrinth's mouth's is.
 func _carve_arena(arena: Arena) -> void:
 	_carve(arena.room, _biome.special_tile)
-	var middle := ARENA_ROOM / 2 - Vector2i.ONE
+	var middle := arena.room.size / 2 - Vector2i.ONE
 	var across := Vector2i(LAB_WALL, 2)
 	var down := Vector2i(2, LAB_WALL)
 	match arena.side:
@@ -1098,8 +1105,9 @@ func _add_chest(map: Node2D, cell: Vector2i, index: int, may_gild: bool,
 ## boss, and a share of them through the labyrinth's passages. They have no
 ## collision, so this cannot make a floor unreachable -- the flood fill in
 ## test/floor_test.gd never sees them.
+## [param count] is how many; -1 is the floor's [method FloorTuning.monster_count].
 func _add_monsters(map: Node2D, rooms: Array[Rect2i], entry: Rect2i, boss_room: Rect2i,
-		lab: Labyrinth) -> void:
+		lab: Labyrinth, count := -1) -> void:
 	var pool := Bestiary.pool_for_floor(_definition.floor_number)
 	if pool.is_empty():
 		return
@@ -1115,7 +1123,8 @@ func _add_monsters(map: Node2D, rooms: Array[Rect2i], entry: Rect2i, boss_room: 
 	if lab.has_maze():
 		passages = lab.passages()
 
-	var count := FloorTuning.monster_count(_definition.floor_number)
+	if count < 0:
+		count = FloorTuning.monster_count(_definition.floor_number)
 	var in_lab := count / LAB_MONSTER_SHARE if not passages.is_empty() else 0
 	var placed: Array[Vector2i] = []
 	for index in count:

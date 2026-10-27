@@ -1544,7 +1544,7 @@ you *do*, the first two what you *see*, so those are where to start:
   *place* — a lake you walk round, a collapsed bridge, a great tree, a ruined tower.
   `GameMap.landmarks` already labels named places on **M**, so a cleared floor is
   remembered as "the one with the broken bridge".
-- [~] **Floor shapes, not just floor content.** *(open field built 2026-10-26; tower next)* Not every floor is field → labyrinth →
+- [x] **Floor shapes, not just floor content.** *(open field built 2026-10-26; the dungeon built 2026-10-27)* Not every floor is field → labyrinth →
   boss; the generator picks a shape per floor:
   - *Open field* — no labyrinth; the boss roams the overworld, or holds an arena you can
     see from a distance.
@@ -1563,6 +1563,8 @@ you *do*, the first two what you *see*, so those are where to start:
     three waystones** out in the far clearings -- touch all three and it opens. The
     floor stays about searching; the search is across the field rather than a maze.
   - *Tower*: several small maps joined by stairs, the boss at the top. Second slice.
+    **Renamed the dungeon 2026-10-27** -- Aincrad is already the tower -- and decided
+    below, after the open field.
   - *Which floor gets which*: **seeded, mostly classic** -- its own stream
     (`hash("<seed>:shape")`), about 60% classic and the rest split between the new
     shapes, never the same new shape two floors running; floor 2 always classic.
@@ -1619,7 +1621,110 @@ you *do*, the first two what you *see*, so those are where to start:
     out differently than when that floor is generated alone (HEAD does it too). The
     layout never moves. If it happens in play, a village's giver could be named one
     thing in the journal and another on the map -- worth tracking down.
-  - **Next: the tower.**
+
+  **The dungeon — decided 2026-10-27** (asked; the shape planned as the *tower*,
+  renamed because Aincrad itself is the tower -- `FloorDefinition.Shape.DUNGEON`, the
+  same enum value, so no floor's pick moved). Still builds classic until it lands.
+  - *All dungeon, no field*: a dungeon floor is **levels** -- 3 low down rising to 5
+    near the top (`FloorTuning`) -- each its own small map (about a view and a half),
+    joined by stairs. You climb **up**; the boss is on the top level.
+  - *The entrance hall*: level 1 opens on a big hall at the dungeon's mouth holding the
+    camp (later the village), the teleport gate and the stairs down -- Lanternfall's
+    mining camp over its caverns is the precedent. The rest of level 1 is the first
+    sealed stretch.
+  - *Sealed stairs*: every level's stairs up are in sight but locked by something on
+    that level, a seeded mix -- a warden elite carrying the key, a lever pair, a
+    brazier rite or a statue ring moved onto the critical path. On a dungeon floor the
+    puzzles are the way through, not side loot.
+  - *Dark inside*: line of sight on every level, as in a labyrinth.
+  - *Calls of mine, flag if wrong:* a middle level has a **landing**, a safe zone by a
+    fire; the top level is a short approach and the boss door in plain view, found as
+    you arrive. Level 1 keeps `floor://n` / `floor_n`, so gates, defeat and old saves
+    land where they did; level s > 1 is `floor://n/s` / `floor_n_s`, grown from its own
+    stream (`hash(seed, level)`). `FloorTuning.monster_count(n)` is split across the
+    levels, so the boss's balance doesn't move, and a level's monsters come back each
+    time you take the stairs (a reload, like any map). Defeat sends you to the entrance
+    hall. Argo sells nothing on a dungeon; the lost player waits in a dead end of one
+    level. **M** shows the level you're on, "Level 2 of 4". Save version 4 forgets what
+    was charted on floors that pick dungeon (they were classic maps until it lands).
+  - *Tests*: `_audit_authored`'s multi-map walk generalised to follow a generated
+    floor's stairs; the formation sweep on every level and the boss sweep on the top;
+    an `_audit_dungeon` -- each level's seal solvable on that level alone, its stairs
+    up unreachable shut and reachable open; the smoke test climbs one; every classic
+    and open-field floor fingerprinted unchanged, each in its own process.
+  - *Still open* (until the build): which seals ship in the first slice, and the
+    levels' room shapes. **Answered by the build, below.**
+
+  **The dungeon — built 2026-10-27** (`DungeonGenerator`, `scripts/world/dungeon_generator.gd`,
+  extending `FloorGenerator` for its rooms, corridors, strip, chests and monsters).
+  - [x] **Levels**: `FloorTuning.dungeon_levels` (3, 4 from floor 40, 5 from 80); each a
+    map of its own -- `FloorTuning.dungeon_level_size` of rooms and L-corridors (34x24 on
+    floor 2), `dungeon_room_count` rooms (4-7), the field's room code -- with a **stair
+    chamber** on a strip of its own on a seeded side, as the arena stands: 6x6 inside a
+    two-tile wall, one 2x2 doorway facing the rooms. The arrival is a room in the far half
+    from the doorway. Level 1's rooms are 10x6 bigger for the hall. Rooms and corridors,
+    not a maze; the cave wobbles as its field rooms do, which is to say by its dressing.
+  - [x] **Routing**: level 1 is `floor://n` / `floor_n`, level s `floor://n/s` /
+    `floor_n_s` (`SceneRouter.floor_path` / `floor_at`, `enter_floor(n, spawn, fade,
+    level)`, `FloorRegistry.build_floor(n, level)` and `levels_of(n)`, `resume()` reads a
+    level). A level grows from `DungeonGenerator.level_seed` -- level 1 from the floor's
+    own seed, so the camp reads the streams it does anywhere. Gates, defeat and a debug
+    start land on level 1.
+  - [x] **The way up**: a **ladder** (`scenes/world/ladder.tscn`, the pack's relief
+    ladder) against the chamber's north wall, `FloorStairs` generalised to
+    `target_level`/`target_spawn`/`going_up`; arriving at a level's `stairs_down` spawn,
+    and coming back down a hole to the level below's `stairs_up` -- the foot of its
+    ladder. Level 1's stairs down go to floor n-1 as any floor's do.
+  - [x] **Seals** (`DungeonGenerator.Seal`), a `SealedDoor` in the chamber's doorway
+    with `opens_itself`, its hollows the pieces: a **warden** (an ordinary `Monster`
+    two levels up, tinted, named "<kind> Warden", whose `defeat_flag` is the key and
+    keeps it beaten), **two levers** (`scenes/world/lever.tscn` -- the `Waystone` script
+    with the dungeon sheet's switch and its own words, in the rooms farthest from the
+    arrival and each other), a **brazier rite** or a **statue ring** (`FloorPuzzles`
+    pinned into a room, `flag_prefix` per level, `with_chests = false`: what they pay is
+    the stairs). Kinds come from the floor's `hash("<seed>:seals")`, never the same two
+    levels running; a kind with no room falls back braziers → statues → levers → warden.
+    The slab says what opens it. No side puzzles on a dungeon -- no wisp, vault or crack.
+  - [x] **The entrance hall**: level 1's arrival room carved into the camp's plot
+    (`FloorCamp`, unchanged but for `dungeon` lines), the gate and the stairs down in
+    it, and **lit** (`GameMap.lit_areas` → `Darkness.clear()`); everything else on every
+    level is dark (`dark_area` the whole map). Settles into a village like any camp.
+  - [x] **The landing**: on `DungeonGenerator.landing_level` (the middle), a fire in the
+    room nearest the chamber, a safe zone. Its fire stands beside a corridor's lane, not
+    clear of it -- a level's rooms are too small for an open field's clear ring. 16 of 17
+    dungeons have one on the test's world.
+  - [x] **The top**: two rooms and the boss hall (an arena's 12x12, its doorway open),
+    lit, the door in the middle and found as you arrive (`BossGate.found_on_arrival`).
+  - [x] **Balance**: `FloorTuning.monster_count(n)` and `chest_count(n)` shared between
+    the levels below the top (`share_of`), monsters drawn again rather than dropped where
+    a cell is taken (`_add_level_monsters`), so the floor carries its full count. Wardens
+    are on top of it. Chest flags are `floor_<n>_<s>_chest_<i>`.
+  - [x] Map screen: the region reads "<biome> - Level 2 of 4", the status "stairs
+    sealed" / "stairs open". Argo sells nothing on a dungeon and nobody is lost in one
+    (both already asked `!= CLASSIC`). **Save version 4** forgets what was explored of a
+    floor that is a dungeon now, and a purse dropped on one goes back in the purse,
+    since where it lay may be rock.
+  - [x] **Tests**: the floor test's `_audit_dungeon` builds every level of every dungeon
+    -- sealed ring, dark all over, chests, stairs both ways, the hall's gate and camp
+    (and village), the chamber walled but for its doorway, the ladder unreachable shut
+    and reachable open, every seal piece walkable up to with the seal shut (a timed rite
+    against a real walk), the landing's fire, the top's door and its boss sweep, the
+    formation sweep on every level, and the floor's full monster count -- 17 dungeons, 63
+    levels; every kind of seal turns up (18 wardens, 9 levers, 10 rites, 9 rings). The smoke test climbs one with real **E**
+    presses (levers, the ladder, the stairs down, a warden fought), and saves and
+    resumes on its top level; the save test the migration, the quest test Argo. Every
+    classic and open-field floor of two worlds fingerprinted unchanged, each in its own
+    process. `tools/screenshot.gd -- --dungeons` shoots five bands, every level.
+  - *Calls of mine, flag if wrong:* the top level has **no monsters** (a quiet walk to
+    the boss; its share goes to the levels below); **no lost player** on a dungeon (I'd
+    planned one in a dead end of a level -- rooms and corridors have no dead ends to
+    speak of, and it would have needed the camp on level 1 to place someone on another
+    map; dropped as the open field dropped it); a warden is **two levels up** and not
+    counted in the floor's monsters; the landing has **no peddler** yet; ladders are the
+    pack's grey one in every band.
+  - *Seen, not fixed:* where a chamber's doorway is in a side wall of a forest-walled
+    level, the tree below the doorway hangs its crown over the slab's lower half (the
+    open field's arena gate in a side wall does the same).
 - [ ] **Floor modifiers.** A seeded twist on some floors, stackable: fog everywhere (the
   `Darkness` over the whole floor, not just the maze), night, flooded, an elite hunting
   you, double treasure but no camp. Cheap, and it gives a floor a headline.
@@ -2342,8 +2447,11 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    (2026-10-06), and **so is settling** (2026-10-06): three floors behind the front
    line a camp becomes a village with houses, settlers and local quests. **Floor shapes
    decided 2026-10-26** (open field and tower); **the open field is built** -- no maze,
-   an arena in plain sight sealed by three waystones. Next on that track: **the tower**,
-   then the other levers (modifiers, events, room shapes, landmarks), or the villages'
+   an arena in plain sight sealed by three waystones. **The tower, renamed the dungeon,
+   is built (2026-10-27)**: levels of small dark maps climbed by ladders, each sealed by
+   a warden, levers, braziers or statues, a landing halfway, the camp in a lamplit
+   entrance hall and the boss in a lit hall at the top. Next on that track: the other
+   levers (modifiers, events, room shapes, landmarks), or the villages'
    floor-exclusive stock.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,

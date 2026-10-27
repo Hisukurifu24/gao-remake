@@ -13,7 +13,8 @@ signal floor_entered(floor_number: int)
 
 const FADE_TIME := 0.25
 ## How [member GameState.current_map_path] names a floor built by
-## [FloorRegistry] rather than loaded from a scene: [code]floor://25[/code].
+## [FloorRegistry] rather than loaded from a scene: [code]floor://25[/code] -- and a
+## dungeon's level above the first, [code]floor://25/3[/code].
 const FLOOR_SCHEME := "floor://"
 
 var _world_root: Node = null
@@ -59,17 +60,35 @@ func change_map(map_path: String, spawn: StringName = &"", fade_time := FADE_TIM
 
 
 ## Travels to a floor of Aincrad. The floor may be authored or generated --
-## [FloorRegistry] decides, and nothing here needs to know which it got.
-func enter_floor(floor_number: int, spawn: StringName = &"", fade_time := FADE_TIME) -> void:
+## [FloorRegistry] decides, and nothing here needs to know which it got. On a
+## dungeon, [param level] is which of its maps; everywhere else there is one.
+func enter_floor(floor_number: int, spawn: StringName = &"", fade_time := FADE_TIME,
+		level := 1) -> void:
 	floor_number = clampi(floor_number, 1, FloorTuning.TOP_FLOOR)
 	if not GameState.is_floor_unlocked(floor_number):
 		push_warning("SceneRouter: floor %d is still locked." % floor_number)
 		return
+	level = clampi(level, 1, FloorRegistry.levels_of(floor_number))
 	await _transition(func() -> Node:
-		return FloorRegistry.build_floor(floor_number)
-	, spawn, FLOOR_SCHEME + str(floor_number), fade_time)
+		return FloorRegistry.build_floor(floor_number, level)
+	, spawn, floor_path(floor_number, level), fade_time)
 	GameState.current_floor = floor_number
 	floor_entered.emit(floor_number)
+
+
+## How a floor's [param level] is named in [member GameState.current_map_path]: the
+## first level is the floor itself, so a floor that became a dungeon is still
+## [code]floor://n[/code] to every gate, defeat and save that knew it before.
+static func floor_path(floor_number: int, level := 1) -> String:
+	if level <= 1:
+		return FLOOR_SCHEME + str(floor_number)
+	return "%s%d/%d" % [FLOOR_SCHEME, floor_number, level]
+
+
+## [method floor_path] read back: (floor, level).
+static func floor_at(path: String) -> Vector2i:
+	var parts := path.trim_prefix(FLOOR_SCHEME).split("/")
+	return Vector2i(int(parts[0]), int(parts[1]) if parts.size() > 1 else 1)
 
 
 ## Goes back to [param map_path] -- a scene, or a [constant FLOOR_SCHEME] floor --
@@ -80,7 +99,8 @@ func enter_floor(floor_number: int, spawn: StringName = &"", fade_time := FADE_T
 func resume(map_path: String, position: Vector2, facing: Vector2, fade_time := FADE_TIME) -> void:
 	_pending_place = {"position": position, "facing": facing}
 	if map_path.begins_with(FLOOR_SCHEME):
-		await enter_floor(int(map_path.trim_prefix(FLOOR_SCHEME)), &"", fade_time)
+		var at := floor_at(map_path)
+		await enter_floor(at.x, &"", fade_time, at.y)
 	elif map_path != "" and ResourceLoader.exists(map_path):
 		await change_map(map_path, &"", fade_time)
 	else:

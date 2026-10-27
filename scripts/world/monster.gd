@@ -60,6 +60,10 @@ const WALK_FPS := 8.0
 ## The level it fights at. 0 means "whatever this floor's monsters are".
 @export var level := 0
 @export var floor_number := 0
+## Set when it is beaten, and it stays beaten: a dungeon's warden
+## ([DungeonGenerator]), whose fall is the key to its level's stairs. Empty -- every
+## other monster -- comes back on the next visit.
+@export var defeat_flag: StringName = &""
 
 var state := State.WANDER
 var home := Vector2.ZERO
@@ -85,6 +89,9 @@ var _facing_column := 0
 func _ready() -> void:
 	if enemy == null:
 		push_error("Monster at %s has no EnemyType." % global_position)
+		queue_free()
+		return
+	if defeat_flag != &"" and GameState.has_flag(defeat_flag):
 		queue_free()
 		return
 	_show_sprite()
@@ -159,6 +166,8 @@ func _engage(opening: Encounter.Opening) -> void:
 	_fighting = true
 	var encounter := Bestiary.single_encounter(enemy, _level(), floor_number)
 	encounter.opening = opening
+	# Its own name, which is its kind's unless it is someone -- a warden.
+	encounter.display_name = display_name
 	_stage(encounter)
 	var result: CombatResult = await CombatManager.start(encounter)
 	_fighting = false
@@ -166,6 +175,8 @@ func _engage(opening: Encounter.Opening) -> void:
 		return
 
 	if result.victory:
+		if defeat_flag != &"":
+			GameState.set_flag(defeat_flag)
 		queue_free()
 		return
 	if not result.fled:
