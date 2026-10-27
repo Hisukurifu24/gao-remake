@@ -115,6 +115,8 @@ var _open: Dictionary[Vector2i, bool]
 var _field := Rect2i()
 ## Cells a piece stands in or keeps clear round it.
 var _taken: Dictionary[Vector2i, bool] = {}
+## [member _taken] but for the room kept round the floor's chests: see [method pieces].
+var _pieces: Dictionary[Vector2i, bool] = {}
 var _field_chests := 0
 
 
@@ -137,7 +139,7 @@ func plan(rooms: Array[Rect2i], entry: Rect2i, chest_cells: Array[Vector2i],
 		field_chests: int) -> void:
 	_field_chests = field_chests
 	for cell in chest_cells:
-		_reserve(cell, 1)
+		_reserve(cell, 1, false)
 	var candidates: Array[Rect2i] = []
 	for room in rooms:
 		if room != entry:
@@ -200,11 +202,12 @@ func flag(puzzle: String) -> StringName:
 func hold(chest_cells: Array[Vector2i], keep_out: Array[Rect2i]) -> void:
 	_field_chests = chest_cells.size()
 	for cell in chest_cells:
-		_reserve(cell, 1)
+		_reserve(cell, 1, false)
 	for rect in keep_out:
 		for y in range(rect.position.y, rect.end.y):
 			for x in range(rect.position.x, rect.end.x):
 				_taken[Vector2i(x, y)] = true
+				_pieces[Vector2i(x, y)] = true
 
 
 ## A wisp idling in [param start_room] that leads to a shrine in [param shrine_room].
@@ -618,8 +621,10 @@ func _claim(pocket: Array) -> void:
 	for y in range(rock.position.y, rock.end.y):
 		for x in range(rock.position.x, rock.end.x):
 			_taken[Vector2i(x, y)] = true
+			_pieces[Vector2i(x, y)] = true
 	for cell: Vector2i in pocket[3]:
 		_taken[cell] = true
+		_pieces[cell] = true
 
 
 ## A pocket of [param size] in untouched rock off [param room]'s [param side] wall,
@@ -914,6 +919,16 @@ func claimed() -> Array[Vector2i]:
 	return cells
 
 
+## What a landmark ([FloorLandmarks]) keeps out of: every cell a piece stands in or
+## keeps clear round it and the rock a vault or a crack claims -- [method claimed]
+## without the room kept round the floor's chests, which a landmark keeps for
+## itself. (The way a wisp leads is [member wisp_path].)
+func pieces() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	cells.assign(_pieces.keys())
+	return cells
+
+
 ## Keeps the puzzles off [param cell] and the [param radius] round it -- something the
 ## floor stands there that they must not crowd (an open field's waystones and fire).
 ## Before [method plan].
@@ -921,10 +936,14 @@ func keep_clear(cell: Vector2i, radius: int) -> void:
 	_reserve(cell, radius)
 
 
-func _reserve(cell: Vector2i, radius: int) -> void:
+## [param piece] false for the room kept round one of the floor's chests, which
+## [method pieces] leaves out.
+func _reserve(cell: Vector2i, radius: int, piece := true) -> void:
 	for y in range(-radius, radius + 1):
 		for x in range(-radius, radius + 1):
 			_taken[cell + Vector2i(x, y)] = true
+			if piece:
+				_pieces[cell + Vector2i(x, y)] = true
 
 
 func _center(room: Rect2i) -> Vector2i:

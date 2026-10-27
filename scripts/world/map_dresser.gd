@@ -243,6 +243,70 @@ static func open_cells(map: Node2D, biome: BiomeKit, ground: TileMapLayer, walls
 					walls.set_cell(cell, SOURCE_ID, tile)
 
 
+## Lays something into a room of a map that has already been dressed -- a
+## landmark ([FloorLandmarks]) -- and dresses round it as [method dress] would have:
+## [param clear] taken off the walls (a room's boulders and pools), [param water]
+## painted in the liquid slot, [param dirt] made path, [param solid] painted in the
+## invisible [member BiomeKit.wall_alt_tile]; then only the water and ground within a
+## cell of what changed re-picked by nearest match, and the flowers taken off
+## anything now water, path or solid, and off [param bare] -- what is drawn over, or
+## stood on. Nothing further off changes, so a floor with
+## a landmark is dressed exactly as the floor without, outside its room.
+##
+## Never beside the wall mass: what it paints keeps a cell of floor between it and
+## the rock, as a room's decor does, so no wall's edge changes.
+static func lay_into(map: Node2D, biome: BiomeKit, ground: TileMapLayer, walls: TileMapLayer,
+		clear: Array[Vector2i], water: Array[Vector2i], dirt: Array[Vector2i],
+		solid: Array[Vector2i], bare: Array[Vector2i] = []) -> void:
+	var changed := {}
+	for cell in clear:
+		walls.erase_cell(cell)
+		changed[cell] = true
+	for cell in water:
+		walls.set_cell(cell, SOURCE_ID, Vector2i(biome.liquid_tile, 0))
+		changed[cell] = true
+	for cell in solid:
+		walls.set_cell(cell, SOURCE_ID, Vector2i(biome.wall_alt_tile, 0))
+	var near := _around(changed, 1)
+	if biome.liquid_terrain_set >= 0:
+		var pool := {}
+		for cell: Vector2i in near:
+			var data := walls.get_cell_tile_data(cell)
+			if walls.get_cell_atlas_coords(cell) == Vector2i(biome.liquid_tile, 0) or (data != null
+					and data.terrain_set == biome.liquid_terrain_set and data.terrain == biome.liquid_terrain):
+				pool[cell] = true
+		var matcher := TerrainMatcher.new(biome.tile_set, biome.liquid_terrain_set, biome.liquid_terrain)
+		for cell: Vector2i in _sorted(pool.keys()):
+			var tile := matcher.pick(cell, pool, biome.liquid_terrain)
+			if tile.x >= 0:
+				walls.set_cell(cell, SOURCE_ID, tile)
+	var paved := {}
+	for cell in dirt:
+		paved[cell] = true
+	if biome.ground_terrain_set >= 0:
+		var near_dirt := _around(paved, 1)
+		var path := paved.duplicate()
+		for cell: Vector2i in _around(near_dirt, 1):
+			var data := ground.get_cell_tile_data(cell)
+			if data != null and data.terrain_set == biome.ground_terrain_set \
+					and data.terrain == biome.ground_dirt:
+				path[cell] = true
+		var matcher := TerrainMatcher.new(biome.tile_set, biome.ground_terrain_set, biome.ground_dirt)
+		for cell: Vector2i in _sorted(near_dirt.keys()):
+			if ground.get_cell_source_id(cell) == -1:
+				continue
+			var tile := matcher.pick(cell, path, biome.ground_dirt if path.has(cell) else biome.ground_grass)
+			if tile.x >= 0:
+				ground.set_cell(cell, SOURCE_ID, tile)
+	else:
+		for cell: Vector2i in paved:
+			ground.set_cell(cell, SOURCE_ID, Vector2i(biome.path_tile, 0))
+	var decor := map.get_node_or_null(DECOR) as TileMapLayer
+	if decor != null:
+		for cell: Vector2i in water + dirt + solid + bare:
+			decor.erase_cell(cell)
+
+
 ## Takes away every tree or bush standing on a cell of [param clear], and covers
 ## whatever of the forest's edge that leaves bare -- never [param clear] itself,
 ## which is either floor now or kept for something else to stand on.

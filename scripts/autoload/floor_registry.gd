@@ -43,6 +43,8 @@ var _shapes: Dictionary[int, Array] = {}
 var _modifiers: Dictionary[int, Array] = {}
 ## world seed -> every floor's event, by [method _pick_events].
 var _events: Dictionary[int, Array] = {}
+## world seed -> every floor's landmark, by [method _pick_landmarks].
+var _landmarks: Dictionary[int, Array] = {}
 var _biomes: Dictionary[StringName, BiomeKit] = {}
 
 
@@ -210,6 +212,49 @@ func _pick_events(world_seed: int) -> Array[int]:
 			if rng.randf() < FloorEvents.CHANCE:
 				var kinds: Array[int] = []
 				for kind in range(FloorEvents.Kind.FIELD_BOSS, FloorEvents.Kind.size()):
+					if kind != last:
+						kinds.append(kind)
+				pick = kinds[rng.randi() % kinds.size()]
+		picks.append(pick)
+		last = pick
+	return picks
+
+
+## Floor [param floor_number]'s landmark ([enum FloorLandmarks.Kind]) in this world.
+## Its own stream, [code]hash("<seed>:landmark")[/code], like the event's: a floor
+## with a landmark is the floor it would be without one, plus the landmark.
+##
+## About [constant FloorLandmarks.CHANCE] of the floors that may have one do, never
+## the same kind two floors running and only a kind the band can draw
+## ([method FloorLandmarks.kinds_for]). Never an authored floor, floor 2, the top or a
+## dungeon. A pick is what the floor tries first: [FloorLandmarks] falls back to
+## another kind where no room fits it.
+func landmark_of(floor_number: int) -> FloorLandmarks.Kind:
+	if FloorGenerator.landmark_override >= 0:
+		return FloorGenerator.landmark_override as FloorLandmarks.Kind
+	return landmark_in(GameState.world_seed, floor_number)
+
+
+## [method landmark_of] in the world [param world_seed], overrides aside.
+func landmark_in(world_seed: int, floor_number: int) -> FloorLandmarks.Kind:
+	if not _landmarks.has(world_seed):
+		_landmarks[world_seed] = _pick_landmarks(world_seed)
+	return _landmarks[world_seed][clampi(floor_number, 1, FloorTuning.TOP_FLOOR)] as FloorLandmarks.Kind
+
+
+## Every floor's landmark, 1 to the top, in [param world_seed]. Index 0 is unused.
+func _pick_landmarks(world_seed: int) -> Array[int]:
+	var picks: Array[int] = [FloorLandmarks.Kind.NONE]
+	var rng := RandomNumberGenerator.new()
+	var last := FloorLandmarks.Kind.NONE
+	for n in range(1, FloorTuning.TOP_FLOOR + 1):
+		var pick := FloorLandmarks.Kind.NONE
+		if not (AUTHORED.has(n) or n <= 2 or n >= FloorTuning.TOP_FLOOR
+				or shape_in(world_seed, n) == FloorDefinition.Shape.DUNGEON):
+			rng.seed = hash("%d:landmark" % seed_in(world_seed, n))
+			if rng.randf() < FloorLandmarks.CHANCE:
+				var kinds: Array[int] = []
+				for kind in FloorLandmarks.kinds_for(biome_id(n)):
 					if kind != last:
 						kinds.append(kind)
 				pick = kinds[rng.randi() % kinds.size()]

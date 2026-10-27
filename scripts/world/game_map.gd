@@ -180,8 +180,29 @@ func _on_col_dropped(on_map: StringName, at: Vector2, amount: int) -> void:
 	var pouch := DROPPED_COL_SCENE.instantiate() as DroppedCol
 	pouch.name = "DroppedCol"
 	pouch.amount = amount
-	pouch.position = at
+	pouch.position = _nearest_ground(at) if _walls != null and not can_stand_at(at) else at
 	add_child.call_deferred(pouch)
+
+
+## The middle of the open cell nearest [param at] (map-local): where a purse lands
+## that was dropped on ground the map has built over since -- a save from before
+## a landmark's lake filled the room it fell in.
+func _nearest_ground(at: Vector2) -> Vector2:
+	var start := _walls.local_to_map(_walls.to_local(to_global(at)))
+	var seen: Dictionary[Vector2i, bool] = {start: true}
+	var queue: Array[Vector2i] = [start]
+	var head := 0
+	while head < queue.size() and head < 4096:
+		var cell := queue[head]
+		head += 1
+		var middle := to_local(_walls.to_global(_walls.map_to_local(cell)))
+		if can_stand_at(middle):
+			return middle
+		for step: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			if not seen.has(cell + step):
+				seen[cell + step] = true
+				queue.append(cell + step)
+	return at
 
 
 ## Fog of war: whatever the player can see from the cell they are standing in is
@@ -508,6 +529,13 @@ func is_covered(cell: Vector2i) -> bool:
 				for y in range(rect.position.y, rect.end.y):
 					for x in range(rect.position.x, rect.end.x):
 						_covered[Vector2i(x, y)] = true
+		# A landmark's pieces are sprites, not props, and say what they cover.
+		for child in get_children():
+			if child is Landmark:
+				for rect: Rect2i in (child as Landmark).cover:
+					for y in range(rect.position.y, rect.end.y):
+						for x in range(rect.position.x, rect.end.x):
+							_covered[Vector2i(x, y)] = true
 	return _covered.has(cell)
 
 

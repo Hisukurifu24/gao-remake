@@ -1527,7 +1527,7 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
 - [ ] **Floor 100: the final boss — *you* — as an authored multi-phase fight.** The one
   encounter that should be hand-built end to end.
 
-#### Floor variety — "the floors play the same" *(raised 2026-10-05; shapes, modifiers and events built)*
+#### Floor variety — "the floors play the same" *(raised 2026-10-05; shapes, modifiers, events and landmarks built)*
 The user, after M5.5's set landed: floors are repetitive — *both* to look at and to play,
 but **mostly they play the same**. The diagnosis: every generated floor is one recipe —
 a field of rect rooms and L-corridors, a labyrinth strip on one side, a camp halfway, a
@@ -1540,10 +1540,69 @@ you *do*, the first two what you *see*, so those are where to start:
   `_carve_cave()` already exists in the authored builder; add caverns, L / cross / pillared
   halls, rooms round a pond or a rubble heap. Cheap and lifts every floor at once, but it
   is texture, not play.
-- [ ] **Landmarks** (passed over in §4). One or two set pieces a floor that make it a
-  *place* — a lake you walk round, a collapsed bridge, a great tree, a ruined tower.
-  `GameMap.landmarks` already labels named places on **M**, so a cleared floor is
-  remembered as "the one with the broken bridge".
+- [x] **Landmarks** (passed over in §4). *(decided and built 2026-10-27)* One or two set
+  pieces a floor that make it a *place* — a lake you walk round, a collapsed bridge, a
+  great tree, a ruined tower. `GameMap.landmarks` already labels named places on **M**,
+  so a cleared floor is remembered as "the one with the broken bridge".
+
+  **Decided 2026-10-27** (asked): landmarks next, over room shapes, the villages' stock
+  and Floor 40. A landmark is **a place with a reason** -- named on **M**, something to
+  read, the camp pointing you to it, sometimes a chest -- not scenery alone, and not a
+  route-changer (no chasms to detour round). **All four kinds**: lake, great tree,
+  monument, ruin, each in the band's own art. **Some floors only** -- about half -- so
+  a landmark stays something you notice.
+
+  **Built 2026-10-27** (`FloorLandmarks`, `scripts/world/floor_landmarks.gd`; `Landmark`,
+  `scripts/world/landmark.gd`).
+  - [x] **The pick** (`FloorRegistry.landmark_of(n)` / `landmark_in(seed, n)`): its own
+    stream, `hash("<seed>:landmark")`, half the floors that may (`FloorLandmarks.CHANCE`),
+    never authored, floor 2, the top or a dungeon, never the same kind twice running, and
+    only a kind the band draws (`kinds_for()`: no great tree in the caves or the Ruby
+    Palace). 38 of 78 on the test's seed. The pick is what the floor tries first; where no
+    room fits it, another kind (36 of 38 built: 6 lakes, 14 trees, 9 memorials, 7 ruins;
+    14 keep a chest). `FloorGenerator.landmark_override` for tests and tools.
+  - [x] **The room**: one nothing else has -- not the arrival's, the camp's, the boss's,
+    a safe zone, the event's, or one holding a puzzle's piece (`FloorPuzzles.pieces()`,
+    `claimed()` without the ring kept round the floor's chests). A room with a floor chest
+    is a second choice, the landmark keeping a cell clear round it; nothing solid on a
+    wisp's path. Its boulders and pools are cleared for it, and nothing it puts down may
+    cut off a cell the floor reached without it.
+  - [x] **Lake**: the band's liquid over all but a two-cell shore (lava on the volcanic
+    floors, a frozen mere on the ice, the bog in the swamp), the biggest room going, a
+    sign in a top corner whose second line is someone's note (*"Fish bite at dusk. The
+    big one is mine."*). **Great tree**: the pack's 48 px tree drawn twice over, alone in
+    a clearing -- pink in the sky, white on the ice, amber in the desert, a dead giant in
+    the swamp and the ash -- with names carved in its bark. **Monument**: a statue twice
+    over on a paved square, sandstone or grey by band: a players' memorial, the floor's
+    dead cut into it. **Ruin**: the pack's arch twice over, walked through between its
+    legs, a broken pillar and boulders, and the system's tablet (weathered grey in code)
+    naming the boss and the level to face it at. Doubled art reads as giant beside the
+    treeline, as a field boss does.
+  - [x] **Moves nothing**: planned after everything else, painted in after dressing
+    (`MapDresser.lay_into()`, which re-dresses only round it), placed last. Fingerprinted
+    over 198 floors (seeds 12345 and 999), each floor in its own process: with landmarks
+    off, byte for byte HEAD; with them, the Props layer everywhere and every other layer
+    outside the landmark's room identical, the only other differences the landmark's own
+    nodes, a camper's added line and a few monsters stepped off it (moved, not dropped).
+  - [x] **The camp says so**: the local -- or the scout, in a camp of two -- adds
+    `FloorCamp.landmark_line` after their opening ("Go and see the Elder Oak to the east,
+    if you've the time..."), and "Somebody left something there, they say." if it keeps a
+    chest.
+  - [x] **Fights**: `GameMap.is_covered()` counts a landmark's art as it does props, so
+    the formation solver won't stage a fight behind a crown or an arch.
+  - [x] Tests: the floor test checks the picks, and holds every landmark floor to the
+    floor without it, tile for tile outside its room, plus a sound landmark (named,
+    readable, solid where it says, a lake no puddle, nothing cut off, its chest a plain
+    one you can reach, every monster still there and none standing in it, the camp
+    mentioning it); the puzzle and event with/without checks build both sides without
+    it. The smoke test forces each kind onto a floor 2 and reads it with a real **E**.
+    `tools/screenshot.gd -- --landmarks` shoots each kind in the bands that draw it,
+    and the first of each from behind and read.
+  - *Also*: a purse dropped where a lake now stands (a save from before) is put down on
+    the nearest ground (`GameMap._nearest_ground()`) -- a gap the floor shapes had opened
+    too.
+  - *Not built*: landmarks on authored floors (they are authored already) or in
+    dungeons; a collapsed bridge or chasm (the route-changer, not chosen).
 - [x] **Floor shapes, not just floor content.** *(open field built 2026-10-26; the dungeon built 2026-10-27)* Not every floor is field → labyrinth →
   boss; the generator picks a shape per floor:
   - *Open field* — no labyrinth; the boss roams the overworld, or holds an arena you can
@@ -2544,6 +2603,13 @@ against your col: first to take the other to half wins, and nobody dies of it --
 unless the duellist won't yield when it's decided, and the pick they had hidden is
 poisoned. The camp's veteran will tell you which, if you ask.
 
+And the floors are places now, not just layouts. About every other floor has a
+landmark in one of its rooms: a lake to walk round -- lava on the volcanic floors,
+a frozen mere on the ice -- a great tree twice the size of the treeline, a memorial
+the players put up with the floor's dead cut into it, or a stone arch older than
+any player, with a tablet in the system's own script that knows the boss. Each is on
+the map by name, someone in the camp will send you to it, and some keep a chest.
+
 And it keeps your place now. The game opens on a title screen over the Town of
 Beginnings: continue, start a new game, load one of three saves, the settings, the
 credits. Start a new game as a standard one, saving anywhere and autosaving as you
@@ -2556,8 +2622,8 @@ the settings or quit to the title. A loaded game puts you on the very spot you s
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 230-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 154-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 229-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 157-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 61-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 207-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 97-check combat test
@@ -2619,8 +2685,11 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    (2026-10-27)**: about one floor in five is infested or under a storm. **So are floor
    events (2026-10-27)**: about every other floor has a field boss over a hoard, a
    stranded player to take home, player killers lying in wait or a duellist in the
-   camp -- not always an honest one. Next on that track: the levers that change what you see (room
-   shapes, landmarks), or the villages' floor-exclusive stock.
+   camp -- not always an honest one. **And landmarks (2026-10-27)**: about half the
+   floors have a lake, a great tree, a memorial or a ruined arch in a room of their
+   own, named on **M**, read with **E**, pointed out by the camp. Next on that track:
+   room shapes (the other lever that changes what you see), or the villages'
+   floor-exclusive stock.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where

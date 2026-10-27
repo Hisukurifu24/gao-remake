@@ -131,6 +131,10 @@ static var modifier_override := -1
 ## tests and tools; -1 leaves it to [method FloorRegistry.event_of].
 static var event_override := -1
 
+## Builds every generated floor with this [enum FloorLandmarks.Kind] when set, for
+## the tests and tools; -1 leaves it to [method FloorRegistry.landmark_of].
+static var landmark_override := -1
+
 ## Whether floors get their puzzles ([FloorPuzzles]). Off only for the floor test,
 ## which proves a floor without them is the same floor: they draw on a stream of
 ## their own and must never move anything the floor's rng put down.
@@ -296,7 +300,14 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	# is carved out of the rock as a vault is.
 	var events := _plan_events(rooms, entry, camp.plot, arena, lab, gate_cell, chest_cells,
 			puzzles, field, generation_seed)
+	# Last of all, so it moves nothing: a room nobody else has a use for.
+	var landmark := _plan_landmark(rooms, entry, camp.plot, arena, boss_room, chest_cells,
+			puzzles, events, generation_seed)
 	MapDresser.dress(map, _biome, _ground, _walls, generation_seed)
+	# Laid in once the floor is dressed, and dressed round, so no flower outside its
+	# room moves either.
+	if landmark != null:
+		landmark.paint(map)
 
 	_add_spawns(map, _center(entry))
 	_add_teleport_gate(map, _center(entry))
@@ -329,6 +340,8 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	_brief_camp(camp)
 	if events != null:
 		camp.event_line = FloorEvents.camp_line(events.kind, events.camp_words(camp.plot))
+	if landmark != null:
+		camp.landmark_line = landmark.camp_line(camp.plot)
 	camp.place(map, arena.side if arena != null else lab.side if lab.has_maze() else -1,
 			_definition.boss_name, _lost_spots(lab, free_ends))
 
@@ -368,6 +381,8 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 
 	if events != null:
 		events.place(map, camp.plot)
+	if landmark != null:
+		landmark.place(map, camp.plot)
 	_mark_modifier(map)
 	var player := PLAYER_SCENE.instantiate()
 	player.name = "Player"
@@ -1251,6 +1266,39 @@ func _plan_events(rooms: Array[Rect2i], entry: Rect2i, plot: Rect2i, arena: Aren
 			_walls, _open, field)
 	events.plan(kind, rooms, entry, plot, keep_out, chest_cells, puzzles, keep, route_to)
 	return events if events.kind != FloorEvents.Kind.NONE else null
+
+
+## The floor's landmark ([FloorLandmarks]), planned once everything else is, or null
+## for none: in a room with nothing else in it -- not the arrival's, the camp's, the
+## boss's or a safe zone, the event's or one holding a puzzle's piece, a waystone or a
+## hoard -- or failing that, beside one of the floor's chests.
+func _plan_landmark(rooms: Array[Rect2i], entry: Rect2i, plot: Rect2i, arena: Arena,
+		boss_room: Rect2i, chest_cells: Array[Vector2i], puzzles: FloorPuzzles, events: FloorEvents,
+		generation_seed: int) -> FloorLandmarks:
+	var kind := FloorRegistry.landmark_of(_definition.floor_number)
+	if kind == FloorLandmarks.Kind.NONE:
+		return null
+	var keep_out: Array[Rect2i] = [boss_room]
+	var taken: Array[Vector2i] = []
+	var ways: Array[Vector2i] = []
+	if arena != null:
+		keep_out.append(arena.safe_room)
+		taken.append_array(arena.waystones)
+		if arena.fire.has_area():
+			taken.append(arena.fire.position)
+	if puzzles != null:
+		taken.append_array(puzzles.pieces())
+		ways = puzzles.wisp_path
+	if events != null:
+		keep_out.append(events.room)
+		for rect: Rect2i in [events.hoard, events.hoard_door]:
+			for y in range(rect.position.y, rect.end.y):
+				for x in range(rect.position.x, rect.end.x):
+					taken.append(Vector2i(x, y))
+	var landmark := FloorLandmarks.new(_definition.floor_number, generation_seed, _biome,
+			_ground, _walls, _open)
+	landmark.plan(kind, rooms, entry, _center(entry), plot, keep_out, taken, chest_cells, ways)
+	return landmark if landmark.kind != FloorLandmarks.Kind.NONE else null
 
 
 ## Tells the camp's people what the floor's modifier is, for the scout to mention.

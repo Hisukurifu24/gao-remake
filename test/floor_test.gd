@@ -98,6 +98,9 @@ var _whole_events: Dictionary[int, int] = {}
 var _ambush_cells := 0
 var _ambush_staged := 0
 var _duel_sides := 0
+## Gathered by [method _audit_landmark]: the landmarks built, by kind, and with a chest.
+var _landmarks: Dictionary[int, int] = {}
+var _landmark_chests := 0
 
 
 func _ready() -> void:
@@ -449,9 +452,11 @@ func _run() -> void:
 	print("       (%d of them in a north wall, facing you; the rest in a side wall)" % _cracks_facing)
 	# Puzzles draw on a stream of their own: the floor without them is the same
 	# floor -- the same chests, the same monsters, the same door.
-	# Without the floor's event, which is planned round whatever the puzzles took.
+	# Without the floor's event or its landmark, which are planned round whatever the
+	# puzzles took.
 	var moved: PackedStringArray = PackedStringArray()
 	FloorGenerator.event_override = FloorEvents.Kind.NONE
+	FloorGenerator.landmark_override = FloorLandmarks.Kind.NONE
 	for sample: int in [2, 23, 37, 58, 76, 99]:
 		var with := FloorGenerator.generate(FloorRegistry.get_floor(sample), FloorRegistry.seed_for(sample))
 		FloorGenerator.with_puzzles = false
@@ -462,6 +467,7 @@ func _run() -> void:
 		with.free()
 		without.free()
 	FloorGenerator.event_override = -1
+	FloorGenerator.landmark_override = -1
 	_check(moved.is_empty(), "a floor's puzzles move nothing its own seed put down%s" % (
 			"" if moved.is_empty() else " -- they do on " + ", ".join(moved)))
 
@@ -566,6 +572,66 @@ func _run() -> void:
 	_check(_ambush_staged * 10 >= _ambush_cells * 9,
 			"an ambush can spring on %d of the %d cells of its rooms" % [_ambush_staged, _ambush_cells])
 	print("       (a duel can be staged from all %d sides a duellist can be walked up to from)" % _duel_sides)
+
+	# --- landmarks ---
+	# About half the floors that may have one: never an authored floor, floor 2, the
+	# top or a dungeon; never the same kind two floors running, and only a kind its
+	# band can draw. On a stream of their own, like the events.
+	var may_landmark := 0
+	var picked_landmarks := 0
+	var by_pick: Dictionary[int, int] = {}
+	var misplaced_landmarks := PackedStringArray()
+	var landmarks_here := PackedStringArray()
+	var landmarks_there := PackedStringArray()
+	var last_landmark := FloorLandmarks.Kind.NONE
+	for floor_number in range(1, FloorTuning.TOP_FLOOR + 1):
+		var kind := FloorRegistry.landmark_of(floor_number)
+		landmarks_here.append(str(kind))
+		landmarks_there.append(str(FloorRegistry.landmark_in(999, floor_number)))
+		var may := not (FloorRegistry.get_floor(floor_number).is_authored() or floor_number <= 2
+				or floor_number >= FloorTuning.TOP_FLOOR
+				or FloorRegistry.shape_of(floor_number) == FloorDefinition.Shape.DUNGEON)
+		if may:
+			may_landmark += 1
+		if kind != FloorLandmarks.Kind.NONE:
+			picked_landmarks += 1
+			by_pick[kind] = by_pick.get(kind, 0) + 1
+			if not may:
+				misplaced_landmarks.append("%d" % floor_number)
+			elif kind == last_landmark:
+				misplaced_landmarks.append("%d (the same as the floor below)" % floor_number)
+			elif not kind in FloorLandmarks.kinds_for(FloorRegistry.biome_id(floor_number)):
+				misplaced_landmarks.append("%d (a %s in the %s)" % [floor_number,
+						FloorLandmarks.KIND_NAMES[kind], FloorRegistry.biome_id(floor_number)])
+		last_landmark = kind
+	var pick_counts := PackedStringArray()
+	for kind in range(1, FloorLandmarks.Kind.size()):
+		pick_counts.append("%d %s" % [by_pick.get(kind, 0), FloorLandmarks.KIND_NAMES[kind]])
+	_check(misplaced_landmarks.is_empty() and picked_landmarks * 10 >= may_landmark * 3
+			and picked_landmarks * 10 <= may_landmark * 7 and by_pick.size() == FloorLandmarks.Kind.size() - 1,
+			"%d of %d floors that may have one pick a landmark (%s), where they may%s" % [
+				picked_landmarks, may_landmark, ", ".join(pick_counts),
+				"" if misplaced_landmarks.is_empty() else " -- not on " + ", ".join(misplaced_landmarks)])
+	_check(landmarks_here != landmarks_there, "another world has its landmarks on other floors")
+	# Each is the floor without it, plus the landmark -- dressed the same outside its
+	# room, down to the flowers -- and sound: named on M, read, cutting nothing off,
+	# its chest reachable, nobody standing in it, and the camp saying so.
+	var unsound_landmarks := PackedStringArray()
+	for floor_number in range(2, FloorTuning.TOP_FLOOR + 1):
+		if FloorRegistry.landmark_of(floor_number) != FloorLandmarks.Kind.NONE:
+			var problem := _audit_landmark(floor_number)
+			if not problem.is_empty():
+				unsound_landmarks.append(problem)
+	var built := 0
+	var built_counts := PackedStringArray()
+	for kind in range(1, FloorLandmarks.Kind.size()):
+		built += _landmarks.get(kind, 0)
+		built_counts.append("%d %s" % [_landmarks.get(kind, 0), FloorLandmarks.KIND_NAMES[kind]])
+	_check(unsound_landmarks.is_empty() and built * 10 >= picked_landmarks * 8
+			and _landmarks.size() == FloorLandmarks.Kind.size() - 1,
+			"every landmark is the floor without it plus the landmark, and sound (%d of %d built: %s; %d keep a chest)%s" % [
+				built, picked_landmarks, ", ".join(built_counts), _landmark_chests,
+				"" if unsound_landmarks.is_empty() else " -- " + ", ".join(unsound_landmarks)])
 
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
@@ -2480,10 +2546,13 @@ func _audit_modifier(floor_number: int) -> String:
 func _audit_event(floor_number: int) -> String:
 	var kind := FloorRegistry.event_of(floor_number)
 	var label := "floor %d (%s)" % [floor_number, FloorEvents.KIND_NAMES[kind]]
+	# Without the landmark, both: it is planned round the event's room.
+	FloorGenerator.landmark_override = FloorLandmarks.Kind.NONE
 	var with := FloorRegistry.build_floor(floor_number) as GameMap
 	FloorGenerator.event_override = FloorEvents.Kind.NONE
 	var without := FloorRegistry.build_floor(floor_number) as GameMap
 	FloorGenerator.event_override = -1
+	FloorGenerator.landmark_override = -1
 	_events[kind] = _events.get(kind, 0) + 1
 	var carved: Rect2i = with.get_meta(&"hoard", Rect2i())
 	if carved.has_area():
@@ -2498,6 +2567,146 @@ func _audit_event(floor_number: int) -> String:
 	with.free()
 	without.free()
 	return problem
+
+
+## A floor's landmark ([FloorLandmarks]) against the same floor without one:
+## everything the floor puts down where it was, dressed the same outside the room the
+## landmark takes, and on top only the landmark -- and the landmark sound. Empty if
+## so. A floor whose landmark found no room is the plain floor.
+func _audit_landmark(floor_number: int) -> String:
+	var with := FloorRegistry.build_floor(floor_number) as GameMap
+	FloorGenerator.landmark_override = FloorLandmarks.Kind.NONE
+	var without := FloorRegistry.build_floor(floor_number) as GameMap
+	FloorGenerator.landmark_override = -1
+	var kind: int = with.get_meta(&"landmark", FloorLandmarks.Kind.NONE)
+	var room: Rect2i = with.get_meta(&"landmark_room", Rect2i())
+	var label := "floor %d (%s)" % [floor_number, FloorLandmarks.KIND_NAMES[kind]]
+	var problem := ""
+	if _landmark_signature(with, room) != _landmark_signature(without, room):
+		problem = "%s moved what the floor put down" % label
+	elif kind != FloorLandmarks.Kind.NONE:
+		problem = _landmark_problem(with, without, kind, floor_number, label)
+		if problem.is_empty():
+			_landmarks[kind] = _landmarks.get(kind, 0) + 1
+			if with.has_meta(&"landmark_chest"):
+				_landmark_chests += 1
+	with.free()
+	without.free()
+	return problem
+
+
+## What a landmark's floor shares with the plain one: every tile of every layer,
+## exactly, outside [param room] and the cell round it (a paved square's edge is
+## re-picked against it); every node bar the landmark's and the monsters, where it
+## stands; the map's settings bar the landmark's name. Which monsters stand where is
+## [method _landmark_problem]'s.
+func _landmark_signature(map: GameMap, room: Rect2i) -> String:
+	var parts := PackedStringArray()
+	var near := room.grow(1)
+	for layer_name in ["Ground", "Walls", MapDresser.PROPS, MapDresser.DECOR]:
+		var layer := map.get_node_or_null(layer_name) as TileMapLayer
+		if layer == null:
+			continue
+		var cells := PackedStringArray()
+		for cell in layer.get_used_cells():
+			if not near.has_point(cell):
+				cells.append("%s=%s" % [cell, layer.get_cell_atlas_coords(cell)])
+		cells.sort()
+		parts.append(",".join(cells))
+	for child in map.get_children():
+		if child is Landmark or child.name == "ChestLandmark" or child is Monster:
+			continue
+		var line := "%s %s" % [child.name, child.get_class()]
+		if child is Node2D:
+			line += " %s" % (child as Node2D).position
+		parts.append(line)
+	var places := map.landmarks.duplicate()
+	for place: String in map.landmarks:
+		if map.landmarks[place] == room and room.has_area():
+			places.erase(place)
+	parts.append("%s %s %s %s %s" % [map.map_id, map.dark_area, places, map.safe_zones, map.lit_areas])
+	for meta in map.get_meta_list():
+		if not String(meta).begins_with("landmark"):
+			parts.append("%s=%s" % [meta, map.get_meta(meta)])
+	return "\n".join(parts)
+
+
+func _landmark_problem(map: GameMap, plain: GameMap, kind: int, floor_number: int,
+		label: String) -> String:
+	var landmark := map.get_node_or_null("Landmark") as Landmark
+	var room: Rect2i = map.get_meta(&"landmark_room")
+	if landmark == null or landmark.kind != kind:
+		return "%s has no landmark standing" % label
+	if not kind in FloorLandmarks.kinds_for(FloorRegistry.biome_id(floor_number)):
+		return "%s is a kind its band doesn't draw" % label
+	if not map.landmarks.values().has(room):
+		return "%s isn't named on the map" % label
+	if landmark.lines.is_empty() or landmark.display_name.is_empty() \
+			or Array(landmark.lines).any(func(line: String) -> bool: return "{" in line or line.is_empty()):
+		return "%s has nothing to read (%s)" % [label, landmark.lines]
+	var plot: Rect2i = map.get_meta(&"camp")
+	if room.intersects(plot) or map.safe_zones.any(func(zone: Rect2i) -> bool: return zone.intersects(room)):
+		return "%s stands in the camp or a safe zone" % label
+	var walls := map.get_node("Walls") as TileMapLayer
+	var cells: Array[Vector2i] = []
+	cells.assign(map.get_meta(&"landmark_cells"))
+	for cell in cells:
+		if walls.get_cell_source_id(cell) == -1 or not room.has_point(cell):
+			return "%s's %s isn't solid in its room" % [label, cell]
+	if kind == FloorLandmarks.Kind.LAKE:
+		var water := 0
+		for cell in cells:
+			if map.is_water(cell):
+				water += 1
+		if water < FloorLandmarks.LAKE_LEAST.x * FloorLandmarks.LAKE_LEAST.y - 4:
+			return "%s is a puddle (%d cells of water)" % [label, water]
+	# Nothing cut off: what the plain floor reaches, this one does, bar its own cells.
+	var start: Vector2i = walls.local_to_map((map.get_node("SpawnPoints").get_child(0) as Node2D).position)
+	var reached := _flood(walls, start)
+	var chest_at: Vector2i = map.get_meta(&"landmark_chest", Vector2i(-1, -1))
+	for cell: Vector2i in _flood(plain.get_node("Walls") as TileMapLayer, start):
+		if not reached.has(cell) and not cell in cells and cell != chest_at:
+			return "%s cuts %s off" % [label, cell]
+	if chest_at.x >= 0:
+		var chest := map.get_node_or_null("ChestLandmark") as Chest
+		if chest == null or walls.local_to_map(chest.position) != chest_at \
+				or chest.opened_flag != FloorLandmarks.chest_flag(floor_number) or chest.gilded or chest.sealed:
+			return "%s's chest isn't a plain chest where it says" % label
+		if not reached.has(chest_at):
+			return "%s's chest can't be walked up to" % label
+	# It can be read from somewhere you can stand.
+	var at := walls.local_to_map(landmark.position - Vector2(0, 4))
+	var readable := false
+	for y in range(-1, 2):
+		for x in range(-1, 2):
+			var beside := at + Vector2i(x, y)
+			readable = readable or (reached.has(beside) and walls.get_cell_source_id(beside) == -1)
+	if not readable:
+		return "%s can't be walked up to" % label
+	# Its monsters are the plain floor's, moved off it where they stood on it.
+	for child in plain.get_children():
+		if not child is Monster:
+			continue
+		var twin := map.get_node_or_null(NodePath(child.name)) as Monster
+		if twin == null or twin.enemy != (child as Monster).enemy:
+			return "%s lost %s" % [label, child.name]
+		var cell := walls.local_to_map(twin.position)
+		if cell in cells or cell == chest_at:
+			return "%s's %s stands in it" % [label, child.name]
+		if twin.position != (child as Node2D).position and not room.grow(1).has_point(cell):
+			return "%s's %s was moved out of its room" % [label, child.name]
+	# Someone in the camp says so.
+	var opening: String = (FloorLandmarks.CAMP_LINES[kind] as String).get_slice("{", 0)
+	var told := false
+	var campers := 0
+	for child in map.get_children():
+		if child is Npc and String(child.name).begins_with("Camper"):
+			campers += 1
+			told = told or (child as Npc).dialogue.lines.any(func(line: DialogueLine) -> bool:
+				return line.text.begins_with(opening) and not "{" in line.text)
+	if campers > 0 and not told:
+		return "%s's camp says nothing about it" % label
+	return ""
 
 
 ## What an event's floor shares with the plain one: where every cell is wall or

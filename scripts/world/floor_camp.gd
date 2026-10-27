@@ -193,6 +193,10 @@ var weather: StringName = &""
 ## What the veteran says about the floor's event ([FloorEvents]), after their
 ## opening; empty for none. Set before [method place].
 var event_line := ""
+## What the camp says about the floor's landmark ([FloorLandmarks]), after an
+## opening -- the local's, or the scout's in a camp of two; empty for none. Set
+## before [method place].
+var landmark_line := ""
 ## Each house's whole rect, in tiles, and which of the band's village tiles it
 ## is; planned whether or not the camp has settled, built only once it has.
 var houses: Array[Rect2i] = []
@@ -734,13 +738,23 @@ func _talk(index: int, role: String, handle: String, portrait: Texture2D,
 	talk.lines.append(opening)
 	# The scout's word on the floor's modifier, after the opening it falls through
 	# from: a continuation, never an entry. Fixed words, so no stream moves.
-	var remark := FloorModifier.camp_line(modifier, weather) if role == "scout" else ""
+	var remarks: Array[String] = []
+	if role == "scout":
+		remarks.append(FloorModifier.camp_line(modifier, weather))
 	# And the veteran's on what is happening on it, the same way.
 	if role == "veteran":
-		remark = event_line
-	if not remark.is_empty():
-		opening.next = &""
-		talk.lines.append(_line(remark, []))
+		remarks.append(event_line)
+	# And whoever knows the floor best on its landmark: the local, or the scout
+	# where nobody local is in camp.
+	if role == "local" or (role == "scout" and people.size() < ROLE_ORDER.size()):
+		remarks.append(landmark_line)
+	var last := opening
+	for remark in remarks:
+		if remark.is_empty():
+			continue
+		last.next = &""
+		last = _line(remark, [])
+		talk.lines.append(last)
 	return talk
 
 

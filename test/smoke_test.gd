@@ -236,6 +236,7 @@ func _run() -> void:
 	await _test_dungeon(world_root)
 	await _test_modifiers(main, world_root)
 	await _test_events(world_root)
+	await _test_landmarks(world_root)
 
 
 ## The hidden door on a real generated floor: not there until you walk into its
@@ -1296,6 +1297,97 @@ func _test_events(world_root: Node2D) -> void:
 func _count_betrayal(report: CombatReport) -> void:
 	if report.kind == CombatReport.Kind.YIELD and not report.success:
 		_betrayals += 1
+
+
+## Landmarks, each kind forced onto a real floor 2: named on the map, mentioned in
+## the camp, read with a real press of E from beside it, and its chest, where it
+## keeps one, opened. A floor 2 may have no room free for one, so this picks a
+## world whose floor 2 has room for every kind, as the puzzles pick theirs.
+func _test_landmarks(world_root: Node2D) -> void:
+	for candidate in range(1, 200):
+		GameState.new_world_seed(candidate)
+		var fits := true
+		for kind in range(1, FloorLandmarks.Kind.size()):
+			FloorGenerator.landmark_override = kind
+			var probe := FloorRegistry.build_floor(2)
+			fits = fits and probe.get_meta(&"landmark", 0) == kind
+			probe.free()
+			if not fits:
+				break
+		if fits:
+			break
+	var built := 0
+	var read := 0
+	var opened := 0
+	EventBus.interact_target_changed.connect(_spy_target)
+	DialogueRunner.line_shown.connect(_spy_text)
+	for kind in range(1, FloorLandmarks.Kind.size()):
+		FloorGenerator.landmark_override = kind
+		var map := await _event_floor(world_root, 2)
+		var landmark := map.get_node_or_null("Landmark") as Landmark
+		if landmark == null or landmark.kind != kind:
+			continue
+		built += 1
+		var player := map.get_node("Player") as Player
+		for child in map.get_children():
+			if child is Monster:
+				child.queue_free()
+		var room: Rect2i = map.get_meta(&"landmark_room")
+		var told := false
+		for child in map.get_children():
+			if child is Npc and String(child.name).begins_with("Camper"):
+				for line in (child as Npc).dialogue.lines:
+					told = told or (FloorLandmarks.KIND_NAMES[kind] != "" and line.text.ends_with(
+							(FloorLandmarks.CAMP_LINES[kind] as String).get_slice("}", 2).get_slice("{", 0)))
+		_check(map.landmarks.values().has(room) and (told or not map.has_node("Camper0")),
+				"a %s on floor 2 is named on the map, and the camp mentions it" % FloorLandmarks.KIND_NAMES[kind])
+		# Walked up to and read, with a real press, from whichever side faces it.
+		var walls := map.get_node("Walls") as TileMapLayer
+		var at := walls.local_to_map(landmark.position - Vector2(0, 4))
+		var chest_at: Vector2i = map.get_meta(&"landmark_chest", Vector2i(-100, -100))
+		var sides: Array[Vector2i] = []
+		for y in range(-2, 3):
+			for x in range(-2, 3):
+				if x == 0 or y == 0:
+					sides.append(Vector2i(x, y))
+		for step in sides:
+			var stand := at + step
+			if step == Vector2i.ZERO or walls.get_cell_source_id(stand) != -1 \
+					or (stand - chest_at).length() < 2.0:
+				continue
+			player.global_position = walls.map_to_local(stand)
+			player.facing = Vector2(-step.sign())
+			_last_target = null
+			await _physics(4)
+			if _last_target != landmark:
+				continue
+			_line_spy.clear()
+			await _tap(&"interact")
+			await _idle(2)
+			var shown := _line_spy.duplicate()
+			await _close_dialogue()
+			if not shown.is_empty() and shown[0] == landmark.lines[0]:
+				read += 1
+			else:
+				print("       (the %s showed %s)" % [FloorLandmarks.KIND_NAMES[kind], shown])
+			break
+		var chest := map.get_node_or_null("ChestLandmark") as Chest
+		if chest != null:
+			var before := Inventory.count(chest.item_id)
+			chest.interact(player)
+			await _close_dialogue()
+			if Inventory.count(chest.item_id) > before and GameState.has_flag(chest.opened_flag):
+				opened += 1
+			await _idle(2)
+	FloorGenerator.landmark_override = -1
+	EventBus.interact_target_changed.disconnect(_spy_target)
+	DialogueRunner.line_shown.disconnect(_spy_text)
+	_check(built == FloorLandmarks.Kind.size() - 1 and read == built,
+			"every kind of landmark is read from beside it with E (%d of %d)" % [read, built])
+	var map := await _event_floor(world_root, 2)
+	_check(map.get_node_or_null("Landmark") == null,
+			"and floor 2 itself has none")
+	print("       (%d of them kept a chest, opened)" % opened)
 
 
 ## Floor [param floor_number] entered for an event, once the arrival is over --

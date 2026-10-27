@@ -11,6 +11,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --dungeons  # dungeons: hall, seals, ladder, top
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --modifiers # storms per band, an infested floor
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --events    # field boss, escort, ambush, duel
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --landmarks # every kind in the bands that draw it
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --title     # the title screen and its pages
@@ -44,6 +45,14 @@ const INFESTED_FLOOR := 14
 const EVENT_FLOORS := {
 	FloorEvents.Kind.FIELD_BOSS: [15, 37], FloorEvents.Kind.ESCORT: [5],
 	FloorEvents.Kind.AMBUSH: [45], FloorEvents.Kind.DUEL: [65],
+}
+## The bands each landmark is shot in, by a floor of the band: a lake in every one
+## (its liquid changes), a tree wherever one grows, a statue of each stone.
+const LANDMARK_FLOORS := {
+	FloorLandmarks.Kind.LAKE: [5, 15, 27, 35, 45, 55, 65, 75, 85, 97],
+	FloorLandmarks.Kind.GREAT_TREE: [5, 15, 35, 45, 55, 65, 75, 85],
+	FloorLandmarks.Kind.MONUMENT: [5, 27, 55, 97],
+	FloorLandmarks.Kind.RUIN: [15, 45, 85],
 }
 ## A generated floor in each biome band, clear of the ones shot elsewhere.
 const BAND_FLOORS := [5, 15, 27, 35, 45, 55, 65, 75, 85, 97]
@@ -107,6 +116,11 @@ func _ready() -> void:
 		return
 	if "--events" in OS.get_cmdline_user_args():
 		await _capture_events(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--landmarks" in OS.get_cmdline_user_args():
+		await _capture_landmarks(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1434,6 +1448,61 @@ func _capture_modifiers(main: Node) -> void:
 	GameState.explore(infested.map_id, all)
 	await _capture_map(main, "04zm_infested_map")
 	FloorGenerator.modifier_override = -1
+	FloorGenerator.shape_override = -1
+
+
+## Landmarks: each kind in the bands that draw it, seen from in front -- and the
+## first of each from behind, which is the only way to see it sort over you, and
+## read, which is the only way to see its words in the box.
+func _capture_landmarks(main: Node) -> void:
+	# The floor test's world, so a shot can be found again.
+	GameState.new_world_seed(12345)
+	FloorGenerator.shape_override = FloorDefinition.Shape.CLASSIC
+	FloorGenerator.event_override = FloorEvents.Kind.NONE
+	FloorGenerator.modifier_override = FloorModifier.Kind.NONE
+	for kind: int in LANDMARK_FLOORS:
+		FloorGenerator.landmark_override = kind
+		var first := true
+		for floor_number: int in LANDMARK_FLOORS[kind]:
+			GameState.clear_floor(floor_number - 1)
+			SceneRouter.enter_floor(floor_number, &"default")
+			var map := await _arrived(floor_number)
+			var landmark := map.get_node_or_null("Landmark") as Landmark
+			if landmark == null or landmark.kind != kind:
+				print("floor %d grew no %s" % [floor_number, FloorLandmarks.KIND_NAMES[kind]])
+				continue
+			for child in map.get_children():
+				if child is Monster:
+					child.queue_free()
+			var player := map.get_node("Player") as Player
+			var room: Rect2i = map.get_meta(&"landmark_room")
+			var shot := "04zl_%s%02d" % [FloorLandmarks.KIND_NAMES[kind].replace(" ", "_"), floor_number]
+			# On the shore above a lake, by its sign; a little way in front of anything else.
+			var lake := kind == FloorLandmarks.Kind.LAKE
+			player.position = Vector2(room.get_center().x * 16 + 8, room.position.y * 16 + 8) \
+					if lake else landmark.position + Vector2(0, 24)
+			player.facing = Vector2.DOWN if lake else Vector2.UP
+			await _settle_camera(player)
+			await _wait(0.4)
+			await _capture(shot)
+			if not first:
+				continue
+			first = false
+			if kind != FloorLandmarks.Kind.LAKE:
+				player.position = landmark.position + Vector2(-8, -40)
+				await _settle_camera(player)
+				await _wait(0.3)
+				await _capture(shot + "_behind")
+			landmark.interact(player)
+			await _until(func() -> bool: return DialogueRunner.is_running(), 5.0)
+			await _typed(main)
+			await _capture(shot + "_read")
+			while DialogueRunner.is_running():
+				DialogueRunner.advance()
+				await _wait(0.1)
+	FloorGenerator.landmark_override = -1
+	FloorGenerator.modifier_override = -1
+	FloorGenerator.event_override = -1
 	FloorGenerator.shape_override = -1
 
 
