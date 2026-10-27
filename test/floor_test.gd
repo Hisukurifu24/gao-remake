@@ -101,6 +101,11 @@ var _duel_sides := 0
 ## Gathered by [method _audit_landmark]: the landmarks built, by kind, and with a chest.
 var _landmarks: Dictionary[int, int] = {}
 var _landmark_chests := 0
+## Gathered by [method _audit_room_shapes]: the rooms shaped, by kind, the rooms
+## there were, and the monsters stepped off the rock.
+var _room_shapes: Dictionary[int, int] = {}
+var _shapeable_rooms := 0
+var _stepped_monsters := 0
 
 
 func _ready() -> void:
@@ -452,11 +457,12 @@ func _run() -> void:
 	print("       (%d of them in a north wall, facing you; the rest in a side wall)" % _cracks_facing)
 	# Puzzles draw on a stream of their own: the floor without them is the same
 	# floor -- the same chests, the same monsters, the same door.
-	# Without the floor's event or its landmark, which are planned round whatever the
-	# puzzles took.
+	# Without the floor's event, its landmark or its rooms' shapes, which are planned
+	# round whatever the puzzles took.
 	var moved: PackedStringArray = PackedStringArray()
 	FloorGenerator.event_override = FloorEvents.Kind.NONE
 	FloorGenerator.landmark_override = FloorLandmarks.Kind.NONE
+	FloorGenerator.with_room_shapes = false
 	for sample: int in [2, 23, 37, 58, 76, 99]:
 		var with := FloorGenerator.generate(FloorRegistry.get_floor(sample), FloorRegistry.seed_for(sample))
 		FloorGenerator.with_puzzles = false
@@ -468,6 +474,7 @@ func _run() -> void:
 		without.free()
 	FloorGenerator.event_override = -1
 	FloorGenerator.landmark_override = -1
+	FloorGenerator.with_room_shapes = true
 	_check(moved.is_empty(), "a floor's puzzles move nothing its own seed put down%s" % (
 			"" if moved.is_empty() else " -- they do on " + ", ".join(moved)))
 
@@ -632,6 +639,38 @@ func _run() -> void:
 			"every landmark is the floor without it plus the landmark, and sound (%d of %d built: %s; %d keep a chest)%s" % [
 				built, picked_landmarks, ", ".join(built_counts), _landmark_chests,
 				"" if unsound_landmarks.is_empty() else " -- " + ", ".join(unsound_landmarks)])
+
+	# --- room shapes ---
+	# Most rooms that nothing else has a use for are given a shape -- rock put back
+	# into the rectangle, never carved out of it. Each floor is the floor without its
+	# shapes plus the rock: every node where it was, but monsters stepped off the rock
+	# onto the floor of their room; every tile as solid as before outside the rooms it
+	# shaped; the rock and the floor beside it two thick, as the walls can draw. Every
+	# floor above was built shaped, so it is already proven completable, staged and
+	# dressed right with them.
+	var unshaped := PackedStringArray()
+	var shaped_floors := 0
+	for floor_number in range(2, FloorTuning.TOP_FLOOR + 1):
+		if FloorRegistry.get_floor(floor_number).is_authored():
+			continue
+		var before := _room_shapes.duplicate()
+		var problem := _audit_room_shapes(floor_number)
+		if not problem.is_empty():
+			unshaped.append(problem)
+		if _room_shapes != before:
+			shaped_floors += 1
+	var shape_counts := PackedStringArray()
+	var shaped_rooms := 0
+	for kind in range(1, RoomShapes.Kind.size()):
+		shaped_rooms += _room_shapes.get(kind, 0)
+		shape_counts.append("%d %s" % [_room_shapes.get(kind, 0), RoomShapes.KIND_NAMES[kind]])
+	_check(unshaped.is_empty(),
+			"every shaped floor is the floor without its shapes plus the rock, two thick%s" % (
+			"" if unshaped.is_empty() else " -- " + ", ".join(unshaped)))
+	_check(shaped_floors * 10 >= 97 * 9 and _room_shapes.size() == RoomShapes.Kind.size() - 1
+			and _room_shapes.get(RoomShapes.Kind.PILLARS, 0) >= 10,
+			"rooms take shapes on %d of 97 generated floors (%d rooms: %s; %d monsters stepped off the rock)" % [
+				shaped_floors, shaped_rooms, ", ".join(shape_counts), _stepped_monsters])
 
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
@@ -2546,13 +2585,16 @@ func _audit_modifier(floor_number: int) -> String:
 func _audit_event(floor_number: int) -> String:
 	var kind := FloorRegistry.event_of(floor_number)
 	var label := "floor %d (%s)" % [floor_number, FloorEvents.KIND_NAMES[kind]]
-	# Without the landmark, both: it is planned round the event's room.
+	# Without the landmark or the rooms' shapes, both: they are planned round the
+	# event's room.
 	FloorGenerator.landmark_override = FloorLandmarks.Kind.NONE
+	FloorGenerator.with_room_shapes = false
 	var with := FloorRegistry.build_floor(floor_number) as GameMap
 	FloorGenerator.event_override = FloorEvents.Kind.NONE
 	var without := FloorRegistry.build_floor(floor_number) as GameMap
 	FloorGenerator.event_override = -1
 	FloorGenerator.landmark_override = -1
+	FloorGenerator.with_room_shapes = true
 	_events[kind] = _events.get(kind, 0) + 1
 	var carved: Rect2i = with.get_meta(&"hoard", Rect2i())
 	if carved.has_area():
@@ -2574,10 +2616,13 @@ func _audit_event(floor_number: int) -> String:
 ## landmark takes, and on top only the landmark -- and the landmark sound. Empty if
 ## so. A floor whose landmark found no room is the plain floor.
 func _audit_landmark(floor_number: int) -> String:
+	# Without the rooms' shapes, both: they are planned round the landmark's room.
+	FloorGenerator.with_room_shapes = false
 	var with := FloorRegistry.build_floor(floor_number) as GameMap
 	FloorGenerator.landmark_override = FloorLandmarks.Kind.NONE
 	var without := FloorRegistry.build_floor(floor_number) as GameMap
 	FloorGenerator.landmark_override = -1
+	FloorGenerator.with_room_shapes = true
 	var kind: int = with.get_meta(&"landmark", FloorLandmarks.Kind.NONE)
 	var room: Rect2i = with.get_meta(&"landmark_room", Rect2i())
 	var label := "floor %d (%s)" % [floor_number, FloorLandmarks.KIND_NAMES[kind]]
@@ -2593,6 +2638,114 @@ func _audit_landmark(floor_number: int) -> String:
 	with.free()
 	without.free()
 	return problem
+
+
+## A floor with its rooms shaped ([RoomShapes]) against the same floor without, level
+## by level: every node where it was -- a monster that stood on the new rock stepped
+## to the floor of its room -- the map's settings the same, every cell solid where it
+## was and solid now only in a room it shaped, and the rock it put back and the floor
+## beside it each two thick. Empty if so.
+func _audit_room_shapes(floor_number: int) -> String:
+	for level in range(1, FloorRegistry.levels_of(floor_number) + 1):
+		var with := FloorRegistry.build_floor(floor_number, level) as GameMap
+		FloorGenerator.with_room_shapes = false
+		var without := FloorRegistry.build_floor(floor_number, level) as GameMap
+		FloorGenerator.with_room_shapes = true
+		var problem := _room_shape_problem(with, without, "floor %d level %d" % [floor_number, level])
+		with.free()
+		without.free()
+		if not problem.is_empty():
+			return problem
+	return ""
+
+
+func _room_shape_problem(with: GameMap, without: GameMap, label: String) -> String:
+	var shaped: Dictionary = with.get_meta(&"room_shapes", {})
+	var rock: Dictionary = with.get_meta(&"room_rock", {})
+	if without.has_meta(&"room_shapes"):
+		return "%s has shapes with them off" % label
+	var walls := with.get_node("Walls") as TileMapLayer
+	var plain := without.get_node("Walls") as TileMapLayer
+	var in_shaped := func(cell: Vector2i) -> bool:
+		return shaped.keys().any(func(room: Rect2i) -> bool: return room.has_point(cell))
+	for cell in walls.get_used_cells():
+		if plain.get_cell_source_id(cell) == -1 and not rock.has(cell):
+			return "%s is solid at %s, which no shape put back" % [label, cell]
+	for cell in plain.get_used_cells():
+		if walls.get_cell_source_id(cell) == -1:
+			return "%s opened %s" % [label, cell]
+	for cell: Vector2i in rock:
+		if walls.get_cell_source_id(cell) == -1 or not in_shaped.call(cell):
+			return "%s's rock at %s is not solid in a room it shaped" % [label, cell]
+	if not shaped.is_empty() and rock.is_empty():
+		return "%s names shaped rooms but put no rock back" % label
+	# Floor, for whether it is two wide: open, or a boulder or a pool left in a room.
+	var floorish := func(cell: Vector2i) -> bool:
+		if rock.has(cell):
+			return false
+		return walls.get_cell_source_id(cell) == -1 or in_shaped.call(cell)
+	for room: Rect2i in shaped:
+		var kind: int = shaped[room]
+		_room_shapes[kind] = _room_shapes.get(kind, 0) + 1
+		var near := room.grow(1)
+		for y in range(near.position.y, near.end.y):
+			for x in range(near.position.x, near.end.x):
+				var cell := Vector2i(x, y)
+				if rock.has(cell) and not _two_thick(cell, func(at: Vector2i) -> bool:
+						return walls.get_cell_source_id(at) != -1):
+					return "%s's %s at %s has a sliver of rock at %s" % [label,
+							RoomShapes.KIND_NAMES[kind], room, cell]
+				var beside := false
+				for step: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 0),
+						Vector2i(1, 0), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1)]:
+					beside = beside or rock.has(cell + step)
+				if beside and floorish.call(cell) and not _two_thick(cell, floorish):
+					return "%s's %s at %s has a sliver of floor at %s" % [label,
+							RoomShapes.KIND_NAMES[kind], room, cell]
+	# Everything else where it was; monsters stepped off the rock, onto open floor,
+	# in the room they stood in.
+	var parts := PackedStringArray()
+	var plain_parts := PackedStringArray()
+	for pair: Array in [[with, parts], [without, plain_parts]]:
+		for child in (pair[0] as Node).get_children():
+			if child is TileMapLayer or child is Monster:
+				continue
+			var line := "%s %s" % [child.name, child.get_class()]
+			if child is Node2D:
+				line += " %s" % (child as Node2D).position
+			(pair[1] as PackedStringArray).append(line)
+	if parts != plain_parts:
+		return "%s moved something other than a monster" % label
+	for child in without.get_children():
+		if not child is Monster:
+			continue
+		var twin := with.get_node_or_null(NodePath(child.name)) as Monster
+		if twin == null or twin.enemy != (child as Monster).enemy:
+			return "%s lost or changed %s" % [label, child.name]
+		if twin.position == (child as Node2D).position:
+			continue
+		var was := Vector2i((child as Node2D).position / TILE)
+		var now := Vector2i(twin.position / TILE)
+		if not rock.has(was) or walls.get_cell_source_id(now) != -1 \
+				or not shaped.keys().any(func(room: Rect2i) -> bool: return room.has_point(was)):
+			return "%s moved %s from %s to %s" % [label, child.name, was, now]
+		_stepped_monsters += 1
+	for meta in without.get_meta_list():
+		if without.get_meta(meta) != with.get_meta(meta, null):
+			return "%s changed its %s" % [label, meta]
+	return ""
+
+
+## Whether [param cell] is in a 2x2 of cells [param kind] says yes to.
+func _two_thick(cell: Vector2i, kind: Callable) -> bool:
+	for corner: Vector2i in [Vector2i(0, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(-1, -1)]:
+		var whole := true
+		for y in 2:
+			for x in 2:
+				whole = whole and kind.call(cell + corner + Vector2i(x, y))
+		if whole:
+			return true
+	return false
 
 
 ## What a landmark's floor shares with the plain one: every tile of every layer,

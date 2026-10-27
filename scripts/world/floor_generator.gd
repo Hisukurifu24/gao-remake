@@ -135,6 +135,15 @@ static var event_override := -1
 ## the tests and tools; -1 leaves it to [method FloorRegistry.landmark_of].
 static var landmark_override := -1
 
+## Whether rooms are given shapes ([RoomShapes]). Off only for the tests that hold a
+## floor with something to the floor without it, which are built unshaped both sides,
+## and for the one that proves a shaped floor is the plain one plus its rock.
+static var with_room_shapes := true
+
+## Gives every room that may take a shape this [enum RoomShapes.Kind] when set, for
+## the tests and tools; -1 leaves it to the band's draw.
+static var room_shape_override := -1
+
 ## Whether floors get their puzzles ([FloorPuzzles]). Off only for the floor test,
 ## which proves a floor without them is the same floor: they draw on a stream of
 ## their own and must never move anything the floor's rng put down.
@@ -153,6 +162,10 @@ var _decor: Array[Vector2i] = []
 ## Every cell a corridor's width swept, open already or not: what the camp keeps
 ## clear of, since a corridor through a room is invisible in [member _open].
 var _lanes: Dictionary[Vector2i, bool] = {}
+## Every cell a room's shape put back to rock ([RoomShapes]). A monster drawn onto
+## one is drawn as if it were still floor and stepped off it after, so the floor's
+## rng asks for what it always did.
+var _filled: Dictionary[Vector2i, bool] = {}
 
 
 ## [param level] is which of a dungeon's maps ([DungeonGenerator]); every other
@@ -303,6 +316,24 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	# Last of all, so it moves nothing: a room nobody else has a use for.
 	var landmark := _plan_landmark(rooms, entry, camp.plot, arena, boss_room, chest_cells,
 			puzzles, events, generation_seed)
+	# After even that, so it takes only rooms nobody wants; before dressing, so the
+	# walls join round it.
+	var keep_out: Array[Rect2i] = [entry, boss_room]
+	var kept: Array[Vector2i] = chest_cells.duplicate()
+	var ways: Array[Vector2i] = []
+	if arena != null:
+		keep_out.append(arena.safe_room)
+		kept.append_array(arena.waystones)
+	if puzzles != null:
+		keep_out.append_array([puzzles.rite_room, puzzles.statue_room])
+		kept.append_array(puzzles.pieces())
+		ways = puzzles.wisp_path
+	if events != null:
+		keep_out.append(events.room)
+	if landmark != null:
+		keep_out.append(landmark.room)
+	var shapes := _plan_shapes(rooms, keep_out, camp.plot, ways, kept, arrival,
+			generation_seed)
 	MapDresser.dress(map, _biome, _ground, _walls, generation_seed)
 	# Laid in once the floor is dressed, and dressed round, so no flower outside its
 	# room moves either.
@@ -326,6 +357,8 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 			passages = lab.passages()
 		_add_swarm(map, swarm_rooms, passages, [] as Array[Vector2i],
 				FloorTuning.infested_count(_definition.floor_number), generation_seed)
+	if shapes != null:
+		shapes.step_monsters_off(map)
 	if puzzles != null:
 		puzzles.place(map)
 	_add_boss_gate(map, gate_cell, lab.boss_room)
@@ -374,6 +407,7 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 		map.set_meta(&"arena_door", arena.door)
 		map.set_meta(&"waystones", arena.waystones)
 	map.set_meta(&"camp", camp.plot)
+	_mark_shapes(map, shapes)
 	if camp.village:
 		map.set_meta(&"village", camp.houses)
 	if camp.lost_cell.x >= 0:
@@ -1182,7 +1216,7 @@ func _add_monsters(map: Node2D, rooms: Array[Rect2i], entry: Rect2i, boss_room: 
 			cell = Vector2i(
 				_rng.randi_range(room.position.x + 1, room.end.x - 2),
 				_rng.randi_range(room.position.y + 1, room.end.y - 2))
-		if cell in placed or not _open.has(cell):
+		if cell in placed or not (_open.has(cell) or _filled.has(cell)):
 			continue
 		placed.append(cell)
 
@@ -1228,7 +1262,7 @@ func _add_swarm(map: Node2D, rooms: Array[Rect2i], passages: Array[Rect2i],
 			cell = Vector2i(
 				rng.randi_range(room.position.x + 1, room.end.x - 2),
 				rng.randi_range(room.position.y + 1, room.end.y - 2))
-		if placed.has(cell) or not _open.has(cell):
+		if placed.has(cell) or not (_open.has(cell) or _filled.has(cell)):
 			continue
 		placed[cell] = true
 		var monster := MONSTER_SCENE.instantiate()
@@ -1299,6 +1333,29 @@ func _plan_landmark(rooms: Array[Rect2i], entry: Rect2i, plot: Rect2i, arena: Ar
 			_ground, _walls, _open)
 	landmark.plan(kind, rooms, entry, _center(entry), plot, keep_out, taken, chest_cells, ways)
 	return landmark if landmark.kind != FloorLandmarks.Kind.NONE else null
+
+
+## The shapes of the rooms ([RoomShapes]) among [param rooms], planned last of all, or
+## null with shapes off: never a room in [param keep_out] or touching [param plot];
+## off [param ways], and a cell clear round each of [param kept]. Every shape is the
+## room's own -- drawn from a stream of its own -- and cuts nothing off from
+## [param arrival].
+func _plan_shapes(rooms: Array[Rect2i], keep_out: Array[Rect2i], plot: Rect2i,
+		ways: Array[Vector2i], kept: Array[Vector2i], arrival: Vector2i,
+		generation_seed: int) -> RoomShapes:
+	if not with_room_shapes:
+		return null
+	var shapes := RoomShapes.new(generation_seed, _biome, _ground, _walls, _open)
+	shapes.plan(rooms, keep_out, plot, _lanes, ways, kept, arrival, room_shape_override)
+	_filled = shapes.filled
+	return shapes
+
+
+## What the tests (and nothing in the game) read to find the shaped rooms again.
+func _mark_shapes(map: Node2D, shapes: RoomShapes) -> void:
+	if shapes != null and not shapes.shaped.is_empty():
+		map.set_meta(&"room_shapes", shapes.shaped)
+		map.set_meta(&"room_rock", shapes.filled)
 
 
 ## Tells the camp's people what the floor's modifier is, for the scout to mention.

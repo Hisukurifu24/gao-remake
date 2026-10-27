@@ -1527,7 +1527,7 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
 - [ ] **Floor 100: the final boss — *you* — as an authored multi-phase fight.** The one
   encounter that should be hand-built end to end.
 
-#### Floor variety — "the floors play the same" *(raised 2026-10-05; shapes, modifiers, events and landmarks built)*
+#### Floor variety — "the floors play the same" *(raised 2026-10-05; shapes, modifiers, events, landmarks and room shapes built)*
 The user, after M5.5's set landed: floors are repetitive — *both* to look at and to play,
 but **mostly they play the same**. The diagnosis: every generated floor is one recipe —
 a field of rect rooms and L-corridors, a labyrinth strip on one side, a camp halfway, a
@@ -1536,10 +1536,51 @@ the structure never does, so by floor 4 you have seen the template, and the §4 
 decorate it rather than change it. Levers, cheapest first — the last three change what
 you *do*, the first two what you *see*, so those are where to start:
 
-- [ ] **Room-shape variety** (passed over in §4). Generated rooms are all rects.
+- [x] **Room-shape variety** (passed over in §4). Generated rooms are all rects.
   `_carve_cave()` already exists in the authored builder; add caverns, L / cross / pillared
   halls, rooms round a pond or a rubble heap. Cheap and lifts every floor at once, but it
-  is texture, not play.
+  is texture, not play. *(decided and built 2026-10-27)*
+
+  **Decided 2026-10-27** (asked): room shapes next, over the villages' stock, Floor 40
+  and M7's polish. **Caverns, L / cross halls and pillared halls**; rooms round a pond
+  or a rubble heap were offered and not taken (a lake landmark is the pond room already).
+
+  **Built 2026-10-27** (`RoomShapes`, `scripts/world/room_shapes.gd`).
+  - [x] **Rock put back, never carved**: a shape fills part of the rectangle the
+    generator carved -- a cavern's corners and edges by a wobbling ellipse, an L's
+    corner, a cross's four, a grid of 2x2 pillars -- so it can only take walking
+    away, and is refused if it takes away anything walkable from the arrival.
+  - [x] **Drawable everywhere**: every rock cell it puts back is in a 2x2 of rock and
+    every floor cell beside one in a 2x2 of floor, as the maze's two-and-two is -- a
+    cliff gets its top and face, the forest a tree, the castle its masonry band.
+    Edges keep off corridors' sweeps; pillars may stand on one (in a room's middle a
+    sweep is floor), which is what lets them fit rooms that small at all.
+  - [x] **Which rooms**: ~70% of those nothing else uses -- not the arrival's or the
+    camp's, the boss's, a safe zone, the event's, the landmark's, nor a rite's or a
+    statue ring's -- a cell kept clear round chests, puzzle pieces, waystones, a
+    dungeon's levers and warden, and off a wisp's way. Classic floors, open fields'
+    clearings and every dungeon level.
+  - [x] **By band**: caverns lean natural (the cave, the swamp, the ash), halls built
+    (the ruins, the Ruby Palace -- which draws no caverns at all), pillars where they
+    read (masonry columns, mesas, a stand of trees in a glade; never the sky, whose
+    rock is a hole). Two pillars need a room ten across or down, so a smaller room
+    draws again from the band's other shapes. On the test's seed: 427 rooms on 94 of
+    97 floors -- 233 caverns, 104 L halls, 69 cross halls, 21 pillared halls.
+  - [x] **Moves nothing it needn't**: its own stream per room
+    (`hash("<seed>:room:<x>,<y>")`), planned after the landmark; monsters drawn onto
+    the new rock are drawn as before and stepped off it to the room's floor (29 on the
+    test's seed), so the floor's rng asks what it always did. With shapes off, every
+    floor fingerprints byte for byte as HEAD (192 floors, two seeds, each its own
+    process).
+  - [x] Tests: every floor in the floor test is built shaped, so completability, the
+    formation sweep, the forest edges and the blob checks all run on the shapes; the
+    puzzle, event and landmark with/without checks build both sides unshaped; and
+    `_audit_room_shapes` holds every floor, level by level, to the floor without its
+    shapes -- solid only where they put rock, nothing opened, nothing moved but
+    monsters stepped off the rock, rock and floor beside it two thick.
+    `tools/screenshot.gd -- --rooms` shoots each kind in every band that draws it.
+  - *Calls of mine, flag if wrong:* the 70%, the band weights, keeping a rite's and a
+    statue ring's rooms whole, and that a shaped room has no name on **M**.
 - [x] **Landmarks** (passed over in §4). *(decided and built 2026-10-27)* One or two set
   pieces a floor that make it a *place* — a lake you walk round, a collapsed bridge, a
   great tree, a ruined tower. `GameMap.landmarks` already labels named places on **M**,
@@ -2610,6 +2651,11 @@ the players put up with the floor's dead cut into it, or a stone arch older than
 any player, with a tablet in the system's own script that knows the boss. Each is on
 the map by name, someone in the camp will send you to it, and some keep a chest.
 
+And the rooms are not all boxes any more. Most of the ones with nothing else in them
+have a shape: a cavern with ragged walls, a hall bent into an L or a cross, or a hall of
+pillars -- masonry columns in the Ruby Palace, mesas in the desert, a stand of trees in
+a glade.
+
 And it keeps your place now. The game opens on a title screen over the Town of
 Beginnings: continue, start a new game, load one of three saves, the settings, the
 credits. Start a new game as a standard one, saving anywhere and autosaving as you
@@ -2623,7 +2669,7 @@ the settings or quit to the title. A loaded game puts you on the very spot you s
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 229-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 157-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 159-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 61-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 207-check inventory test
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 97-check combat test
@@ -2687,9 +2733,10 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    stranded player to take home, player killers lying in wait or a duellist in the
    camp -- not always an honest one. **And landmarks (2026-10-27)**: about half the
    floors have a lake, a great tree, a memorial or a ruined arch in a room of their
-   own, named on **M**, read with **E**, pointed out by the camp. Next on that track:
-   room shapes (the other lever that changes what you see), or the villages'
-   floor-exclusive stock.
+   own, named on **M**, read with **E**, pointed out by the camp. **And room shapes
+   (2026-10-27)**: caverns, L and cross halls and pillared halls in the rooms nothing
+   else uses -- the last of the levers. Next: the villages' floor-exclusive stock,
+   Floor 40, or M7's polish.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where

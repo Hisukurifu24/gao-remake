@@ -12,6 +12,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --modifiers # storms per band, an infested floor
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --events    # field boss, escort, ambush, duel
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --landmarks # every kind in the bands that draw it
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --rooms     # every room shape in every band that draws it
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --title     # the title screen and its pages
@@ -121,6 +122,11 @@ func _ready() -> void:
 		return
 	if "--landmarks" in OS.get_cmdline_user_args():
 		await _capture_landmarks(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--rooms" in OS.get_cmdline_user_args():
+		await _capture_rooms()
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1502,6 +1508,60 @@ func _capture_landmarks(main: Node) -> void:
 				await _wait(0.1)
 	FloorGenerator.landmark_override = -1
 	FloorGenerator.modifier_override = -1
+	FloorGenerator.event_override = -1
+	FloorGenerator.shape_override = -1
+
+
+## Room shapes ([RoomShapes]): each kind, forced on every room that may take one, in
+## every band that draws it -- the biggest room of the kind on the floor, from its
+## middle, monsters cleared.
+func _capture_rooms() -> void:
+	GameState.new_world_seed(12345)
+	FloorGenerator.shape_override = FloorDefinition.Shape.CLASSIC
+	FloorGenerator.event_override = FloorEvents.Kind.NONE
+	FloorGenerator.landmark_override = FloorLandmarks.Kind.NONE
+	FloorGenerator.modifier_override = FloorModifier.Kind.NONE
+	for kind in range(1, RoomShapes.Kind.size()):
+		FloorGenerator.room_shape_override = kind
+		for floor_number: int in BAND_FLOORS:
+			var weights: Array = RoomShapes.WEIGHTS.get(FloorRegistry.biome_id(floor_number),
+					RoomShapes.DEFAULT_WEIGHTS)
+			if weights[kind - 1] == 0:
+				continue
+			GameState.clear_floor(floor_number - 1)
+			SceneRouter.enter_floor(floor_number, &"default")
+			var map := await _arrived(floor_number)
+			var best := Rect2i()
+			var shaped: Dictionary = map.get_meta(&"room_shapes", {})
+			for room: Rect2i in shaped:
+				if shaped[room] == kind and room.get_area() > best.get_area():
+					best = room
+			if not best.has_area():
+				print("floor %d shaped no %s" % [floor_number, RoomShapes.KIND_NAMES[kind]])
+				continue
+			for child in map.get_children():
+				if child is Monster:
+					child.queue_free()
+			var walls := map.get_node("Walls") as TileMapLayer
+			var stand := best.get_center()
+			var spots: Array[Vector2i] = [stand]
+			for ring in range(1, 4):
+				for y in range(-ring, ring + 1):
+					for x in range(-ring, ring + 1):
+						spots.append(stand + Vector2i(x, y))
+			for spot in spots:
+				if walls.get_cell_source_id(spot) == -1:
+					stand = spot
+					break
+			var player := map.get_node("Player") as Player
+			player.position = Vector2(stand * 16) + Vector2(8, 8)
+			player.facing = Vector2.DOWN
+			await _settle_camera(player)
+			await _wait(0.3)
+			await _capture("04zr_%s%02d" % [RoomShapes.KIND_NAMES[kind].replace(" ", "_"), floor_number])
+	FloorGenerator.room_shape_override = -1
+	FloorGenerator.modifier_override = -1
+	FloorGenerator.landmark_override = -1
 	FloorGenerator.event_override = -1
 	FloorGenerator.shape_override = -1
 

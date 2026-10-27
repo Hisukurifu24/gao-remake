@@ -215,6 +215,17 @@ func _build_level(definition: FloorDefinition, generation_seed: int, level: int)
 	if not _top:
 		_plan_seal(seal_kinds(generation_seed, _levels)[_level], candidates, entry, chest_cells,
 				fire, camp.plot if camp != null else Rect2i(), field, own_seed)
+	# Last, as on any floor: the rooms the seal and the landing left alone.
+	var kept: Array[Vector2i] = chest_cells.duplicate()
+	kept.append_array(_lever_cells)
+	if _warden_cell.x >= 0:
+		kept.append(_warden_cell)
+	var keep_out: Array[Rect2i] = [entry, landing]
+	if _puzzles != null:
+		keep_out.append_array([_puzzles.rite_room, _puzzles.statue_room])
+		kept.append_array(_puzzles.pieces())
+	var shapes := _plan_shapes(rooms, keep_out, camp.plot if camp != null else Rect2i(),
+			[] as Array[Vector2i], kept, arrival, own_seed)
 
 	MapDresser.dress(map, _biome, _ground, _walls, own_seed)
 
@@ -246,6 +257,8 @@ func _build_level(definition: FloorDefinition, generation_seed: int, level: int)
 			var keep: Array[Vector2i] = [_warden_cell]
 			_add_swarm(map, swarm_rooms, [] as Array[Rect2i], keep,
 					share_of(FloorTuning.infested_count(n), _levels - 1, _level - 1), own_seed)
+	if shapes != null:
+		shapes.step_monsters_off(map)
 	if fire.has_area():
 		var hearth := CAMPFIRE_SCENE.instantiate()
 		hearth.name = "Campfire"
@@ -296,6 +309,7 @@ func _build_level(definition: FloorDefinition, generation_seed: int, level: int)
 	map.set_meta(&"chamber", chamber.rect)
 	map.set_meta(&"chamber_room", chamber.room)
 	map.set_meta(&"chamber_door", chamber.door)
+	_mark_shapes(map, shapes)
 	if not _top:
 		map.set_meta(&"seal", SEAL_NAMES[_seal])
 
@@ -367,7 +381,7 @@ func _add_level_monsters(map: Node2D, rooms: Array[Rect2i], entry: Rect2i, landi
 		var cell := Vector2i(
 			_rng.randi_range(room.position.x + 1, room.end.x - 2),
 			_rng.randi_range(room.position.y + 1, room.end.y - 2))
-		if cell in placed or not _open.has(cell):
+		if cell in placed or not (_open.has(cell) or _filled.has(cell)):
 			continue
 		placed.append(cell)
 		var monster := MONSTER_SCENE.instantiate()
