@@ -1,0 +1,7 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/world/npc.tscn" id="1_npc"]
+[ext_resource type="Script" path="res://scripts/world/duellist.gd" id="2_duellist"]
+
+[node name="Duellist" instance=ExtResource("1_npc")]
+script = ExtResource("2_duellist")

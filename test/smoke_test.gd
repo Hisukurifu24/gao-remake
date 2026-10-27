@@ -22,6 +22,8 @@ var _line_spy: PackedStringArray = PackedStringArray()
 ## How many figures a [BossGate] stood on the map for the last fight staged, or
 ## -1 for none. A member, not a captured local: lambdas capture by value.
 var _staged_figures := -1
+## Duellists who wouldn't yield, while [method _count_betrayal] listens.
+var _betrayals := 0
 ## The last field announced, and the camera the screen was looking through when
 ## that fight asked for a command. Members for the same reason.
 var _field: BattleField = null
@@ -1057,8 +1059,8 @@ func _test_modifiers(main: Node, world_root: Node2D) -> void:
 ## Floor events, each forced onto a real floor: a field boss in front of its hoard,
 ## which opens as it falls; a stranded player who follows you home, through a fight
 ## a monster starts on them, and pays for it; player killers who spring as you walk
-## into their room, paid off once and fought once; and a rival party, raced and lost
-## to, left mid-race, and beaten to the door.
+## into their room, paid off once and fought once; and a duellist in the camp,
+## refused hurt, lost to, beaten -- and one who turns on you.
 func _test_events(world_root: Node2D) -> void:
 	var strength := GameState.attack
 	# Every fight here is one to win quickly, not to measure.
@@ -1190,67 +1192,110 @@ func _test_events(world_root: Node2D) -> void:
 	map = await _event_floor(world_root, 2)
 	_check(map.get_node_or_null("Ambush") == null, "and nobody lies in wait once they're dealt with")
 
-	# A race: lost to them at the door, lost by leaving, won.
-	FloorGenerator.event_override = FloorEvents.Kind.RACE
-	FloorGenerator.shape_override = FloorDefinition.Shape.CLASSIC
-	# Floor 3 open; each race lost clears its floor, which opens the next.
-	if not GameState.is_floor_cleared(2):
-		GameState.clear_floor(2)
-	# Floor 5 was cleared settling floor 2's village: nothing to race for there.
-	for floor_number in [3, 4, 6]:
-		GameState.set_flag(BossGate.found_flag(floor_number), false)
-		EventBus.col_granted.emit(FloorEvents.stake(floor_number))
-		map = await _event_floor(world_root, floor_number)
-		player = map.get_node("Player") as Player
-		var leader := map.get_node_or_null("RivalLeader") as Npc
-		var party := map.get_node_or_null("RivalParty") as RivalParty
-		_check(leader != null and party != null and not party.running,
-				"floor %d: a rival party waits in the camp" % floor_number)
-		if leader == null or party == null:
-			continue
+	# A duel: turned down hurt, lost fair, won on the rematch -- and one rigged.
+	FloorGenerator.event_override = FloorEvents.Kind.DUEL
+	FloorEvents.rigged_override = 0
+	map = await _event_floor(world_root, 2)
+	player = map.get_node("Player") as Player
+	var duellist := map.get_node_or_null("Duellist") as Duellist
+	_check(duellist != null and duellist.visible, "a duellist waits in the camp")
+	if duellist != null:
 		for child in map.get_children():
 			if child is Monster:
 				child.queue_free()
-		var purse := GameState.col()
-		player.global_position = leader.global_position + Vector2(0, 16)
+		var stake := FloorEvents.stake(2)
+		var wager: StringName = FloorEvents.duellist(2)["wager"]
+		player.global_position = duellist.global_position + Vector2(0, 16)
+		player.facing = Vector2.UP
 		await _physics(2)
-		leader.interact(player)
+		EventBus.col_granted.emit(stake * 3)
+		var purse := GameState.col()
+		GameState.set_hp(GameState.total_max_hp() / 4)
+		duellist.interact(player)
 		await _choose(0)
 		await _close_dialogue()
 		await _idle(2)
-		_check(party.running and GameState.col() == purse - FloorEvents.stake(floor_number),
-				"taking the bet costs the stake, and they set off")
-		var walked := party.progress()
-		await _physics(20)
-		_check(party.progress() > walked, "they walk for the door")
-		match floor_number:
-			3:
-				party.set(&"_distance", 1e9)
-				await _physics(2)
-				_check(GameState.has_flag(FloorEvents.flag(3, "race_lost")) and GameState.is_floor_cleared(3),
-						"reaching the door first, they clear the floor")
-				await _close_dialogue()
-			4:
-				map = await _event_floor(world_root, 4)
-				_check(GameState.has_flag(FloorEvents.flag(4, "race_lost")) and GameState.is_floor_cleared(4),
-						"leaving the floor mid-race loses it: they kept going")
-			6:
-				var cast := FloorEvents.rivals(6)
-				var prize_before := Inventory.count(cast["prize"])
-				purse = GameState.col()
-				(map.get_node("BossGate") as BossGate).reveal()
-				await _idle(2)
-				_check(GameState.has_flag(FloorEvents.flag(6, "race_won")) and not party.running
-						and GameState.col() == purse + FloorEvents.stake(6) * 2
-						and Inventory.count(cast["prize"]) == prize_before + 1
-						and not GameState.is_floor_cleared(6),
-						"walking into the boss room first wins the race: the stake twice over and a prize")
-				await _close_dialogue()
-		map = await _event_floor(world_root, floor_number)
-		_check(map.get_node_or_null("RivalLeader") == null, "a race run is not run again")
-	FloorGenerator.shape_override = -1
+		await _close_dialogue()
+		_check(GameState.col() == purse and not CombatManager.is_running(),
+				"half-dead, they won't take your col or your duel")
+
+		# Lost: no sword and no guard to speak of, so the duellist takes you to half.
+		# Unpaced -- a duel lost at attack 1 is a long one.
+		var pace := CombatManager.step_delay
+		var guard := GameState.defense
+		CombatManager.step_delay = 0.0
+		var dropped := GameState.dropped_col()
+		GameState.set_hp(GameState.total_max_hp())
+		GameState.attack = 1
+		GameState.defense = 0
+		_field = null
+		_staged_figures = -1
+		duellist.interact(player)
+		await _choose(0)
+		await _auto_battle()
+		_check(_staged_figures == 1 and duellist.visible,
+				"accepting stakes out a duel on the map, the duellist stepping up to it")
+		_check(GameState.col() == purse - stake and GameState.hp >= 1
+				and GameState.hp <= GameState.total_max_hp() / 2 + 1
+				and GameState.dropped_col() == dropped
+				and not GameState.has_flag(FloorEvents.flag(2, "duel")),
+				"losing a duel costs the stake and half your HP, and nothing else")
+
+		# Won: the wager, and the stake back.
+		GameState.defense = guard
+		GameState.attack = strength + 400
+		GameState.set_hp(GameState.total_max_hp())
+		var wagers := Inventory.count(wager)
+		var xp := GameState.xp
+		purse = GameState.col()
+		duellist.interact(player)
+		await _choose(0)
+		await _auto_battle()
+		_check(GameState.col() == purse and Inventory.count(wager) == wagers + 1
+				and GameState.xp == xp and GameState.has_flag(FloorEvents.flag(2, "duel"))
+				and is_instance_valid(duellist) and duellist.visible,
+				"winning it pays the wager and your stake back, and no XP")
+		CombatManager.step_delay = pace
+		map = await _event_floor(world_root, 2)
+		duellist = map.get_node_or_null("Duellist") as Duellist
+		_check(duellist != null and duellist.dialogue.lines[0].text.begins_with("Good duel"),
+				"beaten fair, they stay in the camp and say so")
+
+	# Rigged: decided, they turn on you; beaten, they're gone for good.
+	FloorEvents.rigged_override = 1
+	GameState.set_flag(FloorEvents.flag(2, "duel"), false)
+	map = await _event_floor(world_root, 2)
+	player = map.get_node("Player") as Player
+	duellist = map.get_node_or_null("Duellist") as Duellist
+	if duellist != null:
+		for child in map.get_children():
+			if child is Monster:
+				child.queue_free()
+		player.global_position = duellist.global_position + Vector2(0, 16)
+		player.facing = Vector2.UP
+		await _physics(2)
+		EventBus.col_granted.emit(FloorEvents.stake(2))
+		GameState.set_hp(GameState.total_max_hp())
+		var xp := GameState.xp
+		_betrayals = 0
+		CombatManager.action_resolved.connect(_count_betrayal)
+		duellist.interact(player)
+		await _choose(0)
+		await _auto_battle()
+		CombatManager.action_resolved.disconnect(_count_betrayal)
+		_check(_betrayals == 1 and GameState.xp > xp and GameState.has_flag(FloorEvents.flag(2, "duel"))
+				and not is_instance_valid(duellist),
+				"a rigged duel ends in a refusal and a real fight, and the duellist is gone after")
+	map = await _event_floor(world_root, 2)
+	_check(map.get_node_or_null("Duellist") == null, "an orange duellist doesn't come back to the camp")
+	FloorEvents.rigged_override = -1
 	FloorGenerator.event_override = -1
 	GameState.attack = strength
+
+
+func _count_betrayal(report: CombatReport) -> void:
+	if report.kind == CombatReport.Kind.YIELD and not report.success:
+		_betrayals += 1
 
 
 ## Floor [param floor_number] entered for an event, once the arrival is over --

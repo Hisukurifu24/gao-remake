@@ -16,6 +16,7 @@ enum Kind {
 	DEFEAT,   ## A combatant went down.
 	ITEM,     ## Something was spent out of the bag.
 	OPENING,  ## One side struck first; the other sits out round 1.
+	YIELD,    ## A duel was decided: someone yielded -- or wouldn't.
 }
 
 ## One number over one sprite.

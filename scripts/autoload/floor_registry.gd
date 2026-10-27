@@ -182,8 +182,7 @@ func _pick_modifiers(world_seed: int) -> Array[int]:
 ##
 ## About [constant FloorEvents.CHANCE] of the floors that may have one do, and never
 ## the same kind two floors running. Never an authored floor, floor 2, the top or a
-## dungeon (whose seals are what happens on it); a race wants a labyrinth to race
-## through, so only a classic floor runs one.
+## dungeon (whose seals are what happens on it).
 func event_of(floor_number: int) -> FloorEvents.Kind:
 	if FloorGenerator.event_override >= 0:
 		return FloorGenerator.event_override as FloorEvents.Kind
@@ -211,8 +210,7 @@ func _pick_events(world_seed: int) -> Array[int]:
 			if rng.randf() < FloorEvents.CHANCE:
 				var kinds: Array[int] = []
 				for kind in range(FloorEvents.Kind.FIELD_BOSS, FloorEvents.Kind.size()):
-					if kind != last and (kind != FloorEvents.Kind.RACE
-							or shape == FloorDefinition.Shape.CLASSIC):
+					if kind != last:
 						kinds.append(kind)
 				pick = kinds[rng.randi() % kinds.size()]
 		picks.append(pick)

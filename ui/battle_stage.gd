@@ -227,7 +227,8 @@ func _refresh_bar(enemy: Combatant) -> void:
 
 
 func _on_action_resolved(report: CombatReport) -> void:
-	if report.kind == CombatReport.Kind.OPENING:
+	if report.kind == CombatReport.Kind.OPENING \
+			or (report.kind == CombatReport.Kind.YIELD and not report.success):
 		_alarm(report.actor)
 	var striker := _sprite_of(report.actor)
 	var strikes := report.kind == CombatReport.Kind.SKILL and report.hits.any(

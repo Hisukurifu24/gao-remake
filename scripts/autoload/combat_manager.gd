@@ -49,6 +49,11 @@ var _awaiting := false
 ## is not answering before the loop is listening.
 var _pending: CombatAction = null
 var _rng := RandomNumberGenerator.new()
+## A first-strike duel still being fought as one ([member Encounter.first_strike]),
+## and the HP each side yields at: half of what it came in with.
+var _duel := false
+var _yield_at: Dictionary[Combatant, int] = {}
+var _betrayed := false
 
 ## Parked on while the player decides. Private for the same reason
 ## [DialogueRunner]'s are: input must go through [method submit], which is the
@@ -90,6 +95,12 @@ func round_number() -> int:
 	return _round
 
 
+## Whether the player may run from this fight now: the encounter's rule, or a duel
+## that has stopped being one -- a betrayed duellist is just an orange player.
+func can_flee() -> bool:
+	return _encounter != null and (_encounter.can_flee or _betrayed)
+
+
 ## Fixes the dice. Combat is random by default; tests and (later) replays seed it
 ## so the same fight plays out the same way twice.
 func set_seed(value: int) -> void:
@@ -127,7 +138,7 @@ func submit(action: CombatAction) -> bool:
 			if action.skill not in _actor.usable_skills():
 				return false
 		CombatAction.Kind.FLEE:
-			if not _encounter.can_flee:
+			if not can_flee():
 				return false
 		CombatAction.Kind.FORFEIT:
 			return false
@@ -173,6 +184,11 @@ func _begin(encounter: Encounter) -> void:
 			_enemies.append(Bestiary.build_boss(type, encounter.level, enemy_name))
 		else:
 			_enemies.append(Combatant.from_enemy(type, encounter.level, enemy_name))
+	_duel = encounter.first_strike
+	_betrayed = false
+	_yield_at.clear()
+	for each in _party + _enemies:
+		_yield_at[each] = each.hp / 2
 
 	GameState.push_input_lock()
 	EventBus.combat_started.emit(encounter.id)
@@ -393,7 +409,11 @@ func _apply_strike(actor: Combatant, target: Combatant, skill: Skill) -> CombatR
 		hit.missed = true
 		return hit
 	hit.crit = roll["crit"]
-	hit.amount = -target.take_damage(roll["amount"])
+	var amount: int = roll["amount"]
+	if _duel:
+		# A duel is decided at half; nobody goes down in one.
+		amount = mini(amount, target.hp - 1)
+	hit.amount = -target.take_damage(amount)
 	hit.staggered = target.take_stagger(skill.stagger)
 	if target.is_alive() and CombatMath.rolls_status(skill, _rng):
 		target.apply_status(skill.applies)
@@ -435,12 +455,53 @@ func _announce_defeat(fallen: Combatant) -> void:
 func _settle(result: CombatResult) -> bool:
 	if result.fled:
 		return true
+	if _duel:
+		var beaten := _yielding()
+		if beaten != null:
+			if _encounter.betrayal == null:
+				return await _yield(beaten, result)
+			await _betray(result)
 	if _living(_enemies).is_empty():
 		result.victory = true
 		return true
 	if _living(_party).is_empty():
 		return true
 	return false
+
+
+## The first of either side down to the HP it yields at, or null.
+func _yielding() -> Combatant:
+	for each in _party + _enemies:
+		if each.hp <= _yield_at.get(each, 0):
+			return each
+	return null
+
+
+## An honest duel decided: [param beaten] yields, and that is the end of it.
+func _yield(beaten: Combatant, result: CombatResult) -> bool:
+	_duel = false
+	result.duel = true
+	result.victory = not beaten.is_player
+	result.yielded = beaten.is_player
+	var text := "You lower your blade. %s takes the duel." % _enemies[0].display_name if beaten.is_player \
+			else "%s lowers their blade and yields." % beaten.display_name
+	await _report(CombatReport.make(CombatReport.Kind.YIELD, beaten, text))
+	return true
+
+
+## A duel decided, and the duellist won't have it: their cursor turns orange and
+## they turn [member Encounter.betrayal] on you. From here it is a fight to the end.
+func _betray(result: CombatResult) -> void:
+	_duel = false
+	_betrayed = true
+	result.duel = true
+	result.betrayed = true
+	var traitor := _enemies[0]
+	var refusal := CombatReport.make(CombatReport.Kind.YIELD, traitor,
+			"%s won't yield. Their cursor turns orange!" % traitor.display_name)
+	refusal.success = false
+	await _report(refusal)
+	await _resolve_skill(traitor, CombatAction.use(_encounter.betrayal, _party[0]))
 
 
 # --- enemy AI --------------------------------------------------------------
@@ -505,7 +566,9 @@ func _end(result: CombatResult) -> void:
 	# HP first, then XP: a level-up heals to full and that must be the last word.
 	player.write_back()
 
-	if result.victory:
+	result.duel = result.duel or (_encounter.first_strike and not _betrayed)
+	# A duel pays nothing; a duellist who turned on you is fair game.
+	if result.victory and not (result.duel and not result.betrayed):
 		for enemy in _enemies:
 			result.xp += enemy.xp_reward
 			result.col += enemy.col_reward
@@ -521,6 +584,9 @@ func _end(result: CombatResult) -> void:
 	_actor = null
 	_awaiting = false
 	_pending = null
+	_duel = false
+	_betrayed = false
+	_yield_at.clear()
 	_running = false
 	GameState.pop_input_lock()
 	combat_finished.emit(result)

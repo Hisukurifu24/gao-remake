@@ -53,6 +53,7 @@ func _run() -> void:
 	await _test_one_fight()
 	await _test_rules()
 	await _test_opening()
+	await _test_duels()
 	await _test_determinism()
 	await _test_balance()
 
@@ -97,7 +98,8 @@ func _test_content() -> void:
 	# flash and nothing else says so. Every skill anyone can swing has an effect,
 	# every one in the player's menu an icon in both states, and every status any
 	# of them (or an item) can put on someone a bubble to show it.
-	var skills: Array[Skill] = [SkillLibrary.basic_attack(), load(Bestiary.BOSS_SKILL)]
+	var skills: Array[Skill] = [SkillLibrary.basic_attack(), load(Bestiary.BOSS_SKILL),
+			load(Bestiary.BETRAYAL_SKILL)]
 	skills.append_array(SkillLibrary.all())
 	for id in Bestiary.ENEMIES:
 		skills.append_array(Bestiary.get_enemy(StringName(id)).skills)
@@ -412,6 +414,83 @@ func _test_opening() -> void:
 				"the opening costs one round, not the fight")
 
 
+## A first-strike duel ([Duellist]): over at half the HP each side came in with,
+## nobody lower than 1, nothing won -- and a rigged one turning into a real fight
+## with the player paralysed, which can then be fled.
+func _test_duels() -> void:
+	print("\n-- duels --")
+	_policy = &"attack"
+	var outcomes := {"won": 0, "yielded": 0}
+	var lowest := 1 << 30
+	var settled := true
+	var paid := false
+	for trial in 12:
+		_set_player(14)
+		GameState.hp = GameState.max_hp - trial * 3
+		var came_in := GameState.hp
+		var xp_before := GameState.xp
+		var col_before := GameState.col()
+		_spy(true)
+		CombatManager.set_seed(4200 + trial)
+		var result: CombatResult = await CombatManager.start(Bestiary.duel_encounter(10, "Holt", null, false))
+		var duellist: Combatant = null
+		for report in _reports:
+			for hit in report.hits:
+				if not hit.target.is_player:
+					duellist = hit.target
+		_spy(false)
+		if result == null or not result.duel or result.betrayed:
+			settled = false
+			continue
+		lowest = mini(lowest, GameState.hp)
+		paid = paid or GameState.xp != xp_before or GameState.col() != col_before
+		if result.victory:
+			outcomes["won"] += 1
+			settled = settled and duellist != null and duellist.hp <= duellist.max_hp / 2 and duellist.hp >= 1
+		elif result.yielded:
+			outcomes["yielded"] += 1
+			settled = settled and GameState.hp <= came_in / 2 and not result.defeated()
+		else:
+			settled = false
+	_check(settled and outcomes["won"] + outcomes["yielded"] == 12,
+			"a duel ends with one side at half what it came in with (%d won, %d yielded)" % [
+				outcomes["won"], outcomes["yielded"]])
+	_check(lowest >= 1, "and nobody goes lower than 1 HP in one (lowest %d)" % lowest)
+	_check(not paid, "a duel pays no XP and no Col")
+
+	# Rigged: the duel is decided, the duellist won't have it, and you can't move.
+	_set_player(14)
+	_spy(true)
+	CombatManager.set_seed(4300)
+	var rigged: CombatResult = await CombatManager.start(Bestiary.duel_encounter(10, "Holt", null, true))
+	var refused := _reports.any(func(report: CombatReport) -> bool:
+			return report.kind == CombatReport.Kind.YIELD and not report.success)
+	var paralysed := _reports.any(func(report: CombatReport) -> bool:
+			return report.skill != null and report.skill.id == &"paralysis_edge" \
+					and report.hits.any(func(hit: CombatReport.Hit) -> bool: return hit.target.is_player))
+	var lost_turns := _reports.filter(func(report: CombatReport) -> bool:
+			return report.kind == CombatReport.Kind.SKIPPED and report.actor.is_player).size()
+	_spy(false)
+	_check(rigged != null and rigged.betrayed and refused and paralysed and lost_turns >= 1,
+			"a rigged duel ends in a refusal and a paralysis pick (%d turns lost)" % lost_turns)
+	_check(rigged != null and (rigged.victory or rigged.defeated()),
+			"and is then fought to the end")
+
+	# Fled by someone fast enough to get away: the runner refuses it until the duel
+	# is off, and the auto-player swings instead.
+	_policy = &"flee"
+	var fled := false
+	for attempt in 8:
+		_set_player(40)
+		CombatManager.set_seed(4400 + attempt)
+		var result: CombatResult = await CombatManager.start(Bestiary.duel_encounter(10, "Holt", null, true))
+		if result != null and result.fled:
+			fled = result.betrayed
+			break
+	_check(fled, "a duel can't be fled, but a duellist who turned orange can be")
+	_policy = &"attack"
+
+
 func _spy_turn(actor: Combatant) -> void:
 	_turns.append([CombatManager.round_number(), actor.is_player])
 
@@ -486,6 +565,16 @@ func _test_balance() -> void:
 				floor_number, level, keeper, killers])
 		_check(keeper >= 4, "floor %d's field boss is beatable at level %d (%d/8)" % [floor_number, level, keeper])
 		_check(killers >= 6, "floor %d's player killers are beatable at level %d (%d/8)" % [floor_number, level, killers])
+	# A duel, at the same level: a contest, not a formality -- and a rigged one,
+	# paralysed partway, something a careful player usually survives.
+	for floor_number: int in [5, 30, 60, 90]:
+		var level := FloorTuning.enemy_level(floor_number) + 4
+		var duels := await _event_rate(Bestiary.duel_encounter(floor_number, "Holt", null, false), level, 12)
+		var rigged := await _event_rate(Bestiary.duel_encounter(floor_number, "Holt", null, true), level, 12)
+		print("       floor %d at level %d: duel %d/12, rigged duel %d/12" % [
+				floor_number, level, duels, rigged])
+		_check(duels >= 6, "floor %d's duellist can be beaten at level %d (%d/12)" % [floor_number, level, duels])
+		_check(rigged >= 4, "floor %d's rigged duel can be survived at level %d (%d/12)" % [floor_number, level, rigged])
 	# Measured: as hard as the floor's own boss for the same player, give or take
 	# -- 1/8 at four levels short on floor 60, where the boss is 4/8.
 	var reckless := await _event_rate(_field_boss(60), FloorTuning.enemy_level(60) - 8, 6)

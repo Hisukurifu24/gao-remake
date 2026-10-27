@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Character/Samurai/SpriteSheet.png" id="sheet"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/cross_cut.tres" id="cross_cut"]
+[ext_resource type="Resource" path="res://resources/fx/cut.tres" id="strike_fx_res"]
+
+[sub_resource type="AtlasTexture" id="battler"]
+atlas = ExtResource("sheet")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="walk"]
+atlas = ExtResource("sheet")
+region = Rect2(0, 0, 64, 64)
+
+[resource]
+script = ExtResource("enemy")
+id = &"duellist"
+display_name = "Duellist"
+battler = SubResource("battler")
+sheet = SubResource("walk")
+max_hp = 60
+attack = 8
+defense = 4
+speed = 10
+poise = 35
+hp_growth = 6.0
+attack_growth = 2.0
+defense_growth = 1.0
+speed_growth = 0.5
+poise_growth = 5.0
+skill_bias = 0.45
+xp_reward = 14
+xp_growth = 5.0
+skills = Array[ExtResource("skill")]([ExtResource("cross_cut")])
+loot = Array[StringName]([&"small_potion"])
+loot_chance = 0.5
+col_reward = 20
+col_growth = 5.0
+strike_fx = ExtResource("strike_fx_res")

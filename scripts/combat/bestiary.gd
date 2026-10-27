@@ -16,12 +16,20 @@ const ENEMY_PATH := "res://resources/enemies/%s.tres"
 const ENEMIES: PackedStringArray = [
 	"frenzy_boar", "dire_wolf", "little_nepent", "kobold_trooper", "cave_bat",
 	"ruin_wraith", "lizardman_soldier", "stone_golem", "ember_drake", "illfang",
-	"hollow_warden", "twin_giant", "pk_swordsman", "pk_knifer",
+	"hollow_warden", "twin_giant", "pk_swordsman", "pk_knifer", "duellist",
 ]
 
 ## The player killers who lie in wait on some floors ([FloorEvents]): players, not
 ## monsters, so in no biome's pool. Always the pair, the swordsman first.
 const PLAYER_KILLERS: Array[StringName] = [&"pk_swordsman", &"pk_knifer"]
+## The player in a camp who challenges you to a duel ([Duellist]): in no pool either,
+## and drawn in whatever the challenger wears.
+const DUELLIST: StringName = &"duellist"
+## How many levels a duellist stands over the floor's monsters: a player who has
+## been fighting up here, not a monster that lives here.
+const DUEL_LEVELS := 4
+## What a duellist who won't yield does instead ([member Encounter.betrayal]).
+const BETRAYAL_SKILL := "res://resources/skills/enemy/paralysis_edge.tres"
 
 ## Which monsters roam which biome band. Order matters: the first entry is the
 ## band's rank-and-file and the one bosses take as an escort.
@@ -126,6 +134,35 @@ static func ambush_encounter(floor_number: int) -> Encounter:
 		encounter.enemies.append(get_enemy(id))
 	encounter.level = FloorTuning.enemy_level(maxi(1, floor_number))
 	encounter.floor_number = floor_number
+	return encounter
+
+
+## A first-strike duel on [param floor_number] with [param challenger], drawn from
+## [param sheet] (a character walk sheet; null keeps the template's). A
+## [param rigged] one ends in [constant BETRAYAL_SKILL] rather than a yield.
+static func duel_encounter(floor_number: int, challenger: String, sheet: Texture2D,
+		rigged: bool) -> Encounter:
+	var type := get_enemy(DUELLIST).duplicate() as EnemyType
+	if sheet != null:
+		var walk := AtlasTexture.new()
+		walk.atlas = sheet
+		walk.region = Rect2(0, 0, 64, 64)
+		var battler := AtlasTexture.new()
+		battler.atlas = sheet
+		battler.region = Rect2(0, 0, 16, 16)
+		type.sheet = walk
+		type.battler = battler
+	var encounter := Encounter.new()
+	encounter.id = StringName("floor_%d_duel" % floor_number)
+	encounter.display_name = challenger
+	encounter.boss_name = challenger
+	encounter.enemies = [type]
+	encounter.level = FloorTuning.enemy_level(maxi(1, floor_number)) + DUEL_LEVELS
+	encounter.floor_number = floor_number
+	encounter.can_flee = false
+	encounter.first_strike = true
+	if rigged:
+		encounter.betrayal = load(BETRAYAL_SKILL)
 	return encounter
 
 

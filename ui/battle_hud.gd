@@ -227,7 +227,7 @@ func _show_root() -> void:
 	_phase = Phase.ROOT
 	_staged = null
 	_commands = [Command.ATTACK, Command.SKILLS, Command.ITEM, Command.DEFEND]
-	if CombatManager.current_encounter().can_flee:
+	if CombatManager.can_flee():
 		_commands.append(Command.FLEE)
 
 	var labels := PackedStringArray()

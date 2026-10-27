@@ -367,7 +367,7 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 		map.set_meta(&"lost_player", camp.lost_cell)
 
 	if events != null:
-		events.place(map, camp.plot, gate_cell, lab.rect)
+		events.place(map, camp.plot)
 	_mark_modifier(map)
 	var player := PLAYER_SCENE.instantiate()
 	player.name = "Player"
@@ -1233,7 +1233,7 @@ func _plan_events(rooms: Array[Rect2i], entry: Rect2i, plot: Rect2i, arena: Aren
 		gate_cell: Vector2i, chest_cells: Array[Vector2i], puzzles: FloorPuzzles, field: Rect2i,
 		generation_seed: int) -> FloorEvents:
 	var kind := FloorRegistry.event_of(_definition.floor_number)
-	if kind == FloorEvents.Kind.NONE or (kind == FloorEvents.Kind.RACE and not lab.has_maze()):
+	if kind == FloorEvents.Kind.NONE:
 		return null
 	var keep_out: Array[Rect2i] = []
 	var keep: Array[Vector2i] = []

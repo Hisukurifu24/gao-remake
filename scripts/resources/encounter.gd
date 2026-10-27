@@ -28,6 +28,14 @@ enum Opening {
 @export var can_flee := true
 @export var is_boss := false
 @export var opening: Opening = Opening.NORMAL
+## A first-strike duel ([Duelist]): over the moment either side falls to half the HP
+## it came in with, and while it lasts no blow takes anyone lower than 1. Nothing
+## is won in it -- no XP, no Col, no loot; the wager is the caller's business.
+@export var first_strike := false
+## What a duelist who won't yield does instead, the moment the duel is decided --
+## either way: the duel is off, and the fight goes on to the end. Null for an
+## honest duel.
+@export var betrayal: Skill
 
 @export_group("Presentation")
 ## Renames the first enemy. Generated bosses get their name from

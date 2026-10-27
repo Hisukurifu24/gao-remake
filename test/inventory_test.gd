@@ -139,9 +139,9 @@ func _test_content() -> void:
 			job_orphans.append(String(id))
 	_check(job_orphans.is_empty(), "every item a settled floor's job pays exists (%s)" % job_orphans)
 
-	# And a floor event's: what a stranded player thanks you with, and a race's prize.
+	# And a floor event's: what a stranded player thanks you with, and a duellist's wager.
 	var event_orphans := PackedStringArray()
-	for id in FloorEvents.ESCORT_GEAR + FloorEvents.RACE_PRIZES:
+	for id in FloorEvents.ESCORT_GEAR + FloorEvents.DUEL_WAGERS:
 		if not ItemLibrary.exists(id):
 			event_orphans.append(String(id))
 	_check(event_orphans.is_empty(), "every item a floor event pays exists (%s)" % event_orphans)

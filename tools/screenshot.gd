@@ -10,7 +10,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shapes    # open fields: arena, waystones
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --dungeons  # dungeons: hall, seals, ladder, top
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --modifiers # storms per band, an infested floor
-##     "$GODOT" --path . res://tools/screenshot.tscn -- --events    # field boss, escort, ambush, race
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --events    # field boss, escort, ambush, duel
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --title     # the title screen and its pages
@@ -40,10 +40,10 @@ const DUNGEON_FLOORS := [4, 16, 33, 64, 96]
 const STORM_FLOORS := [3, 45, 85, 55, 65, 75]
 const INFESTED_FLOOR := 14
 ## A floor for each event: a field boss in the forest and in the ruins, a stranded
-## player on the meadow, an ambush in the swamp, a race on the ice.
+## player on the meadow, an ambush in the swamp, a duel on the ice.
 const EVENT_FLOORS := {
 	FloorEvents.Kind.FIELD_BOSS: [15, 37], FloorEvents.Kind.ESCORT: [5],
-	FloorEvents.Kind.AMBUSH: [45], FloorEvents.Kind.RACE: [65],
+	FloorEvents.Kind.AMBUSH: [45], FloorEvents.Kind.DUEL: [65],
 }
 ## A generated floor in each biome band, clear of the ones shot elsewhere.
 const BAND_FLOORS := [5, 15, 27, 35, 45, 55, 65, 75, 85, 97]
@@ -1439,7 +1439,8 @@ func _capture_modifiers(main: Node) -> void:
 
 ## Floor events: a field boss in front of its hoard; a stranded player with the
 ## monsters round them, then following you; player killers stepping out of hiding,
-## and what they say; and a rival party in the camp, then on their way.
+## and what they say; and a duellist in the camp, the duel staged, and a rigged
+## one refusing to yield.
 func _capture_events(main: Node) -> void:
 	FloorGenerator.shape_override = FloorDefinition.Shape.CLASSIC
 	for kind: int in EVENT_FLOORS:
@@ -1499,21 +1500,73 @@ func _capture_events(main: Node) -> void:
 					await _until(func() -> bool: return DialogueRunner.is_choosing(), 5.0)
 					DialogueRunner.choose(0)
 					await _until(func() -> bool: return not GameState.is_input_locked(), 5.0)
-				FloorEvents.Kind.RACE:
-					var leader := map.get_node_or_null("RivalLeader") as Node2D
-					var party := map.get_node_or_null("RivalParty") as RivalParty
-					if leader == null or party == null:
-						continue
-					player.position = leader.position + Vector2(0, 40)
-					player.facing = Vector2.UP
-					await _settle_camera(player)
-					await _wait(0.4)
-					await _capture(shot + "_camp")
-					GameState.set_flag(FloorEvents.flag(floor_number, "race"))
-					await _wait(4.0)
-					await _capture(shot + "_off")
+				FloorEvents.Kind.DUEL:
+					# Whatever the last pass left on screen, read.
+					while DialogueRunner.is_running():
+						DialogueRunner.advance()
+						await _wait(0.1)
+					# A level-1 body on floor 65 is one blow from half: a guard, so
+					# there is a duel on screen to shoot.
+					var guard := GameState.defense
+					GameState.defense = 999
+					for rigged in [0, 1]:
+						FloorEvents.rigged_override = rigged
+						GameState.set_flag(FloorEvents.flag(floor_number, "duel"), false)
+						if rigged == 1:
+							SceneRouter.enter_floor(floor_number, &"default")
+							map = await _arrived(floor_number)
+							player = map.get_node("Player") as Player
+							for child in map.get_children():
+								if child is Monster:
+									child.queue_free()
+						var duellist := map.get_node_or_null("Duellist") as Duellist
+						if duellist == null:
+							break
+						player.position = duellist.position + Vector2(0, 24)
+						player.facing = Vector2.UP
+						GameState.set_hp(GameState.total_max_hp())
+						EventBus.col_granted.emit(FloorEvents.stake(floor_number))
+						await _settle_camera(player)
+						if rigged == 0:
+							await _wait(0.4)
+							await _capture(shot + "_camp")
+						duellist.interact(player)
+						await _until(func() -> bool: return DialogueRunner.is_choosing(), 5.0)
+						DialogueRunner.choose(0)
+						while DialogueRunner.is_running():
+							await _typed(main)
+							DialogueRunner.advance()
+							await _wait(0.1)
+						await _until_command()
+						if rigged == 0:
+							await _capture(shot + "_staged")
+							await _finish()
+						else:
+							var foe := CombatManager.living_enemies()[0]
+							foe.take_damage(foe.hp - foe.max_hp / 2)
+							_submit(CombatAction.use(SkillLibrary.basic_attack(), foe))
+							await _until(func() -> bool: return CombatManager.living_enemies().is_empty() \
+									or CombatManager.is_awaiting_command() or _said_paralysis(), 10.0)
+							await _wait(0.2)
+							await _capture(shot + "_betrayal")
+							await _until_command()
+							await _end_fight()
+						await _until(func() -> bool: return not GameState.is_input_locked() \
+								or DialogueRunner.is_running(), 5.0)
+						while DialogueRunner.is_running():
+							DialogueRunner.advance()
+							await _wait(0.1)
+					FloorEvents.rigged_override = -1
+					GameState.defense = guard
 	FloorGenerator.event_override = -1
 	FloorGenerator.shape_override = -1
+
+
+## Whether the fight's line is the duellist's paralysis pick going in.
+func _said_paralysis() -> bool:
+	var hud := get_tree().root.find_child("BattleHud", true, false)
+	var said: Variant = hud.get(&"_said") if hud != null else null
+	return said is String and "paralysis" in said
 
 
 ## Waits out the camera's smoothing after [param player] has been put somewhere

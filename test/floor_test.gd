@@ -92,12 +92,12 @@ var _landings := 0
 var _tightest_seal_burn := INF
 ## Floor events (see [FloorEvents]): each kind's floors, and those it stands whole
 ## on; an ambush room's cells, and how many a fight for two can be staged on; the
-## shortest and longest walk a rival party makes to the door, in seconds.
+## sides a duellist can be walked up to from, each of which must stage a duel.
 var _events: Dictionary[int, int] = {}
 var _whole_events: Dictionary[int, int] = {}
 var _ambush_cells := 0
 var _ambush_staged := 0
-var _race_walks: Array[float] = []
+var _duel_sides := 0
 
 
 func _ready() -> void:
@@ -510,7 +510,7 @@ func _run() -> void:
 
 	# --- events ---
 	# About half the floors that may have one: never an authored floor, floor 2,
-	# the top or a dungeon, a race only through a labyrinth, and never the same kind
+	# the top or a dungeon, and never the same kind
 	# two floors running. On a stream of their own, like the modifiers.
 	var eligible := 0
 	var happening := 0
@@ -533,8 +533,6 @@ func _run() -> void:
 			by_event[kind] = by_event.get(kind, 0) + 1
 			if not may:
 				misplaced_events.append("%d" % floor_number)
-			elif kind == FloorEvents.Kind.RACE and shape != FloorDefinition.Shape.CLASSIC:
-				misplaced_events.append("%d (a race with no labyrinth)" % floor_number)
 			elif kind == last_event:
 				misplaced_events.append("%d (the same as the floor below)" % floor_number)
 		last_event = kind
@@ -549,7 +547,7 @@ func _run() -> void:
 	_check(events_here != events_there, "another world has its events on other floors")
 	# Each is the floor without it, plus the event -- and the event sound: a hoard
 	# shut until its keeper falls, a stranded player with a way home, an ambush
-	# that can spring, a race with a way to the door.
+	# that can spring, a duel that can be staged in the camp.
 	var unsound := PackedStringArray()
 	for floor_number in range(2, FloorTuning.TOP_FLOOR + 1):
 		if FloorRegistry.event_of(floor_number) != FloorEvents.Kind.NONE:
@@ -567,10 +565,7 @@ func _run() -> void:
 				", ".join(whole_counts), "" if unsound.is_empty() else " -- " + ", ".join(unsound)])
 	_check(_ambush_staged * 10 >= _ambush_cells * 9,
 			"an ambush can spring on %d of the %d cells of its rooms" % [_ambush_staged, _ambush_cells])
-	if not _race_walks.is_empty():
-		_race_walks.sort()
-		print("       (a rival party walks to the door in %.0f to %.0f s)" % [
-				_race_walks[0], _race_walks[_race_walks.size() - 1]])
+	print("       (a duel can be staged from all %d sides a duellist can be walked up to from)" % _duel_sides)
 
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
@@ -2517,8 +2512,7 @@ func _event_signature(map: GameMap, carved: Rect2i) -> String:
 				cells.append("%d,%d" % [cell.x, cell.y])
 		cells.sort()
 		parts.append(",".join(cells))
-	var event_nodes := ["FieldBoss", "HoardSeal", "ChestHoard", "Stranded", "Ambush",
-			"RivalLeader", "RivalParty"]
+	var event_nodes := ["FieldBoss", "HoardSeal", "ChestHoard", "Stranded", "Ambush", "Duellist"]
 	for child in map.get_children():
 		if child.name in event_nodes or String(child.name).begins_with("Besieger"):
 			continue
@@ -2532,7 +2526,7 @@ func _event_signature(map: GameMap, carved: Rect2i) -> String:
 	places.erase("The Hoard")
 	parts.append("%s %s %s %s %s" % [map.map_id, map.dark_area, places, map.safe_zones, map.lit_areas])
 	for meta in map.get_meta_list():
-		if not meta in [&"event", &"hoard", &"hoard_door", &"stranded", &"ambush", &"rival_path"]:
+		if not meta in [&"event", &"hoard", &"hoard_door", &"stranded", &"ambush", &"duellist"]:
 			parts.append("%s=%s" % [meta, map.get_meta(meta)])
 	return "\n".join(parts)
 
@@ -2617,27 +2611,26 @@ func _event_problem(map: GameMap, kind: int, floor_number: int, label: String) -
 			_ambush_staged += staged
 			if staged == 0:
 				return "%s's ambush can spring nowhere" % label
-		FloorEvents.Kind.RACE:
-			var leader := map.get_node_or_null("RivalLeader") as Npc
-			var party := map.get_node_or_null("RivalParty") as RivalParty
-			if leader == null or party == null or leader.dialogue == null:
-				return "%s has no rival party" % label
-			var path: Array = map.get_meta(&"rival_path")
-			var gate := walls.local_to_map((map.get_node("BossGate") as Node2D).position)
-			if not plot.has_point(path[0]) or walls.local_to_map(leader.position) != path[0]:
-				return "%s's rivals don't set off from the camp" % label
-			var end: Vector2i = path[path.size() - 1]
-			if absi(end.x - gate.x) + absi(end.y - gate.y) != 1:
-				return "%s's rivals don't walk to the door" % label
-			for i in path.size():
-				var cell: Vector2i = path[i]
-				if walls.get_cell_source_id(cell) != -1 or not reachable.has(cell):
-					return "%s's rivals walk through rock at %s" % [label, cell]
-				if i > 0 and absi(cell.x - path[i - 1].x) + absi(cell.y - path[i - 1].y) != 1:
-					return "%s's rivals jump from %s to %s" % [label, path[i - 1], cell]
-			if party.mouth_index < 0 or party.path.size() != path.size():
-				return "%s's rivals never reach the labyrinth" % label
-			_race_walks.append(path.size() * TILE / FloorEvents.RIVAL_SPEED)
+		FloorEvents.Kind.DUEL:
+			var duellist := map.get_node_or_null("Duellist") as Duellist
+			if duellist == null or duellist.dialogue == null:
+				return "%s has no duellist" % label
+			var cell := walls.local_to_map(duellist.position)
+			if not plot.has_point(cell) or cell != map.get_meta(&"duellist") or not walkable.has(cell):
+				return "%s's duellist doesn't stand in the camp" % label
+			# Walked up to from any side, they can stake out a duel where you stand.
+			var sides := 0
+			for step: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				var at := cell + step
+				if not walkable.has(at):
+					continue
+				sides += 1
+				var field := map.formation(at, -step, 1)
+				if field == null or field.enemy_cells.size() != 1 or not walkable.has(field.enemy_cells[0]):
+					return "%s's duel can't be staged from %s" % [label, at]
+			if sides == 0:
+				return "%s's duellist can't be walked up to" % label
+			_duel_sides += sides
 	return ""
 
 

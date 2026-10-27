@@ -1775,8 +1775,9 @@ you *do*, the first two what you *see*, so those are where to start:
     the map beyond their name; the headline shows on every arrival, not only the first.
 - [x] **Things happening on the floor.** *(decided and built 2026-10-27: all four)* SAO
   encounters: a stranded player to escort, a player-killer ambush, a field boss guarding a
-  treasure room (passed over in §4), a rival party racing you to the door. Most content per
-  floor, and what makes a floor a story rather than a layout.
+  treasure room (passed over in §4), a rival party racing you to the door -- **replaced by
+  a duel, 2026-10-27**. Most content per floor, and what makes a floor a story rather than
+  a layout.
 
   **Decided 2026-10-27** (asked): events next, over landmarks, room shapes and the
   villages' stock; and **all four** encounters in the first slice.
@@ -1785,10 +1786,10 @@ you *do*, the first two what you *see*, so those are where to start:
   - [x] **The pick** (`FloorRegistry.event_of(n)` / `event_in(seed, n)`): its own stream,
     `hash("<seed>:event")`, half the floors that may have one (`FloorEvents.CHANCE`), one
     a floor, never the same kind two floors running; never an authored floor, floor 2, the
-    top or a dungeon (whose seals are what happens on it), and a race only on a classic
-    floor -- it is a race through a labyrinth. 39 of 78 on the test's seed (8 field
-    bosses, 15 escorts, 9 ambushes, 7 races). `FloorGenerator.event_override` for tests
-    and tools.
+    top or a dungeon (whose seals are what happens on it). 39 of 78 on the test's seed
+    (9 field bosses, 13 escorts, 9 ambushes, 8 duels). `FloorGenerator.event_override` for tests and tools. (The race was classic-only; the
+    duel isn't, so the picks moved on the open fields where a race used to be drawn
+    again.)
   - [x] **Planned after the puzzles, placed after everything**: `plan()` before dressing
     (the hoard is carved there), `place()` once the camp is down, both on their own
     streams (`hash("<seed>:events")`, the cast from `hash("<seed>:event_cast")`). Rooms are
@@ -1823,18 +1824,33 @@ you *do*, the first two what you *see*, so those are where to start:
     (`FloorEvents.toll`, four kills' worth) or the fight. Paid or beaten, they are gone
     for good; fled or beaten by, they melt away until your next visit. A fight for two
     can be staged on every cell of every ambush room (739 of 739).
-  - [x] **Race**: a rival party of three in the camp (`RivalParty`, its leader the
-    `RivalLeader` NPC). Bet the stake (`FloorEvents.stake`, six kills' worth, matched) and
-    they set off down the shortest way from the camp to the door at
-    `FloorEvents.RIVAL_SPEED` (32 px/s, about a third of yours: 76-128 s on the test's
-    seed), walking only while you can -- never through a fight, a box or a menu. Walk
-    into the boss room first and the pot is yours, and a prize; they reach the door first
-    and **they clear the floor**: the way up opens, the boss and its rewards were theirs,
-    and so is your stake. The HUD's headline says when they set off and when they reach
-    the labyrinth; in the dark they are as hidden as anything else. Not offered once the
-    door is found or the floor cleared.
+  - [x] ~~**Race**~~ *(built, then dropped the same day: "not fitting the SAO theme" --
+    a bet on who reaches a door, and a floor "taken" by someone else clearing it, read as
+    a sport, not a death game. Offered instead a reckless raid (Floor 74's Army party) or
+    a Last-Attack race, both turned down; the user picked a duel.)*
+  - [x] **Duel** *(decided 2026-10-27)*: a player in the camp (`Duellist`,
+    `scenes/world/duellist.tscn`) calling out anyone who'll cross blades -- SAO's
+    first-strike duel, `FloorEvents.stake` (six kills' worth of Col) against a piece of
+    their gear (`DUEL_WAGERS`). Accept and, once the box closes, they step up to their
+    mark and it is fought on the map (`stage_battle(..., 1)`). **First strike** is a rule
+    of the runner (`Encounter.first_strike`): over the moment either side is at half the
+    HP it came in with, no blow takes anyone below 1, nothing won but the wager (no XP,
+    Col or loot). Lose and the stake is theirs and HP is what the duel left; ask again
+    for a rematch. Win and the wager and your stake are yours; they stay, and say so.
+    They won't duel you under half HP, with no room for the wager, or short of the stake.
+    **About a third are rigged** (Kuradeel): decided either way, the duellist won't
+    yield -- their cursor turns orange, a **paralysis pick** (`paralysis_edge`, a two-turn
+    stun) goes in, and it is a real fight to the end (`Encounter.betrayal`), with rewards,
+    and fleeable now (`CombatManager.can_flee()`). Beat them and they crystal out leaving
+    the wager and your stake; lose and you are robbed as player killers rob you (or the
+    hardcore save is gone); either way they are gone for good. **The camp's veteran is
+    the tell**: "fights clean, by all accounts" or "I'd keep my sword sheathed..."
+    The duellist is a player on the player's own stat curve at the floor's monster level
+    + 4 (`Bestiary.DUEL_LEVELS`); measured at four floors short of the boss's level:
+    honest duels 9-11/12, rigged ones survived 6-11/12.
   - [x] **The camp knows**: the veteran adds a line after their opening -- where the field
-    boss or the stranded player is, that orange cursors were seen, who the rivals are.
+    boss or the stranded player is, that orange cursors were seen, who the duellist is
+    and whether to trust them.
   - [x] **Nothing moved**: every generated floor of two worlds, camp and village tier,
     fingerprinted with the event forced off against HEAD, each floor in its own process --
     byte for byte the same.
@@ -1842,24 +1858,26 @@ you *do*, the first two what you *see*, so those are where to start:
     without its event -- the same floor plus the event (collision and every node, bar the
     hoard's rock) -- and the event sound: a hoard shut until its keeper's fall and walled
     but for its door, a stranded player with a way home and two monsters round them, an
-    ambush that can spring on every cell of its room, a race walked over floor from the
-    camp to the door through the labyrinth's mouth; the formation sweep runs with the
+    ambush that can spring on every cell of its room, a duellist standing in the camp
+    from every side of whom a duel can be staged; the formation sweep runs with the
     hoard open. The smoke test plays all four on real floors (the hoard opened, a stranded
     player taken home through a fight a monster started on them, an ambush paid off and
-    one fought, a race lost at the door, one lost by leaving and one won). The combat
-    test measures the field boss and the player killers on four floors, the quest test
+    one fought, a duel turned down hurt, lost, won on the rematch, and a rigged one
+    fought to the end). The combat test checks the duel rules (half, never below 1, no
+    pay, the betrayal, fleeing after it) and measures the field boss, the player killers
+    and honest and rigged duels on four floors, the quest test
     sweeps every escort job on two saves and plays one through, the inventory test the
     events' pay. `tools/screenshot.gd -- --events` shoots each.
-  - *Calls of mine, flag if wrong:* one event a floor, about half of them; **losing the
-    race clears the floor for you** (the user's pick read as "they clear it first") --
-    so it costs the stake and the boss's rewards, and skips the boss fight; a race is
-    **not saved** -- leave the floor or reload mid-race and it is lost; the field boss
+  - *Calls of mine, flag if wrong:* one event a floor, about half of them; the duel's
+    **half is of what you came in with**, not of your max; an honest duel can be **lost
+    and retaken** as often as you like, won only once; **a third rigged**, with the
+    veteran's line as the only tell; the betrayal comes **whichever way the duel went**,
+    and a rigged duel lost is a real defeat (purse spilled, hardcore over); the field boss
     is **optional** and fought from the field like any monster (it can be fled); the
     player killers **take your purse the way a monster does** (it spills where you
     fell) and offer a toll; an escort fails only back to where you found them, never
     for good; event NPCs are never solid; no events on dungeons.
-  - *Seen, not fixed:* a race's prize into a full bag is lost (it is granted, not
-    checked against `Inventory.fits()`); an escort's pay waits at READY in a full bag, as
+  - *Seen, not fixed:* an escort's pay waits at READY in a full bag, as
     any quest with nobody to hand it in to does.
 
 **Decided 2026-10-05: the Town of Beginnings is the hub.** In the source, most players
@@ -2521,10 +2539,10 @@ floor's boss, in front of a stone door: its fall unlocks a hoard. A player is co
 out in the field, two monsters round them -- take them back to the camp, fighting off
 whatever goes for them on the way, and they pay you for it. Orange cursors hide in a
 room on the way to the labyrinth and step out round you: pay their toll or fight the
-pair of them. Or a rival party in the camp reckons they'll clear the floor today and
-will race you for it, stake for stake: beat them into the boss room and the pot is
-yours; let them reach the door first and they clear the floor -- and the boss's
-rewards were theirs. The camp's veteran will tell you which.
+pair of them. Or a player in the camp calls you out to a first-strike duel, their gear
+against your col: first to take the other to half wins, and nobody dies of it --
+unless the duellist won't yield when it's decided, and the pick they had hidden is
+poisoned. The camp's veteran will tell you which, if you ask.
 
 And it keeps your place now. The game opens on a title screen over the Town of
 Beginnings: continue, start a new game, load one of three saves, the settings, the
@@ -2600,8 +2618,8 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    entrance hall and the boss in a lit hall at the top. **Floor modifiers are built
    (2026-10-27)**: about one floor in five is infested or under a storm. **So are floor
    events (2026-10-27)**: about every other floor has a field boss over a hoard, a
-   stranded player to take home, player killers lying in wait or a rival party racing
-   you to the door. Next on that track: the levers that change what you see (room
+   stranded player to take home, player killers lying in wait or a duellist in the
+   camp -- not always an honest one. Next on that track: the levers that change what you see (room
    shapes, landmarks), or the villages' floor-exclusive stock.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,

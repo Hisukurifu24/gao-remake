@@ -15,10 +15,10 @@ extends RefCounted
 ##   you ([Escortee]); walk them into the camp and it pays out.
 ## - [b]AMBUSH[/b]: player killers hiding in a field room on the way to the
 ##   labyrinth ([Ambush]): pay their toll or fight the pair of them.
-## - [b]RACE[/b]: a rival party in the camp who reckon they'll clear the floor
-##   today ([RivalParty]). Bet against them and race them to the boss room; lose,
-##   and they clear the floor -- the boss is theirs. Only on a classic floor: it is
-##   a race through a labyrinth.
+## - [b]DUEL[/b]: a player in the camp calling out anyone who'll cross blades
+##   ([Duellist]): a first-strike duel, their gear against your Col. Some are
+##   rigged ([method is_rigged]) -- the duel decided, they won't yield, and a
+##   paralysis pick turns it into a fight to the end. The camp's veteran knows which.
 ##
 ## Two passes, as [FloorPuzzles] has: [method plan] on the finished layout before it
 ## is dressed -- the hoard is carved there, so its walls join like any -- and
@@ -28,16 +28,12 @@ extends RefCounted
 ## puzzles: a floor with its event is the floor without, plus the event.
 ## [member FloorGenerator.event_override] forces a kind for the tests and tools.
 
-enum Kind { NONE, FIELD_BOSS, ESCORT, AMBUSH, RACE }
-const KIND_NAMES: PackedStringArray = ["none", "field boss", "escort", "ambush", "race"]
+enum Kind { NONE, FIELD_BOSS, ESCORT, AMBUSH, DUEL }
+const KIND_NAMES: PackedStringArray = ["none", "field boss", "escort", "ambush", "duel"]
 
 ## The share of the floors that may have an event that do.
 const CHANCE := 0.5
 const TILE := 16
-## How fast a rival party walks to the door, in pixels a second: well under the
-## player's 90, since they know the way and you have to find it. A race is walked
-## in the time it takes them to walk it without a stop -- see [method race_time].
-const RIVAL_SPEED := 32.0
 ## How far a field boss drifts from its post.
 const FIELD_BOSS_WANDER := 12.0
 ## Its sprite's tint: gilded, like what it guards.
@@ -49,10 +45,14 @@ const BESIEGERS := 2
 ## and Col by the same count.
 const ESCORT_KILLS := 4.0
 const ESCORT_GEAR: Array[StringName] = [&"guard_ring", &"swift_charm", &"leather_coat", &"kobold_blade"]
-## A race's stake, and a player killer's toll, in the floor's kills' worth of Col.
+## Your side of a duel's wager, and a player killer's toll, in the floor's kills'
+## worth of Col.
 const STAKE_KILLS := 6
 const TOLL_KILLS := 4
-const RACE_PRIZES: Array[StringName] = [&"swift_charm", &"guard_ring", &"blackwyrm_coat", &"health_potion"]
+## The duellist's side: something off their own back.
+const DUEL_WAGERS: Array[StringName] = [&"swift_charm", &"guard_ring", &"blackwyrm_coat", &"anneal_blade"]
+## The share of duels that are rigged.
+const RIGGED_CHANCE := 0.35
 
 const CHARACTERS := "res://assets/ninja_adventure/Actor/Character/%s/%s.png"
 const STRANDED_SHEETS: PackedStringArray = ["Hunter", "NinjaGreen", "Woman", "FighterWhite", "Monk", "Eskimo"]
@@ -63,8 +63,8 @@ const GUILDS: PackedStringArray = [
 	"the Iron Wolves", "the Dawnriders", "the Scarlet Lances", "the Blue Lanterns",
 	"the Kestrel Company", "the Long Road",
 ]
-const LEADERS: PackedStringArray = ["Garran", "Vessa", "Holt", "Mira", "Tarkin", "Ilse"]
-const RIVAL_SHEETS: PackedStringArray = [
+const DUELLISTS: PackedStringArray = ["Garran", "Vessa", "Holt", "Mira", "Tarkin", "Ilse"]
+const DUELLIST_SHEETS: PackedStringArray = [
 	"Knight", "SamuraiBlue", "GladiatorBlue", "NinjaBlue", "KnightGold", "Samurai", "FighterRed",
 	"RedGladiator",
 ]
@@ -74,7 +74,7 @@ const PK_SHEET := "NinjaDark"
 const CHEST_SCENE := preload("res://scenes/world/chest.tscn")
 const SEAL_SCENE := preload("res://scenes/world/sealed_door.tscn")
 const MONSTER_SCENE := preload("res://scenes/world/monster.tscn")
-const NPC_SCENE := preload("res://scenes/world/npc.tscn")
+const DUELLIST_SCENE := preload("res://scenes/world/duellist.tscn")
 const ESCORTEE_SCENE := preload("res://scenes/world/escortee.tscn")
 
 const STEPS: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
@@ -86,8 +86,17 @@ const CAMP_LINES := {
 	Kind.FIELD_BOSS: "Mind the rooms to the {side}. There's something big sat in front of a stone door out there, like it's guarding it. A field boss -- and they never guard nothing.",
 	Kind.ESCORT: "Have you seen {name}? Went out to scout the rooms to the {side} and never came back. If they're cornered out there, they won't make it back on their own.",
 	Kind.AMBUSH: "And watch yourself on the way to the labyrinth. Orange cursors were seen on this floor -- player killers. They hide, and they wait.",
-	Kind.RACE: "See {guild} over there? They reckon they'll clear this floor today. {leader}'s been looking for someone fool enough to race them for it.",
+	Kind.DUEL: "There's a duellist in camp -- {duellist}, of {guild}, calling out anyone who'll cross blades. First strike, with a wager on it. {tell}",
 }
+## What the veteran knows about the duellist, honest (false) or rigged (true).
+const DUEL_TELLS := {
+	false: "Fights clean, by all accounts. Lost to them myself.",
+	true: "I'd keep my sword sheathed. The last one who took them up on it came back half-dead, swearing the duel was already over when it happened.",
+}
+
+## Forces every duel rigged (1) or honest (0), for the tests and tools; -1 for the
+## world's own.
+static var rigged_override := -1
 
 static var _casts: Dictionary[String, Dictionary] = {}
 
@@ -102,7 +111,7 @@ var guard_cell := Vector2i(-1, -1)
 var stranded_cell := Vector2i(-1, -1)
 var besieger_cells: Array[Vector2i] = []
 ## The room the event happens in -- the hoard's, the stranded player's, the
-## ambush's. Empty for a race, which is the whole floor.
+## ambush's. Empty for a duel, which is in the camp.
 var room := Rect2i()
 
 var _rng := RandomNumberGenerator.new()
@@ -146,7 +155,7 @@ static func escort_talk(number: int) -> StringName:
 	return flag(number, "escort_home")
 
 
-## A race's stake, which each side puts up; a player killer's toll.
+## What you put up against a duellist's wager; a player killer's toll.
 static func stake(number: int) -> int:
 	return FloorTuning.kill_col(number) * STAKE_KILLS
 
@@ -155,9 +164,11 @@ static func toll(number: int) -> int:
 	return FloorTuning.kill_col(number) * TOLL_KILLS
 
 
-## Whether floor [param number]'s race has been run, won or lost.
-static func race_over(number: int) -> bool:
-	return GameState.has_flag(flag(number, "race_won")) or GameState.has_flag(flag(number, "race_lost"))
+## Whether floor [param number]'s duellist means to turn on you.
+static func is_rigged(number: int) -> bool:
+	if rigged_override >= 0:
+		return rigged_override == 1
+	return _cast(number)["rigged"]
 
 
 ## Who the stranded player is on floor [param number]: [code]{name, sheet}[/code].
@@ -166,11 +177,11 @@ static func stranded(number: int) -> Dictionary:
 	return {"name": cast["stranded"], "sheet": cast["stranded_sheet"]}
 
 
-## The rival party on floor [param number]: [code]{guild, leader, sheets, prize}[/code].
-static func rivals(number: int) -> Dictionary:
+## Floor [param number]'s duellist: [code]{name, guild, sheet, wager}[/code].
+static func duellist(number: int) -> Dictionary:
 	var cast := _cast(number)
-	return {"guild": cast["guild"], "leader": cast["leader"], "sheets": cast["rival_sheets"],
-			"prize": cast["prize"]}
+	return {"name": cast["duellist"], "guild": cast["guild"], "sheet": cast["duellist_sheet"],
+			"wager": cast["wager"]}
 
 
 ## Who speaks for the player killers on floor [param number].
@@ -260,7 +271,7 @@ static func home_dialogue(number: int) -> Dialogue:
 	return talk
 
 
-# --- the ambush and the race --------------------------------------------------------
+# --- the ambush and the duel --------------------------------------------------------
 
 ## What the player killers say as they drop their hiding: their toll, or the fight.
 static func ambush_dialogue(number: int) -> Dialogue:
@@ -290,30 +301,33 @@ static func ambush_dialogue(number: int) -> Dialogue:
 	return talk
 
 
-## What the rival party's leader says in the camp: the bet, or why there's no race.
-static func race_dialogue(number: int) -> Dialogue:
-	var cast := rivals(number)
+## What the duellist says in the camp: the challenge, or, once you have beaten them
+## fair, that you did. Accepting sets [code]event_<n>_duel_accepted[/code], which
+## the [Duellist] takes the stake against once the box is closed. The same words
+## rigged or not: what gives them away is the veteran's.
+static func duel_dialogue(number: int) -> Dialogue:
+	var who := duellist(number)
 	var bet := stake(number)
+	var wager := ItemLibrary.get_item(who["wager"])
 	var talk := Dialogue.new()
-	talk.id = flag(number, "race_talk")
-	talk.default_speaker = cast["leader"]
-	talk.default_portrait = load(CHARACTERS % [cast["sheets"][0], "Faceset"])
-	var found := DialogueCondition.new()
-	found.test = DialogueCondition.Test.FLAG_SET
-	found.flag = BossGate.found_flag(number)
-	talk.lines.append(_line("You already know where the door is? Then there's no race in it. Go on -- it's yours.", [found]))
-	var offer := _line("We're %s, and we're clearing Floor %d today. Fancy a race? First into the boss room takes the floor. Put up %d col and we'll match it." % [
-			cast["guild"], number, bet], [])
-	var take := _choice("You're on. (%d col)" % bet, [_min_col(bet)], [
-		_effect(DialogueEffect.Kind.TAKE_COL, &"", bet),
-		_effect(DialogueEffect.Kind.SET_FLAG, flag(number, "race"), 1),
+	talk.id = flag(number, "duel_talk")
+	talk.default_speaker = who["name"]
+	talk.default_portrait = load(CHARACTERS % [who["sheet"], "Faceset"])
+	var won := DialogueCondition.new()
+	won.test = DialogueCondition.Test.FLAG_SET
+	won.flag = flag(number, "duel")
+	talk.lines.append(_line("Good duel. I'll be going over that last exchange for a week.", [won]))
+	var offer := _line("%s, of %s. You look like you can hold a sword. A first-strike duel -- first to take the other to half wins. My %s against %d col." % [
+			who["name"], who["guild"], wager.label() if wager != null else String(who["wager"]), bet], [])
+	var take := _choice("Accept the duel. (%d col)" % bet, [_min_col(bet)], [
+		_effect(DialogueEffect.Kind.SET_FLAG, flag(number, "duel_accepted"), 1),
 	])
 	take.hide_when_locked = false
 	take.locked_hint = "(you need %d col)" % bet
 	take.next = &"go"
 	offer.choices = [take, _choice("Not today.", [], [])] as Array[DialogueChoice]
 	talk.lines.append(offer)
-	var go := _line("Then go! Last one to the door buys the drinks.", [])
+	var go := _line("The window's up. Accept it, and draw.", [])
 	go.id = &"go"
 	talk.lines.append(go)
 	return talk
@@ -352,8 +366,8 @@ func plan(picked: Kind, rooms: Array[Rect2i], entry: Rect2i, plot: Rect2i, keep_
 			_plan_stranded(candidates)
 		Kind.AMBUSH:
 			_plan_ambush(candidates, steps, entry, route_to)
-		Kind.RACE:
-			kind = Kind.RACE
+		Kind.DUEL:
+			kind = Kind.DUEL
 
 
 ## The hoard off a far room's wall, the north first so its door faces you as you
@@ -463,9 +477,8 @@ func _plan_ambush(candidates: Array[Rect2i], steps: Dictionary[Vector2i, int], e
 # --- putting it down --------------------------------------------------------------
 
 ## Puts the event on [param map], once everything else is on it. [param plot] is
-## the camp, [param gate_cell] the boss door's cell and [param lab] the labyrinth,
-## in tiles.
-func place(map: Node2D, plot: Rect2i, gate_cell: Vector2i, lab: Rect2i) -> void:
+## the camp, in tiles.
+func place(map: Node2D, plot: Rect2i) -> void:
 	if kind == Kind.NONE:
 		return
 	map.set_meta(&"event", kind)
@@ -482,8 +495,8 @@ func place(map: Node2D, plot: Rect2i, gate_cell: Vector2i, lab: Rect2i) -> void:
 				ambush.area = room
 				map.add_child(ambush)
 			map.set_meta(&"ambush", room)
-		Kind.RACE:
-			_place_rivals(map, plot, gate_cell, lab)
+		Kind.DUEL:
+			_place_duellist(map, plot)
 
 
 func _place_hoard(map: Node2D) -> void:
@@ -561,18 +574,18 @@ func _place_stranded(map: Node2D, plot: Rect2i) -> void:
 		map.add_child(monster)
 
 
-## The rival party stands in the camp until the race is run -- on a floor not yet
-## cleared -- on a free cell with
-## a free cell either side of it for the other two; the way they will walk is the
-## shortest from there to the door, round anything standing.
-func _place_rivals(map: Node2D, plot: Rect2i, gate_cell: Vector2i, lab: Rect2i) -> void:
-	# A floor already cleared is nothing to race for -- unless it was this race
-	# that cleared it, which the party settles as it arrives.
-	if race_over(floor_number) or (GameState.is_floor_cleared(floor_number)
-			and not GameState.has_flag(flag(floor_number, "race"))):
+## The duellist stands in the camp, on the free cell nearest its middle with free
+## cells either side -- room to walk up and stage a duel -- and off where you
+## arrive, unless they turned on you, after which they are gone for good.
+func _place_duellist(map: Node2D, plot: Rect2i) -> void:
+	if GameState.has_flag(flag(floor_number, "duel")) and is_rigged(floor_number):
 		return
 	var solid := _solid_cells(map)
-	var leader := Vector2i(-1, -1)
+	var spawns := map.get_node_or_null(^"SpawnPoints")
+	if spawns != null:
+		for marker in spawns.get_children():
+			solid[Vector2i(((marker as Node2D).position / TILE).floor())] = true
+	var spot := Vector2i(-1, -1)
 	var middle := _center(plot)
 	var best := 1 << 30
 	for y in range(plot.position.y + 1, plot.end.y - 1):
@@ -588,71 +601,20 @@ func _place_rivals(map: Node2D, plot: Rect2i, gate_cell: Vector2i, lab: Rect2i) 
 					fits = false
 			if fits:
 				best = off.x + off.y
-				leader = cell
-	if leader.x < 0:
+				spot = cell
+	if spot.x < 0:
 		return
-	var path := _path(leader, gate_cell, solid)
-	if path.size() < 2:
-		path = _path(leader, gate_cell, {} as Dictionary[Vector2i, bool])
-	if path.size() < 2:
-		return
-	path.pop_back()
-	var points := PackedVector2Array()
-	var mouth := -1
-	for i in path.size():
-		points.append(_world(path[i]))
-		if mouth < 0 and lab.has_point(path[i]):
-			mouth = i
-	var cast := rivals(floor_number)
-	if not GameState.has_flag(flag(floor_number, "race")):
-		var npc := NPC_SCENE.instantiate()
-		npc.name = "RivalLeader"
-		npc.position = _world(leader)
-		npc.set(&"sprite_sheet", load(CHARACTERS % [cast["sheets"][0], "SpriteSheet"]))
-		npc.set(&"display_name", cast["leader"])
-		npc.set(&"dialogue", race_dialogue(floor_number))
-		map.add_child(npc)
-		_unsolid(npc)
-	var party := RivalParty.new()
-	party.name = "RivalParty"
-	party.floor_number = floor_number
-	party.path = points
-	party.mouth_index = mouth
-	var sheets: Array[Texture2D] = []
-	for sheet: String in cast["sheets"]:
-		sheets.append(load(CHARACTERS % [sheet, "SpriteSheet"]))
-	party.sheets = sheets
-	map.add_child(party)
-	map.set_meta(&"rival_path", path)
-
-
-## The shortest walk over floor -- no wall, nothing in [param avoid] -- from
-## [param from] to [param to], both included; empty if there is none.
-func _path(from: Vector2i, to: Vector2i, avoid: Dictionary[Vector2i, bool]) -> Array[Vector2i]:
-	var came: Dictionary[Vector2i, Vector2i] = {from: from}
-	var queue: Array[Vector2i] = [from]
-	var head := 0
-	while head < queue.size():
-		var cell := queue[head]
-		head += 1
-		if cell == to:
-			break
-		for step in STEPS:
-			var next := cell + step
-			if came.has(next) or not (_walkable(next) or next == to) \
-					or (avoid.has(next) and next != to):
-				continue
-			came[next] = cell
-			queue.append(next)
-	var path: Array[Vector2i] = []
-	if not came.has(to):
-		return path
-	var at := to
-	while at != from:
-		path.push_front(at)
-		at = came[at]
-	path.push_front(from)
-	return path
+	var who := duellist(floor_number)
+	var npc := DUELLIST_SCENE.instantiate()
+	npc.name = "Duellist"
+	npc.position = _world(spot)
+	npc.set(&"sprite_sheet", load(CHARACTERS % [who["sheet"], "SpriteSheet"]))
+	npc.set(&"display_name", who["name"])
+	npc.set(&"dialogue", duel_dialogue(floor_number))
+	npc.set(&"floor_number", floor_number)
+	map.add_child(npc)
+	_unsolid(npc)
+	map.set_meta(&"duellist", spot)
 
 
 func _walkable(cell: Vector2i) -> bool:
@@ -683,9 +645,9 @@ static func _near(cells: Dictionary[Vector2i, bool], at: Vector2i, radius: int) 
 
 
 ## What the camp's veteran says about it, filled in: where the room is from the
-## camp, who is out there, who the rivals are.
+## camp, who is out there, who the duellist is and whether to trust them.
 func camp_words(plot: Rect2i) -> Dictionary:
-	var words := {"side": "far", "name": "", "guild": "", "leader": ""}
+	var words := {"side": "far", "name": "", "guild": "", "duellist": "", "tell": ""}
 	if room.has_area():
 		var off := _center(room) - _center(plot)
 		if absi(off.x) >= absi(off.y):
@@ -693,9 +655,10 @@ func camp_words(plot: Rect2i) -> Dictionary:
 		else:
 			words["side"] = "south" if off.y > 0 else "north"
 	words["name"] = stranded(floor_number)["name"]
-	var cast := rivals(floor_number)
-	words["guild"] = cast["guild"]
-	words["leader"] = cast["leader"]
+	var who := duellist(floor_number)
+	words["guild"] = who["guild"]
+	words["duellist"] = who["name"]
+	words["tell"] = DUEL_TELLS[is_rigged(floor_number)]
 	return words
 
 
@@ -710,18 +673,18 @@ static func _cast(number: int) -> Dictionary:
 		return _casts[key]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("%d:event_cast" % generation_seed)
-	var first := rng.randi() % RIVAL_SHEETS.size()
+	var sheet := DUELLIST_SHEETS[rng.randi() % DUELLIST_SHEETS.size()]
 	var cast := {
 		"stranded": STRANDED_NAMES[rng.randi() % STRANDED_NAMES.size()],
 		"stranded_sheet": STRANDED_SHEETS[rng.randi() % STRANDED_SHEETS.size()],
 		"escort_gear": ESCORT_GEAR[rng.randi() % ESCORT_GEAR.size()],
 		"guild": GUILDS[rng.randi() % GUILDS.size()],
-		"leader": LEADERS[rng.randi() % LEADERS.size()],
-		"rival_sheets": [RIVAL_SHEETS[first], RIVAL_SHEETS[(first + 3) % RIVAL_SHEETS.size()],
-				RIVAL_SHEETS[(first + 5) % RIVAL_SHEETS.size()]],
-		"prize": RACE_PRIZES[rng.randi() % RACE_PRIZES.size()],
+		"duellist": DUELLISTS[rng.randi() % DUELLISTS.size()],
+		"duellist_sheet": sheet,
+		"wager": DUEL_WAGERS[rng.randi() % DUEL_WAGERS.size()],
 		"pk": PLAYER_KILLERS[rng.randi() % PLAYER_KILLERS.size()],
 	}
+	cast["rigged"] = rng.randf() < RIGGED_CHANCE
 	_casts[key] = cast
 	return cast
 
