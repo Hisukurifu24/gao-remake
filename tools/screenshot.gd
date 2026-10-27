@@ -10,6 +10,7 @@ extends Node
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shapes    # open fields: arena, waystones
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --dungeons  # dungeons: hall, seals, ladder, top
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --modifiers # storms per band, an infested floor
+##     "$GODOT" --path . res://tools/screenshot.tscn -- --events    # field boss, escort, ambush, race
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --shops     # the hubs' counters and the purse
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --forge     # the smith, Argo's doors, the peddler
 ##     "$GODOT" --path . res://tools/screenshot.tscn -- --title     # the title screen and its pages
@@ -38,6 +39,12 @@ const DUNGEON_FLOORS := [4, 16, 33, 64, 96]
 ## desert's sand, the ice's snow, the volcanic band's ash -- and an infested floor.
 const STORM_FLOORS := [3, 45, 85, 55, 65, 75]
 const INFESTED_FLOOR := 14
+## A floor for each event: a field boss in the forest and in the ruins, a stranded
+## player on the meadow, an ambush in the swamp, a race on the ice.
+const EVENT_FLOORS := {
+	FloorEvents.Kind.FIELD_BOSS: [15, 37], FloorEvents.Kind.ESCORT: [5],
+	FloorEvents.Kind.AMBUSH: [45], FloorEvents.Kind.RACE: [65],
+}
 ## A generated floor in each biome band, clear of the ones shot elsewhere.
 const BAND_FLOORS := [5, 15, 27, 35, 45, 55, 65, 75, 85, 97]
 
@@ -95,6 +102,11 @@ func _ready() -> void:
 		return
 	if "--shapes" in OS.get_cmdline_user_args():
 		await _capture_shapes(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
+	if "--events" in OS.get_cmdline_user_args():
+		await _capture_events(main)
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
@@ -1382,8 +1394,6 @@ func _capture_dungeons(main: Node) -> void:
 	FloorGenerator.shape_override = -1
 
 
-## Waits out the camera's smoothing after [param player] has been put somewhere
-## far from where it was looking.
 ## Floor modifiers: a storm's headline as you arrive, then the storm over a field
 ## room and over the labyrinth's dark -- in every weather -- and an infested floor,
 ## its swarm left standing.
@@ -1427,6 +1437,87 @@ func _capture_modifiers(main: Node) -> void:
 	FloorGenerator.shape_override = -1
 
 
+## Floor events: a field boss in front of its hoard; a stranded player with the
+## monsters round them, then following you; player killers stepping out of hiding,
+## and what they say; and a rival party in the camp, then on their way.
+func _capture_events(main: Node) -> void:
+	FloorGenerator.shape_override = FloorDefinition.Shape.CLASSIC
+	for kind: int in EVENT_FLOORS:
+		FloorGenerator.event_override = kind
+		for floor_number: int in EVENT_FLOORS[kind]:
+			GameState.clear_floor(floor_number - 1)
+			SceneRouter.enter_floor(floor_number, &"default")
+			var map := await _arrived(floor_number)
+			var player := map.get_node("Player") as Player
+			var shot := "04ze_%s%02d" % [FloorEvents.KIND_NAMES[kind].replace(" ", "_"), floor_number]
+			# Only the event's own monsters, so the shot is of it.
+			for child in map.get_children():
+				if child is Monster and child.name != "FieldBoss" and not String(child.name).begins_with("Besieger"):
+					child.queue_free()
+				elif child is Monster:
+					(child as Monster).calm(30.0)
+			match kind:
+				FloorEvents.Kind.FIELD_BOSS:
+					var keeper := map.get_node_or_null("FieldBoss") as Node2D
+					if keeper == null:
+						continue
+					player.position = keeper.position + Vector2(0, 48)
+					player.facing = Vector2.UP
+					await _settle_camera(player)
+					await _wait(0.4)
+					await _capture(shot)
+				FloorEvents.Kind.ESCORT:
+					var stranded := map.get_node_or_null("Stranded") as Escortee
+					if stranded == null:
+						continue
+					player.position = stranded.position + Vector2(-48, 0)
+					await _settle_camera(player)
+					await _wait(0.4)
+					await _capture(shot + "_cornered")
+					for child in map.get_children():
+						if child is Monster:
+							child.queue_free()
+					QuestLog.start(FloorEvents.escort_quest(floor_number))
+					stranded.follow()
+					for step in 30:
+						player.position += Vector2(-2, 0)
+						await get_tree().physics_frame
+					await _wait(0.4)
+					await _capture(shot + "_following")
+				FloorEvents.Kind.AMBUSH:
+					var area: Rect2i = map.get_meta(&"ambush", Rect2i())
+					if not area.has_area():
+						continue
+					# Paid off after the shot: walking away from them is a fight.
+					EventBus.col_granted.emit(FloorEvents.toll(floor_number))
+					player.position = Vector2(area.get_center() * 16) + Vector2(8, 8)
+					await _settle_camera(player)
+					await _until(func() -> bool: return DialogueRunner.is_running(), 5.0)
+					await _typed(main)
+					await _capture(shot)
+					DialogueRunner.advance()
+					await _until(func() -> bool: return DialogueRunner.is_choosing(), 5.0)
+					DialogueRunner.choose(0)
+					await _until(func() -> bool: return not GameState.is_input_locked(), 5.0)
+				FloorEvents.Kind.RACE:
+					var leader := map.get_node_or_null("RivalLeader") as Node2D
+					var party := map.get_node_or_null("RivalParty") as RivalParty
+					if leader == null or party == null:
+						continue
+					player.position = leader.position + Vector2(0, 40)
+					player.facing = Vector2.UP
+					await _settle_camera(player)
+					await _wait(0.4)
+					await _capture(shot + "_camp")
+					GameState.set_flag(FloorEvents.flag(floor_number, "race"))
+					await _wait(4.0)
+					await _capture(shot + "_off")
+	FloorGenerator.event_override = -1
+	FloorGenerator.shape_override = -1
+
+
+## Waits out the camera's smoothing after [param player] has been put somewhere
+## far from where it was looking.
 func _settle_camera(player: Player) -> void:
 	var camera := player.get_node_or_null("Camera2D") as Camera2D
 	if camera != null:

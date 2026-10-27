@@ -190,6 +190,9 @@ var dungeon := false
 ## the scout says a word about it. Set before [method place].
 var modifier := 0
 var weather: StringName = &""
+## What the veteran says about the floor's event ([FloorEvents]), after their
+## opening; empty for none. Set before [method place].
+var event_line := ""
 ## Each house's whole rect, in tiles, and which of the band's village tiles it
 ## is; planned whether or not the camp has settled, built only once it has.
 var houses: Array[Rect2i] = []
@@ -732,6 +735,9 @@ func _talk(index: int, role: String, handle: String, portrait: Texture2D,
 	# The scout's word on the floor's modifier, after the opening it falls through
 	# from: a continuation, never an entry. Fixed words, so no stream moves.
 	var remark := FloorModifier.camp_line(modifier, weather) if role == "scout" else ""
+	# And the veteran's on what is happening on it, the same way.
+	if role == "veteran":
+		remark = event_line
 	if not remark.is_empty():
 		opening.next = &""
 		talk.lines.append(_line(remark, []))

@@ -71,6 +71,7 @@ func _run() -> void:
 	_test_ashlow()
 	_test_lanternfall()
 	_test_settled_floors()
+	_test_floor_events()
 	_test_door_intel()
 	_test_journal_ordering()
 
@@ -742,6 +743,77 @@ func _test_settled_floors() -> void:
 				"and %s takes it back and pays %s" % [quest.giver, quest.reward_summary()])
 		if kind == "gather":
 			_check(Inventory.count(objective.target) == 0, "spending what was gathered")
+
+
+# --- floor events' jobs -------------------------------------------------------
+
+## A stranded player's escort job ([FloorEvents]) is built, not shipped, like a
+## settled floor's: the same sweep over every one the events can emit, on two saves,
+## and one taken through the stranded player's real conversation and finished by
+## the one they have in the camp.
+func _test_floor_events() -> void:
+	print("\n-- floor events' jobs --")
+	_reset()
+	var problems := PackedStringArray()
+	var jobs := 0
+	for world: int in [12345, 999]:
+		GameState.new_world_seed(world)
+		for n in range(1, FloorTuning.TOP_FLOOR + 1):
+			var id := FloorEvents.escort_quest(n)
+			var has := FloorRegistry.event_of(n) == FloorEvents.Kind.ESCORT
+			if QuestLibrary.exists(id) != has or FloorEvents.is_conversation(FloorEvents.escort_talk(n)) != has:
+				problems.append("floor %d's escort job %s" % [n, "is missing" if has else "exists with no event"])
+				continue
+			if not has:
+				continue
+			jobs += 1
+			var quest := QuestLibrary.get_quest(id)
+			if quest == null or quest.title.is_empty() or quest.summary.is_empty() or quest.needs_turn_in \
+					or not quest.prerequisites.is_empty():
+				problems.append("%s is not a whole job with nobody to hand it in to" % id)
+				continue
+			for objective in quest.listed_objectives():
+				if not objective.target_is_valid() or objective.label().strip_edges().is_empty():
+					problems.append("%s/%s names %s" % [id, objective.id, objective.target])
+			for reward in quest.rewards:
+				if reward.kind == DialogueEffect.Kind.GIVE_ITEM and not ItemLibrary.exists(reward.id):
+					problems.append("%s pays %s" % [id, reward.id])
+			if _col_paid(quest) <= 0:
+				problems.append("%s pays no Col" % id)
+			for talk in [FloorEvents.escort_dialogue(n), FloorEvents.home_dialogue(n)]:
+				if talk.entry_index() < 0 or talk.default_portrait == null \
+						or talk.lines.any(func(line: DialogueLine) -> bool: return line.text.is_empty()):
+					problems.append("%s has nobody to say it" % id)
+	GameState.new_world_seed(12345)
+	_check(problems.is_empty() and jobs > 10,
+			"every stranded player's job names something real and says something whole (%d jobs; %s)" % [
+				jobs, "; ".join(problems.slice(0, 5))])
+	_check(not QuestLibrary.exists(&"event_2_escort") and not QuestLibrary.exists(&"event_x_escort")
+			and not FloorEvents.is_conversation(&"event_7_escort_home_again"),
+			"a floor with no stranded player, and a garbled id, are not jobs")
+
+	# One, the way the player does it: no prerequisite, so offered from the start.
+	var n := 2
+	while n < FloorTuning.TOP_FLOOR and FloorRegistry.event_of(n) != FloorEvents.Kind.ESCORT:
+		n += 1
+	var id := FloorEvents.escort_quest(n)
+	var found := FloorEvents.escort_dialogue(n)
+	_check(_offers(found, "Stay close.") and QuestLog.can_start(id),
+			"floor %d's stranded player asks you to take them home, and you can" % n)
+	_pick(found, "Stay close.")
+	_check(QuestLog.is_active(id), "saying yes puts the job in the journal")
+	var col_before := GameState.col()
+	var quest := QuestLibrary.get_quest(id)
+	DialogueRunner.start(FloorEvents.home_dialogue(n))
+	for i in 12:
+		if not DialogueRunner.is_running():
+			break
+		DialogueRunner.advance()
+	var gear: StringName = quest.rewards.filter(func(reward: DialogueEffect) -> bool:
+			return reward.kind == DialogueEffect.Kind.GIVE_ITEM)[0].id
+	_check(QuestLog.is_completed(id) and GameState.col() == col_before + _col_paid(quest)
+			and Inventory.count(gear) == 1,
+			"and their thanks in the camp finishes it on the spot: %s" % quest.reward_summary())
 
 
 func _col_paid(quest: Quest) -> int:

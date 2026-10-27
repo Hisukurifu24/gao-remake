@@ -16,8 +16,12 @@ const ENEMY_PATH := "res://resources/enemies/%s.tres"
 const ENEMIES: PackedStringArray = [
 	"frenzy_boar", "dire_wolf", "little_nepent", "kobold_trooper", "cave_bat",
 	"ruin_wraith", "lizardman_soldier", "stone_golem", "ember_drake", "illfang",
-	"hollow_warden", "twin_giant",
+	"hollow_warden", "twin_giant", "pk_swordsman", "pk_knifer",
 ]
+
+## The player killers who lie in wait on some floors ([FloorEvents]): players, not
+## monsters, so in no biome's pool. Always the pair, the swordsman first.
+const PLAYER_KILLERS: Array[StringName] = [&"pk_swordsman", &"pk_knifer"]
 
 ## Which monsters roam which biome band. Order matters: the first entry is the
 ## band's rank-and-file and the one bosses take as an escort.
@@ -107,6 +111,20 @@ static func single_encounter(type: EnemyType, at_level: int, floor_number := 0) 
 	encounter.display_name = type.label()
 	encounter.enemies = [type]
 	encounter.level = maxi(1, at_level)
+	encounter.floor_number = floor_number
+	return encounter
+
+
+## The orange players who spring an ambush on [param floor_number]
+## ([FloorEvents]): the pair of them, at the floor's own level. Players fight in
+## twos where monsters roam alone, so each is a little less than a monster.
+static func ambush_encounter(floor_number: int) -> Encounter:
+	var encounter := Encounter.new()
+	encounter.id = StringName("floor_%d_ambush" % floor_number)
+	encounter.display_name = "Orange Players"
+	for id in PLAYER_KILLERS:
+		encounter.enemies.append(get_enemy(id))
+	encounter.level = FloorTuning.enemy_level(maxi(1, floor_number))
 	encounter.floor_number = floor_number
 	return encounter
 

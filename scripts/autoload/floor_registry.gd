@@ -41,6 +41,8 @@ var _floors: Dictionary[int, FloorDefinition] = {}
 var _shapes: Dictionary[int, Array] = {}
 ## world seed -> every floor's modifier, by [method _pick_modifiers].
 var _modifiers: Dictionary[int, Array] = {}
+## world seed -> every floor's event, by [method _pick_events].
+var _events: Dictionary[int, Array] = {}
 var _biomes: Dictionary[StringName, BiomeKit] = {}
 
 
@@ -170,6 +172,51 @@ func _pick_modifiers(world_seed: int) -> Array[int]:
 						or shape_in(world_seed, n) == FloorDefinition.Shape.DUNGEON):
 					pick = FloorModifier.Kind.INFESTED
 		picks.append(pick)
+	return picks
+
+
+## Floor [param floor_number]'s event ([enum FloorEvents.Kind]) in this world. Its
+## own stream, [code]hash("<seed>:event")[/code], like the shape's and the
+## modifier's: a floor with an event is the floor it would be without one, plus
+## what the event puts down.
+##
+## About [constant FloorEvents.CHANCE] of the floors that may have one do, and never
+## the same kind two floors running. Never an authored floor, floor 2, the top or a
+## dungeon (whose seals are what happens on it); a race wants a labyrinth to race
+## through, so only a classic floor runs one.
+func event_of(floor_number: int) -> FloorEvents.Kind:
+	if FloorGenerator.event_override >= 0:
+		return FloorGenerator.event_override as FloorEvents.Kind
+	return event_in(GameState.world_seed, floor_number)
+
+
+## [method event_of] in the world [param world_seed], overrides aside.
+func event_in(world_seed: int, floor_number: int) -> FloorEvents.Kind:
+	if not _events.has(world_seed):
+		_events[world_seed] = _pick_events(world_seed)
+	return _events[world_seed][clampi(floor_number, 1, FloorTuning.TOP_FLOOR)] as FloorEvents.Kind
+
+
+## Every floor's event, 1 to the top, in [param world_seed]. Index 0 is unused.
+func _pick_events(world_seed: int) -> Array[int]:
+	var picks: Array[int] = [FloorEvents.Kind.NONE]
+	var rng := RandomNumberGenerator.new()
+	var last := FloorEvents.Kind.NONE
+	for n in range(1, FloorTuning.TOP_FLOOR + 1):
+		var pick := FloorEvents.Kind.NONE
+		var shape := shape_in(world_seed, n)
+		if not (AUTHORED.has(n) or n <= 2 or n >= FloorTuning.TOP_FLOOR
+				or shape == FloorDefinition.Shape.DUNGEON):
+			rng.seed = hash("%d:event" % seed_in(world_seed, n))
+			if rng.randf() < FloorEvents.CHANCE:
+				var kinds: Array[int] = []
+				for kind in range(FloorEvents.Kind.FIELD_BOSS, FloorEvents.Kind.size()):
+					if kind != last and (kind != FloorEvents.Kind.RACE
+							or shape == FloorDefinition.Shape.CLASSIC):
+						kinds.append(kind)
+				pick = kinds[rng.randi() % kinds.size()]
+		picks.append(pick)
+		last = pick
 	return picks
 
 

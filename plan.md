@@ -1527,7 +1527,7 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
 - [ ] **Floor 100: the final boss — *you* — as an authored multi-phase fight.** The one
   encounter that should be hand-built end to end.
 
-#### Floor variety — "the floors play the same" *(raised 2026-10-05, not yet decided)*
+#### Floor variety — "the floors play the same" *(raised 2026-10-05; shapes, modifiers and events built)*
 The user, after M5.5's set landed: floors are repetitive — *both* to look at and to play,
 but **mostly they play the same**. The diagnosis: every generated floor is one recipe —
 a field of rect rooms and L-corridors, a labyrinth strip on one side, a camp halfway, a
@@ -1773,10 +1773,94 @@ you *do*, the first two what you *see*, so those are where to start:
   - *Calls of mine, flag if wrong:* one modifier a floor, never two; a storm only notices
     you later -- chases, leashes and fights are as ever; infested floors aren't marked on
     the map beyond their name; the headline shows on every arrival, not only the first.
-- [ ] **Things happening on the floor.** SAO encounters: a stranded player to escort, a
-  player-killer ambush, a field boss guarding a treasure room (passed over in §4), a rival
-  party racing you to the door. Most content per floor, and what makes a floor a story
-  rather than a layout.
+- [x] **Things happening on the floor.** *(decided and built 2026-10-27: all four)* SAO
+  encounters: a stranded player to escort, a player-killer ambush, a field boss guarding a
+  treasure room (passed over in §4), a rival party racing you to the door. Most content per
+  floor, and what makes a floor a story rather than a layout.
+
+  **Decided 2026-10-27** (asked): events next, over landmarks, room shapes and the
+  villages' stock; and **all four** encounters in the first slice.
+
+  **Built 2026-10-27** (`FloorEvents`, `scripts/world/floor_events.gd`).
+  - [x] **The pick** (`FloorRegistry.event_of(n)` / `event_in(seed, n)`): its own stream,
+    `hash("<seed>:event")`, half the floors that may have one (`FloorEvents.CHANCE`), one
+    a floor, never the same kind two floors running; never an authored floor, floor 2, the
+    top or a dungeon (whose seals are what happens on it), and a race only on a classic
+    floor -- it is a race through a labyrinth. 39 of 78 on the test's seed (8 field
+    bosses, 15 escorts, 9 ambushes, 7 races). `FloorGenerator.event_override` for tests
+    and tools.
+  - [x] **Planned after the puzzles, placed after everything**: `plan()` before dressing
+    (the hoard is carved there), `place()` once the camp is down, both on their own
+    streams (`hash("<seed>:events")`, the cast from `hash("<seed>:event_cast")`). Rooms are
+    never the arrival's, the camp's or a safe zone, and keep off chests, puzzle pieces and
+    an open field's waystones and fire (`FloorPuzzles.claimed()`).
+  - [x] **Field boss**: one of the floor's own monsters, **fought as a boss**
+    (`Monster.boss` → `Encounter.is_boss`, so `Bestiary.build_boss`'s numbers, no escort),
+    drawn doubled and gilded, named "<kind> Hoardkeeper" and the like, at
+    `FloorTuning.field_boss_level(n)` -- the floor's level + 4 + n/8, measured as hard as
+    the floor's own boss for the same player. It keeps to its post (`Monster.wander_radius`)
+    in front of a **hoard**: a vault-shaped room carved off a far room's wall by the
+    vault's own code (`FloorPuzzles.pin_vault(room, side, size)`, the cracked wall's
+    smaller hollow where no room has the rock for a vault), shut by a `SealedDoor` whose
+    one hollow is the boss's `defeat_flag` and which opens itself as it falls, on a sealed
+    chest. Beaten stays beaten. Named "The Hoard" on **M**. 7 of 8 field-boss floors find
+    the rock for one; the eighth is a plain floor.
+  - [x] **Escort**: a player cornered in the farthest field room, two of the floor's
+    monsters round them (`Besieger0/1`, on top of the count). Their job is a quest named
+    `event_<n>_escort`, built by `FloorEvents.build()` as a settled floor's are (no
+    prerequisite; pays four of the floor's monsters' worth and a piece of gear), whose TALK
+    target is the conversation they have once home. Taken, they follow you
+    (`Escortee`, `scenes/world/escortee.tscn`) along your own trail -- never through a
+    wall, never solid -- and a monster that reaches them starts the fight on you
+    (`Monster._touching_escort`). Walk them into the camp's plot and they say their thanks:
+    the job pays out on the spot. Knocked flat, they bolt back to where you found them;
+    leave the floor and they are back there too, the job still yours.
+  - [x] **Ambush**: player killers (`pk_swordsman`, `pk_knifer` -- `Bestiary.PLAYER_KILLERS`,
+    in no pool, pack ninjas; each a little less than a monster, since they come in twos)
+    hiding in the field room halfway along the way from the arrival to the labyrinth or
+    the arena (`Ambush`). Walk in and they step out of nowhere round you, on the formation
+    `GameMap.stage_battle()` finds for two; their leader wants a toll
+    (`FloorEvents.toll`, four kills' worth) or the fight. Paid or beaten, they are gone
+    for good; fled or beaten by, they melt away until your next visit. A fight for two
+    can be staged on every cell of every ambush room (739 of 739).
+  - [x] **Race**: a rival party of three in the camp (`RivalParty`, its leader the
+    `RivalLeader` NPC). Bet the stake (`FloorEvents.stake`, six kills' worth, matched) and
+    they set off down the shortest way from the camp to the door at
+    `FloorEvents.RIVAL_SPEED` (32 px/s, about a third of yours: 76-128 s on the test's
+    seed), walking only while you can -- never through a fight, a box or a menu. Walk
+    into the boss room first and the pot is yours, and a prize; they reach the door first
+    and **they clear the floor**: the way up opens, the boss and its rewards were theirs,
+    and so is your stake. The HUD's headline says when they set off and when they reach
+    the labyrinth; in the dark they are as hidden as anything else. Not offered once the
+    door is found or the floor cleared.
+  - [x] **The camp knows**: the veteran adds a line after their opening -- where the field
+    boss or the stranded player is, that orange cursors were seen, who the rivals are.
+  - [x] **Nothing moved**: every generated floor of two worlds, camp and village tier,
+    fingerprinted with the event forced off against HEAD, each floor in its own process --
+    byte for byte the same.
+  - [x] **Tests**: the floor test checks the picks and builds every event floor with and
+    without its event -- the same floor plus the event (collision and every node, bar the
+    hoard's rock) -- and the event sound: a hoard shut until its keeper's fall and walled
+    but for its door, a stranded player with a way home and two monsters round them, an
+    ambush that can spring on every cell of its room, a race walked over floor from the
+    camp to the door through the labyrinth's mouth; the formation sweep runs with the
+    hoard open. The smoke test plays all four on real floors (the hoard opened, a stranded
+    player taken home through a fight a monster started on them, an ambush paid off and
+    one fought, a race lost at the door, one lost by leaving and one won). The combat
+    test measures the field boss and the player killers on four floors, the quest test
+    sweeps every escort job on two saves and plays one through, the inventory test the
+    events' pay. `tools/screenshot.gd -- --events` shoots each.
+  - *Calls of mine, flag if wrong:* one event a floor, about half of them; **losing the
+    race clears the floor for you** (the user's pick read as "they clear it first") --
+    so it costs the stake and the boss's rewards, and skips the boss fight; a race is
+    **not saved** -- leave the floor or reload mid-race and it is lost; the field boss
+    is **optional** and fought from the field like any monster (it can be fled); the
+    player killers **take your purse the way a monster does** (it spills where you
+    fell) and offer a toll; an escort fails only back to where you found them, never
+    for good; event NPCs are never solid; no events on dungeons.
+  - *Seen, not fixed:* a race's prize into a full bag is lost (it is granted, not
+    checked against `Inventory.fits()`); an escort's pay waits at READY in a full bag, as
+    any quest with nobody to hand it in to does.
 
 **Decided 2026-10-05: the Town of Beginnings is the hub.** In the source, most players
 never leave Floor 1 for years, so it stays the central town for the whole climb, rather
@@ -2431,6 +2515,17 @@ monsters see you late, so it is a floor to slip through. Or it is **infested**: 
 as many monsters again, a floor to level on if you have the potions for it. The scout
 in the camp will tell you which, and the gate says so before you go.
 
+And things happen on the floors now. About every other one has something going on.
+A field boss stands guard in a far room, twice the size of its kind and fought like a
+floor's boss, in front of a stone door: its fall unlocks a hoard. A player is cornered
+out in the field, two monsters round them -- take them back to the camp, fighting off
+whatever goes for them on the way, and they pay you for it. Orange cursors hide in a
+room on the way to the labyrinth and step out round you: pay their toll or fight the
+pair of them. Or a rival party in the camp reckons they'll clear the floor today and
+will race you for it, stake for stake: beat them into the boss room and the pot is
+yours; let them reach the door first and they clear the floor -- and the boss's
+rewards were theirs. The camp's veteran will tell you which.
+
 And it keeps your place now. The game opens on a title screen over the Town of
 Beginnings: continue, start a new game, load one of three saves, the settings, the
 credits. Start a new game as a standard one, saving anywhere and autosaving as you
@@ -2443,13 +2538,13 @@ the settings or quit to the title. A loaded game puts you on the very spot you s
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 176-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 143-check floor system test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 230-check game loop test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 154-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 61-check dialogue test
-"$GODOT" --headless --path . res://test/inventory_test.tscn # 206-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 88-check combat test
-"$GODOT" --headless --path . res://test/quest_test.tscn     # 205-check quest test
-"$GODOT" --headless --path . res://test/save_test.tscn      # 149-check save test
+"$GODOT" --headless --path . res://test/inventory_test.tscn # 207-check inventory test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 97-check combat test
+"$GODOT" --headless --path . res://test/quest_test.tscn     # 211-check quest test
+"$GODOT" --headless --path . res://test/save_test.tscn      # 150-check save test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -2503,9 +2598,11 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    is built (2026-10-27)**: levels of small dark maps climbed by ladders, each sealed by
    a warden, levers, braziers or statues, a landing halfway, the camp in a lamplit
    entrance hall and the boss in a lit hall at the top. **Floor modifiers are built
-   (2026-10-27)**: about one floor in five is infested or under a storm. Next on that
-   track: the other levers (events, room shapes, landmarks), or the villages'
-   floor-exclusive stock.
+   (2026-10-27)**: about one floor in five is infested or under a storm. **So are floor
+   events (2026-10-27)**: about every other floor has a field boss over a hoard, a
+   stranded player to take home, player killers lying in wait or a rival party racing
+   you to the door. Next on that track: the levers that change what you see (room
+   shapes, landmarks), or the villages' floor-exclusive stock.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where

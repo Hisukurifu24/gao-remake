@@ -127,6 +127,10 @@ static var shape_override := -1
 ## tests and tools; -1 leaves it to [method FloorRegistry.modifier_of].
 static var modifier_override := -1
 
+## Builds every generated floor with this [enum FloorEvents.Kind] when set, for the
+## tests and tools; -1 leaves it to [method FloorRegistry.event_of].
+static var event_override := -1
+
 ## Whether floors get their puzzles ([FloorPuzzles]). Off only for the floor test,
 ## which proves a floor without them is the same floor: they draw on a stream of
 ## their own and must never move anything the floor's rng put down.
@@ -288,6 +292,10 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 			if arena.fire.has_area():
 				puzzles.keep_clear(arena.fire.position, 2)
 		puzzles.plan(rooms, entry, chest_cells, field_chests)
+	# After the puzzles, so nothing of theirs moves; before dressing, since a hoard
+	# is carved out of the rock as a vault is.
+	var events := _plan_events(rooms, entry, camp.plot, arena, lab, gate_cell, chest_cells,
+			puzzles, field, generation_seed)
 	MapDresser.dress(map, _biome, _ground, _walls, generation_seed)
 
 	_add_spawns(map, _center(entry))
@@ -319,6 +327,8 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 		_add_stairs(map, _center(entry) + STAIRS_OFFSET)
 	camp.open_field = arena != null
 	_brief_camp(camp)
+	if events != null:
+		camp.event_line = FloorEvents.camp_line(events.kind, events.camp_words(camp.plot))
 	camp.place(map, arena.side if arena != null else lab.side if lab.has_maze() else -1,
 			_definition.boss_name, _lost_spots(lab, free_ends))
 
@@ -356,6 +366,8 @@ func _build(definition: FloorDefinition, generation_seed: int) -> Node2D:
 	if camp.lost_cell.x >= 0:
 		map.set_meta(&"lost_player", camp.lost_cell)
 
+	if events != null:
+		events.place(map, camp.plot, gate_cell, lab.rect)
 	_mark_modifier(map)
 	var player := PLAYER_SCENE.instantiate()
 	player.name = "Player"
@@ -1212,6 +1224,33 @@ func _add_swarm(map: Node2D, rooms: Array[Rect2i], passages: Array[Rect2i],
 		monster.set(&"floor_number", _definition.floor_number)
 		map.add_child(monster)
 		index += 1
+
+
+## What happens on this floor ([FloorEvents]), planned once the puzzles are, or
+## null for nothing. Its room is never the arrival's, the camp's or a safe zone,
+## and it keeps off an open field's waystones and fire.
+func _plan_events(rooms: Array[Rect2i], entry: Rect2i, plot: Rect2i, arena: Arena, lab: Labyrinth,
+		gate_cell: Vector2i, chest_cells: Array[Vector2i], puzzles: FloorPuzzles, field: Rect2i,
+		generation_seed: int) -> FloorEvents:
+	var kind := FloorRegistry.event_of(_definition.floor_number)
+	if kind == FloorEvents.Kind.NONE or (kind == FloorEvents.Kind.RACE and not lab.has_maze()):
+		return null
+	var keep_out: Array[Rect2i] = []
+	var keep: Array[Vector2i] = []
+	var route_to := gate_cell
+	if arena != null:
+		keep_out.append(arena.safe_room)
+		keep.append_array(arena.waystones)
+		if arena.fire.has_area():
+			keep.append(arena.fire.position)
+			keep.append(arena.fire.end - Vector2i.ONE)
+		route_to = arena.doorstep
+	elif lab.has_maze():
+		route_to = lab.doorstep
+	var events := FloorEvents.new(_definition.floor_number, generation_seed, _biome, _ground,
+			_walls, _open, field)
+	events.plan(kind, rooms, entry, plot, keep_out, chest_cells, puzzles, keep, route_to)
+	return events if events.kind != FloorEvents.Kind.NONE else null
 
 
 ## Tells the camp's people what the floor's modifier is, for the scout to mention.

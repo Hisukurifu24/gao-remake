@@ -222,10 +222,11 @@ func pin_statues(room: Rect2i) -> bool:
 	return _statues_in(room)
 
 
-## The vault off [param room]'s [param side] wall, nearest the middle of it.
-func pin_vault(room: Rect2i, side: Vector2i) -> bool:
+## The vault off [param room]'s [param side] wall, nearest the middle of it -- of
+## [param size], where something other than a puzzle carves one ([FloorEvents]).
+func pin_vault(room: Rect2i, side: Vector2i, size := VAULT_ROOM) -> bool:
 	for offset in _wall_offsets(room, side):
-		var pocket := _pocket(room, side, offset, VAULT_ROOM)
+		var pocket := _pocket(room, side, offset, size)
 		if not pocket.is_empty():
 			_carve_vault(pocket)
 			return true
@@ -903,6 +904,14 @@ func _clear(cell: Vector2i, radius: int, free := true) -> bool:
 			if not _open.has(at) or (free and _taken.has(at)):
 				return false
 	return true
+
+
+## Every cell a piece stands in or keeps clear round it, and the rock a vault or a
+## crack claims: what anything planned after the puzzles ([FloorEvents]) keeps off.
+func claimed() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	cells.assign(_taken.keys())
+	return cells
 
 
 ## Keeps the puzzles off [param cell] and the [param radius] round it -- something the

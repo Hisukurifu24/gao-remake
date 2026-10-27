@@ -475,6 +475,22 @@ func _test_balance() -> void:
 	var fair := await _win_rate(50, 12, 4)
 	_check(fair == 0, "a badly underlevelled player loses to a floor 50 boss (%d/4)" % fair)
 
+	# Floor events ([FloorEvents]), met partway up their floor: a field boss -- a
+	# floor's monster fought as a boss, alone -- and the pair of player killers. The
+	# player there is a few levels short of what the floor's boss expects.
+	for floor_number: int in [5, 30, 60, 90]:
+		var level := FloorTuning.enemy_level(floor_number) + 4
+		var keeper := await _event_rate(_field_boss(floor_number), level, 8)
+		var killers := await _event_rate(Bestiary.ambush_encounter(floor_number), level, 8)
+		print("       floor %d at level %d: field boss %d/8, player killers %d/8" % [
+				floor_number, level, keeper, killers])
+		_check(keeper >= 4, "floor %d's field boss is beatable at level %d (%d/8)" % [floor_number, level, keeper])
+		_check(killers >= 6, "floor %d's player killers are beatable at level %d (%d/8)" % [floor_number, level, killers])
+	# Measured: as hard as the floor's own boss for the same player, give or take
+	# -- 1/8 at four levels short on floor 60, where the boss is 4/8.
+	var reckless := await _event_rate(_field_boss(60), FloorTuning.enemy_level(60) - 8, 6)
+	_check(reckless <= 2, "a field boss is no walkover for an underlevelled player (%d/6 on floor 60)" % reckless)
+
 
 func _win_rate(floor_number: int, level: int, trials: int) -> int:
 	var wins := 0
@@ -485,6 +501,27 @@ func _win_rate(floor_number: int, level: int, trials: int) -> int:
 		if result != null and result.victory:
 			wins += 1
 	return wins
+
+
+## How many of [param trials] fights against [param encounter] a player of
+## [param level] wins.
+func _event_rate(encounter: Encounter, level: int, trials: int) -> int:
+	var wins := 0
+	for trial in trials:
+		_set_player(level)
+		CombatManager.set_seed(encounter.floor_number * 1000 + trial + 77)
+		var result: CombatResult = await CombatManager.start(encounter)
+		if result != null and result.victory:
+			wins += 1
+	return wins
+
+
+## Floor [param floor_number]'s field boss: the first of its pool, fought as a boss.
+func _field_boss(floor_number: int) -> Encounter:
+	var encounter := Bestiary.single_encounter(Bestiary.pool_for_floor(floor_number)[0],
+			FloorTuning.field_boss_level(floor_number), floor_number)
+	encounter.is_boss = true
+	return encounter
 
 
 # --- helpers ---------------------------------------------------------------

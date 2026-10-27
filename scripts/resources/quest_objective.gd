@@ -114,7 +114,7 @@ func target_is_valid() -> bool:
 			return ItemLibrary.exists(target)
 		Kind.TALK:
 			return target != &"" and (ResourceLoader.exists(DIALOGUE_PATH % target)
-					or LocalQuests.is_conversation(target))
+					or LocalQuests.is_conversation(target) or FloorEvents.is_conversation(target))
 		Kind.REACH:
 			return number >= 1 and number <= FloorTuning.TOP_FLOOR
 	return false

@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Character/NinjaDark/SpriteSheet.png" id="sheet"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/cross_cut.tres" id="cross_cut"]
+[ext_resource type="Resource" path="res://resources/fx/cut.tres" id="strike_fx_res"]
+
+[sub_resource type="AtlasTexture" id="battler"]
+atlas = ExtResource("sheet")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="walk"]
+atlas = ExtResource("sheet")
+region = Rect2(0, 0, 64, 64)
+
+[resource]
+script = ExtResource("enemy")
+id = &"pk_swordsman"
+display_name = "Orange Swordsman"
+battler = SubResource("battler")
+sheet = SubResource("walk")
+max_hp = 20
+attack = 7
+defense = 4
+speed = 10
+poise = 28
+hp_growth = 4.4
+attack_growth = 0.85
+defense_growth = 0.6
+speed_growth = 0.32
+poise_growth = 1.3
+skill_bias = 0.45
+xp_reward = 11
+xp_growth = 4.4
+skills = Array[ExtResource("skill")]([ExtResource("cross_cut")])
+loot = Array[StringName]([&"small_potion"])
+loot_chance = 0.5
+col_reward = 15
+col_growth = 5.0
+strike_fx = ExtResource("strike_fx_res")

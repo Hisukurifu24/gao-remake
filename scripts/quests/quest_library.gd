@@ -16,7 +16,8 @@ class_name QuestLibrary
 ##
 ## A settled floor's jobs are the exception: they are named, not stored --
 ## [code]local_<floor>_<kind>[/code] -- and built by [LocalQuests] from the floor
-## they belong to. They are not in [method all], which is the shipped content.
+## they belong to. So is a floor event's escort job ([code]event_<floor>_escort[/code],
+## [FloorEvents]). Neither is in [method all], which is the shipped content.
 
 const QUEST_PATH := "res://resources/quests/%s.tres"
 
@@ -51,6 +52,12 @@ static func get_quest(id: StringName) -> Quest:
 		if local == null:
 			push_error("QuestLibrary: no such local quest '%s'" % id)
 		return local
+	if String(id).begins_with("event_"):
+		# A floor event's job ([FloorEvents]): named, not stored, like a local one.
+		var event := FloorEvents.build(id)
+		if event == null:
+			push_error("QuestLibrary: no such event quest '%s'" % id)
+		return event
 	var path := QUEST_PATH % id
 	if not ResourceLoader.exists(path):
 		push_error("QuestLibrary: no such quest '%s'" % id)
@@ -66,6 +73,8 @@ static func get_quest(id: StringName) -> Quest:
 static func exists(id: StringName) -> bool:
 	if String(id).begins_with("local_"):
 		return LocalQuests.owns(id)
+	if String(id).begins_with("event_"):
+		return FloorEvents.owns(id)
 	return id != &"" and ResourceLoader.exists(QUEST_PATH % id)
 
 

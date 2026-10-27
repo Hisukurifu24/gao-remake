@@ -42,6 +42,14 @@ static func boss_level(floor_number: int) -> int:
 	return enemy_level(floor_number) + 1 + floor_number / 20
 
 
+## A field boss ([FloorEvents]): one of its floor's own monsters, fought as a boss
+## ([method Bestiary.build_boss]) with no escort -- and above it by a share of the
+## climb, as [method boss_level] is, since a flat few levels are nothing on floor 90.
+## Beatable by a player partway up the floor; not by one well short of it.
+static func field_boss_level(floor_number: int) -> int:
+	return enemy_level(floor_number) + 4 + floor_number / 8
+
+
 ## The field: the rooms and corridors you arrive in. Grows slowly: floor 1 is
 ## 50x38, floor 100 is 75x54. The labyrinth is built onto one side of it, so a
 ## generated map is bigger than this by [method labyrinth_cells]' footprint.

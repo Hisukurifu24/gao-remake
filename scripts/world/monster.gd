@@ -54,6 +54,9 @@ const ALERT_SECONDS := 0.6
 const BODY_RADIUS := 5.0
 ## Where its feet are relative to its origin; walls are tested from here.
 const FOOT := Vector2(0, -4)
+## How close it must come to someone you are escorting ([Escortee]) to start the
+## fight on them: about the reach of its [code]Contact[/code] round you.
+const ESCORT_REACH := 10.0
 const WALK_FPS := 8.0
 
 @export var enemy: EnemyType
@@ -64,6 +67,12 @@ const WALK_FPS := 8.0
 ## ([DungeonGenerator]), whose fall is the key to its level's stairs. Empty -- every
 ## other monster -- comes back on the next visit.
 @export var defeat_flag: StringName = &""
+## Fought as a boss -- [method Bestiary.build_boss]'s numbers on its own, no escort
+## -- and drawn twice the size: a field boss ([FloorEvents]), guarding a hoard.
+@export var boss := false
+## How far from its spawn point it drifts while nothing is going on. A field boss
+## keeps to its post.
+@export var wander_radius := WANDER_RADIUS
 
 var state := State.WANDER
 var home := Vector2.ZERO
@@ -139,6 +148,9 @@ func _physics_process(delta: float) -> void:
 
 	if _touching(player):
 		_engage(_contact_opening(player))
+	elif _touching_escort(player):
+		# Caught the one you are taking home: the fight is yours all the same.
+		_engage(Encounter.Opening.NORMAL)
 
 
 func interact(by: Node) -> void:
@@ -166,6 +178,7 @@ func _engage(opening: Encounter.Opening) -> void:
 	_fighting = true
 	var encounter := Bestiary.single_encounter(enemy, _level(), floor_number)
 	encounter.opening = opening
+	encounter.is_boss = boss
 	# Its own name, which is its kind's unless it is someone -- a warden.
 	encounter.display_name = display_name
 	_stage(encounter)
@@ -265,7 +278,7 @@ func _wander(delta: float) -> void:
 	var arrived := _step_toward(_goal, WANDER_SPEED, delta)
 	# A leg that runs into a wall is given up on rather than pushed at forever.
 	if arrived or _leg_time > 3.0:
-		_goal = home + Vector2.from_angle(randf() * TAU) * randf() * WANDER_RADIUS
+		_goal = home + Vector2.from_angle(randf() * TAU) * randf() * wander_radius
 		_leg_time = 0.0
 		_rest = randf_range(1.0, 3.0)
 
@@ -301,6 +314,20 @@ func _touching(player: Player) -> bool:
 	if state != State.WANDER and state != State.CHASE:
 		return false
 	return _contact.overlaps_body(player)
+
+
+## Whether it has reached someone the player is escorting home ([Escortee]):
+## monsters go for them as they would for you.
+func _touching_escort(player: Player) -> bool:
+	if player == null or _calm > 0.0 or _sheltered(player):
+		return false
+	if state != State.WANDER and state != State.CHASE:
+		return false
+	for escort in get_tree().get_nodes_in_group(Escortee.GROUP):
+		if (escort as Escortee).following \
+				and global_position.distance_to((escort as Node2D).global_position) <= ESCORT_REACH:
+			return true
+	return false
 
 
 ## Walking into its face is an even fight; being run down from behind is not.
@@ -389,8 +416,12 @@ func _show_sprite() -> void:
 	_sprite.texture = enemy.sheet
 	_sprite.hframes = enemy.sheet_frames.x
 	_sprite.vframes = enemy.sheet_frames.y
-	_sprite.scale = Vector2.ONE
-	_sprite.position = Vector2(0.0, -enemy.sheet.get_height() / (2.0 * enemy.sheet_frames.y))
+	# A boss is drawn as one steps out of its door: doubled, if its art is small.
+	var frame_height := enemy.sheet.get_height() / float(enemy.sheet_frames.y)
+	var doubled := boss and maxf(enemy.sheet.get_width() / float(enemy.sheet_frames.x),
+			frame_height) <= FoeFigure.SMALL_ART
+	_sprite.scale = Vector2(2, 2) if doubled else Vector2.ONE
+	_sprite.position = Vector2(0.0, -frame_height * _sprite.scale.y / 2.0)
 	_sprite_rest = _sprite.position
 
 

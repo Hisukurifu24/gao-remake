@@ -90,6 +90,14 @@ var _dungeon_levels := 0
 var _seals: Dictionary[int, int] = {}
 var _landings := 0
 var _tightest_seal_burn := INF
+## Floor events (see [FloorEvents]): each kind's floors, and those it stands whole
+## on; an ambush room's cells, and how many a fight for two can be staged on; the
+## shortest and longest walk a rival party makes to the door, in seconds.
+var _events: Dictionary[int, int] = {}
+var _whole_events: Dictionary[int, int] = {}
+var _ambush_cells := 0
+var _ambush_staged := 0
+var _race_walks: Array[float] = []
 
 
 func _ready() -> void:
@@ -441,7 +449,9 @@ func _run() -> void:
 	print("       (%d of them in a north wall, facing you; the rest in a side wall)" % _cracks_facing)
 	# Puzzles draw on a stream of their own: the floor without them is the same
 	# floor -- the same chests, the same monsters, the same door.
+	# Without the floor's event, which is planned round whatever the puzzles took.
 	var moved: PackedStringArray = PackedStringArray()
+	FloorGenerator.event_override = FloorEvents.Kind.NONE
 	for sample: int in [2, 23, 37, 58, 76, 99]:
 		var with := FloorGenerator.generate(FloorRegistry.get_floor(sample), FloorRegistry.seed_for(sample))
 		FloorGenerator.with_puzzles = false
@@ -451,6 +461,7 @@ func _run() -> void:
 			moved.append(str(sample))
 		with.free()
 		without.free()
+	FloorGenerator.event_override = -1
 	_check(moved.is_empty(), "a floor's puzzles move nothing its own seed put down%s" % (
 			"" if moved.is_empty() else " -- they do on " + ", ".join(moved)))
 
@@ -496,6 +507,70 @@ func _run() -> void:
 	_check(twisted.is_empty(),
 			"every modified floor is the floor it would be without, plus its swarm or its storm%s" % (
 				"" if twisted.is_empty() else " -- " + ", ".join(twisted)))
+
+	# --- events ---
+	# About half the floors that may have one: never an authored floor, floor 2,
+	# the top or a dungeon, a race only through a labyrinth, and never the same kind
+	# two floors running. On a stream of their own, like the modifiers.
+	var eligible := 0
+	var happening := 0
+	var by_event: Dictionary[int, int] = {}
+	var misplaced_events := PackedStringArray()
+	var events_here := PackedStringArray()
+	var events_there := PackedStringArray()
+	var last_event := FloorEvents.Kind.NONE
+	for floor_number in range(1, FloorTuning.TOP_FLOOR + 1):
+		var kind := FloorRegistry.event_of(floor_number)
+		var shape := FloorRegistry.shape_of(floor_number)
+		events_here.append(str(kind))
+		events_there.append(str(FloorRegistry.event_in(999, floor_number)))
+		var may := not (FloorRegistry.get_floor(floor_number).is_authored() or floor_number <= 2
+				or floor_number >= FloorTuning.TOP_FLOOR or shape == FloorDefinition.Shape.DUNGEON)
+		if may:
+			eligible += 1
+		if kind != FloorEvents.Kind.NONE:
+			happening += 1
+			by_event[kind] = by_event.get(kind, 0) + 1
+			if not may:
+				misplaced_events.append("%d" % floor_number)
+			elif kind == FloorEvents.Kind.RACE and shape != FloorDefinition.Shape.CLASSIC:
+				misplaced_events.append("%d (a race with no labyrinth)" % floor_number)
+			elif kind == last_event:
+				misplaced_events.append("%d (the same as the floor below)" % floor_number)
+		last_event = kind
+	var event_counts := PackedStringArray()
+	for kind in range(1, FloorEvents.Kind.size()):
+		event_counts.append("%d %s" % [by_event.get(kind, 0), FloorEvents.KIND_NAMES[kind]])
+	_check(misplaced_events.is_empty() and happening * 10 >= eligible * 3 and happening * 10 <= eligible * 7
+			and by_event.size() == FloorEvents.Kind.size() - 1,
+			"%d of %d floors that may have one have an event (%s), where they may%s" % [
+				happening, eligible, ", ".join(event_counts),
+				"" if misplaced_events.is_empty() else " -- not on " + ", ".join(misplaced_events)])
+	_check(events_here != events_there, "another world has its events on other floors")
+	# Each is the floor without it, plus the event -- and the event sound: a hoard
+	# shut until its keeper falls, a stranded player with a way home, an ambush
+	# that can spring, a race with a way to the door.
+	var unsound := PackedStringArray()
+	for floor_number in range(2, FloorTuning.TOP_FLOOR + 1):
+		if FloorRegistry.event_of(floor_number) != FloorEvents.Kind.NONE:
+			var problem := _audit_event(floor_number)
+			if not problem.is_empty():
+				unsound.append(problem)
+	var whole_counts := PackedStringArray()
+	var mostly_whole := true
+	for kind in range(1, FloorEvents.Kind.size()):
+		whole_counts.append("%d of %d %s" % [_whole_events.get(kind, 0), _events.get(kind, 0),
+				FloorEvents.KIND_NAMES[kind]])
+		mostly_whole = mostly_whole and _whole_events.get(kind, 0) * 10 >= _events.get(kind, 0) * 8
+	_check(unsound.is_empty() and mostly_whole,
+			"every event is the floor without it plus the event, and sound (%s)%s" % [
+				", ".join(whole_counts), "" if unsound.is_empty() else " -- " + ", ".join(unsound)])
+	_check(_ambush_staged * 10 >= _ambush_cells * 9,
+			"an ambush can spring on %d of the %d cells of its rooms" % [_ambush_staged, _ambush_cells])
+	if not _race_walks.is_empty():
+		_race_walks.sort()
+		print("       (a rival party walks to the door in %.0f to %.0f s)" % [
+				_race_walks[0], _race_walks[_race_walks.size() - 1]])
 
 	# --- and so is every authored one ---
 	var broken_authored: PackedStringArray = PackedStringArray()
@@ -764,6 +839,8 @@ func _audit(map: Node2D, definition: FloorDefinition) -> String:
 		# With the vault open: a monster can follow you into it, so a fight has to
 		# be stageable in there too -- and outside, an open doorway is only more room.
 		_open_seal(map, "SealedDoor")
+		# And the hoard's, a fight following you into it as into the vault.
+		_open_seal(map, "HoardSeal")
 		# And with the cracked wall broken, which the puzzle audit has done: its
 		# hollow is floor now, and somewhere a fight can follow you into.
 		reachable = _flood(walls, start)
@@ -2399,6 +2476,168 @@ func _audit_modifier(floor_number: int) -> String:
 	var wanted := FloorTuning.infested_count(floor_number) if kind == FloorModifier.Kind.INFESTED else 0
 	if swarm != wanted:
 		return "%s carries %d monsters more, not %d" % [label, swarm, wanted]
+	return ""
+
+
+## A floor's event ([FloorEvents]) against the same floor without one: everything
+## the floor puts down where it was, and on top only the event -- and the event
+## itself sound. Empty if so. A floor whose event found no room is the plain floor.
+func _audit_event(floor_number: int) -> String:
+	var kind := FloorRegistry.event_of(floor_number)
+	var label := "floor %d (%s)" % [floor_number, FloorEvents.KIND_NAMES[kind]]
+	var with := FloorRegistry.build_floor(floor_number) as GameMap
+	FloorGenerator.event_override = FloorEvents.Kind.NONE
+	var without := FloorRegistry.build_floor(floor_number) as GameMap
+	FloorGenerator.event_override = -1
+	_events[kind] = _events.get(kind, 0) + 1
+	var carved: Rect2i = with.get_meta(&"hoard", Rect2i())
+	if carved.has_area():
+		carved = carved.merge(with.get_meta(&"hoard_door"))
+	var problem := ""
+	if _event_signature(with, carved) != _event_signature(without, carved):
+		problem = "%s moved what the floor put down" % label
+	elif with.has_meta(&"event"):
+		problem = _event_problem(with, kind, floor_number, label)
+		if problem.is_empty():
+			_whole_events[kind] = _whole_events.get(kind, 0) + 1
+	with.free()
+	without.free()
+	return problem
+
+
+## What an event's floor shares with the plain one: where every cell is wall or
+## floor -- bar [param carved], the hoard -- and every node bar the event's, where
+## it stands. Dressing may differ round a hoard; collision may not.
+func _event_signature(map: GameMap, carved: Rect2i) -> String:
+	var parts := PackedStringArray()
+	for layer_name in ["Ground", "Walls"]:
+		var cells := PackedStringArray()
+		for cell in (map.get_node(layer_name) as TileMapLayer).get_used_cells():
+			if not carved.has_point(cell):
+				cells.append("%d,%d" % [cell.x, cell.y])
+		cells.sort()
+		parts.append(",".join(cells))
+	var event_nodes := ["FieldBoss", "HoardSeal", "ChestHoard", "Stranded", "Ambush",
+			"RivalLeader", "RivalParty"]
+	for child in map.get_children():
+		if child.name in event_nodes or String(child.name).begins_with("Besieger"):
+			continue
+		var line := "%s %s" % [child.name, child.get_class()]
+		if child is Node2D:
+			line += " %s" % (child as Node2D).position
+		if child is Monster:
+			line += " %s %d" % [(child as Monster).enemy.id, (child as Monster).level]
+		parts.append(line)
+	var places := map.landmarks.duplicate()
+	places.erase("The Hoard")
+	parts.append("%s %s %s %s %s" % [map.map_id, map.dark_area, places, map.safe_zones, map.lit_areas])
+	for meta in map.get_meta_list():
+		if not meta in [&"event", &"hoard", &"hoard_door", &"stranded", &"ambush", &"rival_path"]:
+			parts.append("%s=%s" % [meta, map.get_meta(meta)])
+	return "\n".join(parts)
+
+
+func _event_problem(map: GameMap, kind: int, floor_number: int, label: String) -> String:
+	var walls := map.get_node("Walls") as TileMapLayer
+	var start: Vector2i = walls.local_to_map((map.get_node("SpawnPoints").get_child(0) as Node2D).position)
+	var reachable := _flood(walls, start)
+	var plot: Rect2i = map.get_meta(&"camp")
+	var veteran := map.get_node_or_null("Camper1") as Npc
+	var opening: String = (FloorEvents.CAMP_LINES[kind] as String).get_slice("{", 0)
+	if veteran != null and not veteran.dialogue.lines.any(func(line: DialogueLine) -> bool:
+			return line.text.begins_with(opening) and not "{" in line.text):
+		return "%s's camp says nothing about it" % label
+	map.refresh_solids()
+	var walkable := _flood_standable(map, start)
+	match kind:
+		FloorEvents.Kind.FIELD_BOSS:
+			var seal := map.get_node_or_null("HoardSeal") as SealedDoor
+			var keeper := map.get_node_or_null("FieldBoss") as Monster
+			var chest := map.get_node_or_null("ChestHoard") as Chest
+			if seal == null or keeper == null or chest == null:
+				return "%s has no hoard, keeper or chest" % label
+			if seal.sigils != ([keeper.defeat_flag] as Array[StringName]) or not seal.opens_itself \
+					or not keeper.boss or keeper.level != FloorTuning.field_boss_level(floor_number):
+				return "%s's hoard is not keyed to a boss's fall" % label
+			var hoard: Rect2i = map.get_meta(&"hoard")
+			var door: Rect2i = map.get_meta(&"hoard_door")
+			var at := walls.local_to_map(chest.position)
+			if not hoard.has_point(at) or not reachable.has(at) or not chest.sealed:
+				return "%s's hoard chest is not a sealed chest in it" % label
+			if _flood_except(walls, start, door).has(at):
+				return "%s's hoard can be got into round its door" % label
+			if walkable.has(at):
+				return "%s's hoard can be walked into shut" % label
+			if not walkable.has(walls.local_to_map(keeper.position)):
+				return "%s's keeper stands where it can't be walked up to" % label
+		FloorEvents.Kind.ESCORT:
+			var stranded := map.get_node_or_null("Stranded") as Escortee
+			var cell: Vector2i = map.get_meta(&"stranded")
+			if stranded == null or walls.local_to_map(stranded.position) != cell:
+				return "%s has nobody stranded" % label
+			var home := false
+			for y in range(plot.position.y, plot.end.y):
+				for x in range(plot.position.x, plot.end.x):
+					home = home or walkable.has(Vector2i(x, y))
+			if not walkable.has(cell) or not home:
+				return "%s's stranded player has no way home" % label
+			if stranded.home != plot or stranded.dialogue == null:
+				return "%s's stranded player doesn't know where home is" % label
+			var quest := FloorEvents.build(FloorEvents.escort_quest(floor_number))
+			if quest == null or not quest.objectives[0].target_is_valid() \
+					or not FloorEvents.is_conversation(FloorEvents.escort_talk(floor_number)):
+				return "%s's escort job names nothing" % label
+			var besiegers := 0
+			for child in map.get_children():
+				if child is Monster and String(child.name).begins_with("Besieger"):
+					besiegers += 1
+					if not walkable.has(walls.local_to_map((child as Node2D).position)):
+						return "%s's %s stands off the floor" % [label, child.name]
+			if besiegers != FloorEvents.BESIEGERS:
+				return "%s's stranded player has %d monsters round them" % [label, besiegers]
+		FloorEvents.Kind.AMBUSH:
+			var ambush := map.get_node_or_null("Ambush") as Ambush
+			if ambush == null or ambush.area != map.get_meta(&"ambush"):
+				return "%s has nobody in hiding" % label
+			if ambush.area.intersects(plot) or map.safe_zones.any(func(zone: Rect2i) -> bool:
+					return zone.intersects(ambush.area)):
+				return "%s's ambush waits in the camp or a safe zone" % label
+			var sides: Array[Vector2i] = [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP]
+			var staged := 0
+			for y in range(ambush.area.position.y, ambush.area.end.y):
+				for x in range(ambush.area.position.x, ambush.area.end.x):
+					var cell := Vector2i(x, y)
+					if not walkable.has(cell):
+						continue
+					_ambush_cells += 1
+					var field := map.formation(cell, sides[posmod(x + y, 4)], 2)
+					if field != null and field.enemy_cells.size() == 2 \
+							and field.enemy_cells.all(func(at: Vector2i) -> bool: return walkable.has(at)):
+						staged += 1
+			_ambush_staged += staged
+			if staged == 0:
+				return "%s's ambush can spring nowhere" % label
+		FloorEvents.Kind.RACE:
+			var leader := map.get_node_or_null("RivalLeader") as Npc
+			var party := map.get_node_or_null("RivalParty") as RivalParty
+			if leader == null or party == null or leader.dialogue == null:
+				return "%s has no rival party" % label
+			var path: Array = map.get_meta(&"rival_path")
+			var gate := walls.local_to_map((map.get_node("BossGate") as Node2D).position)
+			if not plot.has_point(path[0]) or walls.local_to_map(leader.position) != path[0]:
+				return "%s's rivals don't set off from the camp" % label
+			var end: Vector2i = path[path.size() - 1]
+			if absi(end.x - gate.x) + absi(end.y - gate.y) != 1:
+				return "%s's rivals don't walk to the door" % label
+			for i in path.size():
+				var cell: Vector2i = path[i]
+				if walls.get_cell_source_id(cell) != -1 or not reachable.has(cell):
+					return "%s's rivals walk through rock at %s" % [label, cell]
+				if i > 0 and absi(cell.x - path[i - 1].x) + absi(cell.y - path[i - 1].y) != 1:
+					return "%s's rivals jump from %s to %s" % [label, path[i - 1], cell]
+			if party.mouth_index < 0 or party.path.size() != path.size():
+				return "%s's rivals never reach the labyrinth" % label
+			_race_walks.append(path.size() * TILE / FloorEvents.RIVAL_SPEED)
 	return ""
 
 

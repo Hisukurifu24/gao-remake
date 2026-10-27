@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/statuses/bleed.tres" id="status"]
+[ext_resource type="Resource" path="res://resources/fx/cut_x.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"cross_cut"
+display_name = "Cross Cut"
+description = "A sword skill, turned on a player. It was made for monsters."
+kind = 0
+target = 0
+power = 125
+accuracy = 88
+crit_chance = 10
+stagger = 14
+cooldown = 2
+apply_chance = 50
+ai_weight = 1.0
+announce = "%s swings a sword skill at you!"
+applies = ExtResource("status")
+fx = ExtResource("fx_res")

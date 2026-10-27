@@ -233,6 +233,7 @@ func _run() -> void:
 	await _test_open_field(world_root)
 	await _test_dungeon(world_root)
 	await _test_modifiers(main, world_root)
+	await _test_events(world_root)
 
 
 ## The hidden door on a real generated floor: not there until you walk into its
@@ -1051,6 +1052,232 @@ func _test_modifiers(main: Node, world_root: Node2D) -> void:
 	await _until_unlocked()
 	_check(hud.call(&"headline") == "" and world_root.get_child(0).get_node_or_null("Weather") == null,
 			"floor 2 itself is plain: nothing announced -- the last floor's headline taken down -- and no weather")
+
+
+## Floor events, each forced onto a real floor: a field boss in front of its hoard,
+## which opens as it falls; a stranded player who follows you home, through a fight
+## a monster starts on them, and pays for it; player killers who spring as you walk
+## into their room, paid off once and fought once; and a rival party, raced and lost
+## to, left mid-race, and beaten to the door.
+func _test_events(world_root: Node2D) -> void:
+	var strength := GameState.attack
+	# Every fight here is one to win quickly, not to measure.
+	GameState.attack += 400
+
+	# A field boss, and its hoard.
+	FloorGenerator.event_override = FloorEvents.Kind.FIELD_BOSS
+	var map := await _event_floor(world_root, 2)
+	var player := map.get_node("Player") as Player
+	var keeper := map.get_node_or_null("FieldBoss") as Monster
+	var seal := map.get_node_or_null("HoardSeal") as SealedDoor
+	var hoard := map.get_node_or_null("ChestHoard") as Chest
+	_check(keeper != null and seal != null and hoard != null and keeper.boss and not seal.is_opened(),
+			"a field boss stands guard in front of a hoard, its door shut")
+	if keeper != null and seal != null and hoard != null:
+		player.global_position = keeper.global_position + Vector2(0, 16)
+		await _physics(2)
+		keeper.interact(player)
+		await _auto_battle()
+		await _idle(4)
+		_check(GameState.has_flag(FloorEvents.flag(2, "boss")) and seal.is_opened(),
+				"it fights as a boss, and as it falls the hoard opens itself")
+		await _close_dialogue()
+		_check(_open_sealed(hoard, player, false), "and the chest in the hoard pays out")
+		await _close_dialogue()
+		map = await _event_floor(world_root, 2)
+		_check(map.get_node_or_null("FieldBoss") == null
+				and (map.get_node("HoardSeal") as SealedDoor).is_opened(),
+				"a beaten field boss stays beaten, its hoard open")
+
+	# A stranded player, taken home.
+	FloorGenerator.event_override = FloorEvents.Kind.ESCORT
+	var job := FloorEvents.escort_quest(2)
+	map = await _event_floor(world_root, 2)
+	player = map.get_node("Player") as Player
+	var stranded := map.get_node_or_null("Stranded") as Escortee
+	var besiegers := 0
+	for child in map.get_children():
+		if child is Monster and String(child.name).begins_with("Besieger"):
+			besiegers += 1
+	_check(stranded != null and besiegers == FloorEvents.BESIEGERS,
+			"a stranded player waits in the far rooms, cornered by %d monsters" % besiegers)
+	if stranded != null:
+		for child in map.get_children():
+			if child is Monster:
+				child.queue_free()
+		player.global_position = stranded.global_position + Vector2(0, 16)
+		await _physics(2)
+		stranded.interact(player)
+		await _choose(0)
+		await _close_dialogue()
+		await _idle(2)
+		_check(QuestLog.state_of(job) == QuestLog.State.ACTIVE and stranded.following,
+				"taking the job is a quest in the journal, and they follow you")
+		player.global_position += Vector2(40, 0)
+		await _physics(30)
+		_check(stranded.position.distance_to(player.position) < 30.0,
+				"they keep up, a few steps behind")
+		var monster := _spawn_monster(map, stranded.global_position)
+		await _physics(1)
+		_check(monster.call(&"_touching_escort", player), "a monster that reaches them has caught them")
+		for _i in 30:
+			if CombatManager.is_running():
+				break
+			await _physics()
+		_check(CombatManager.is_running(), "and the fight is yours")
+		await _flee_battle()
+		await _idle(4)
+		await _close_dialogue()
+		if is_instance_valid(monster):
+			monster.queue_free()
+		_check(stranded.following, "a fight fled, they are still with you")
+		var plot: Rect2i = map.get_meta(&"camp")
+		var walls := map.get_node("Walls") as TileMapLayer
+		player.global_position = walls.map_to_local(plot.get_center())
+		await _physics(4)
+		for _i in 60:
+			if DialogueRunner.is_running():
+				break
+			await _physics()
+		await _close_dialogue()
+		await _idle(2)
+		_check(QuestLog.state_of(job) == QuestLog.State.COMPLETED
+				and Inventory.count(FloorEvents._cast(2)["escort_gear"]) > 0,
+				"walked into the camp, they say their thanks and the job pays out")
+		map = await _event_floor(world_root, 2)
+		_check(map.get_node_or_null("Stranded") == null, "and they've gone down to town by the next visit")
+
+	# Player killers: paid off once, fought once.
+	FloorGenerator.event_override = FloorEvents.Kind.AMBUSH
+	for paying in [true, false]:
+		GameState.set_flag(FloorEvents.flag(2, "ambush"), false)
+		GameState.set_flag(FloorEvents.flag(2, "ambush_paid"), false)
+		EventBus.col_granted.emit(FloorEvents.toll(2))
+		map = await _event_floor(world_root, 2)
+		player = map.get_node("Player") as Player
+		var ambush := map.get_node_or_null("Ambush") as Ambush
+		_check(ambush != null, "player killers hide on the floor")
+		if ambush == null:
+			break
+		for child in map.get_children():
+			if child is Monster:
+				child.queue_free()
+		await _physics(1)
+		var purse := GameState.col()
+		_field = null
+		player.global_position = Vector2(ambush.area.get_center() * FloorEvents.TILE) + Vector2(8, 8)
+		for _i in 30:
+			if DialogueRunner.is_running():
+				break
+			await _physics()
+		var figures := map.get_children().filter(func(node: Node) -> bool: return node is FoeFigure).size()
+		_check(ambush.is_spent() and DialogueRunner.is_running() and figures == 2,
+				"walking into their room, two of them step out of hiding round you")
+		await _choose(0 if paying else 1)
+		if paying:
+			await _close_dialogue()
+			await _idle(2)
+			_check(GameState.col() == purse - FloorEvents.toll(2)
+					and GameState.has_flag(FloorEvents.flag(2, "ambush"))
+					and not map.get_children().any(func(node: Node) -> bool: return node is FoeFigure),
+					"paying their toll costs it, and they're gone for good")
+		else:
+			await _auto_battle()
+			await _idle(4)
+			_check(_staged_figures == 2 and GameState.has_flag(FloorEvents.flag(2, "ambush")),
+					"drawing your sword is a fight with the pair of them on the map, and beating them ends it")
+			await _close_dialogue()
+	map = await _event_floor(world_root, 2)
+	_check(map.get_node_or_null("Ambush") == null, "and nobody lies in wait once they're dealt with")
+
+	# A race: lost to them at the door, lost by leaving, won.
+	FloorGenerator.event_override = FloorEvents.Kind.RACE
+	FloorGenerator.shape_override = FloorDefinition.Shape.CLASSIC
+	# Floor 3 open; each race lost clears its floor, which opens the next.
+	if not GameState.is_floor_cleared(2):
+		GameState.clear_floor(2)
+	# Floor 5 was cleared settling floor 2's village: nothing to race for there.
+	for floor_number in [3, 4, 6]:
+		GameState.set_flag(BossGate.found_flag(floor_number), false)
+		EventBus.col_granted.emit(FloorEvents.stake(floor_number))
+		map = await _event_floor(world_root, floor_number)
+		player = map.get_node("Player") as Player
+		var leader := map.get_node_or_null("RivalLeader") as Npc
+		var party := map.get_node_or_null("RivalParty") as RivalParty
+		_check(leader != null and party != null and not party.running,
+				"floor %d: a rival party waits in the camp" % floor_number)
+		if leader == null or party == null:
+			continue
+		for child in map.get_children():
+			if child is Monster:
+				child.queue_free()
+		var purse := GameState.col()
+		player.global_position = leader.global_position + Vector2(0, 16)
+		await _physics(2)
+		leader.interact(player)
+		await _choose(0)
+		await _close_dialogue()
+		await _idle(2)
+		_check(party.running and GameState.col() == purse - FloorEvents.stake(floor_number),
+				"taking the bet costs the stake, and they set off")
+		var walked := party.progress()
+		await _physics(20)
+		_check(party.progress() > walked, "they walk for the door")
+		match floor_number:
+			3:
+				party.set(&"_distance", 1e9)
+				await _physics(2)
+				_check(GameState.has_flag(FloorEvents.flag(3, "race_lost")) and GameState.is_floor_cleared(3),
+						"reaching the door first, they clear the floor")
+				await _close_dialogue()
+			4:
+				map = await _event_floor(world_root, 4)
+				_check(GameState.has_flag(FloorEvents.flag(4, "race_lost")) and GameState.is_floor_cleared(4),
+						"leaving the floor mid-race loses it: they kept going")
+			6:
+				var cast := FloorEvents.rivals(6)
+				var prize_before := Inventory.count(cast["prize"])
+				purse = GameState.col()
+				(map.get_node("BossGate") as BossGate).reveal()
+				await _idle(2)
+				_check(GameState.has_flag(FloorEvents.flag(6, "race_won")) and not party.running
+						and GameState.col() == purse + FloorEvents.stake(6) * 2
+						and Inventory.count(cast["prize"]) == prize_before + 1
+						and not GameState.is_floor_cleared(6),
+						"walking into the boss room first wins the race: the stake twice over and a prize")
+				await _close_dialogue()
+		map = await _event_floor(world_root, floor_number)
+		_check(map.get_node_or_null("RivalLeader") == null, "a race run is not run again")
+	FloorGenerator.shape_override = -1
+	FloorGenerator.event_override = -1
+	GameState.attack = strength
+
+
+## Floor [param floor_number] entered for an event, once the arrival is over --
+## and whatever it says as you arrive read.
+func _event_floor(world_root: Node2D, floor_number: int) -> GameMap:
+	await SceneRouter.enter_floor(floor_number, &"default")
+	for _i in 600:
+		await _idle()
+		if DialogueRunner.is_running():
+			DialogueRunner.advance()
+		elif not GameState.is_input_locked():
+			break
+	return world_root.get_child(0) as GameMap
+
+
+## Presses through the conversation on screen to its first choice and takes
+## [param index].
+func _choose(index: int, timeout_frames := 300) -> void:
+	for _i in timeout_frames:
+		if DialogueRunner.is_choosing():
+			DialogueRunner.choose(index)
+			await _idle(2)
+			return
+		if DialogueRunner.is_running():
+			DialogueRunner.advance()
+		await _idle()
+	_check(false, "timed out waiting for a choice")
 
 
 ## Opens a sealed chest and says whether it paid out -- its item into the bag

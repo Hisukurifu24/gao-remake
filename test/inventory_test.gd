@@ -139,6 +139,13 @@ func _test_content() -> void:
 			job_orphans.append(String(id))
 	_check(job_orphans.is_empty(), "every item a settled floor's job pays exists (%s)" % job_orphans)
 
+	# And a floor event's: what a stranded player thanks you with, and a race's prize.
+	var event_orphans := PackedStringArray()
+	for id in FloorEvents.ESCORT_GEAR + FloorEvents.RACE_PRIZES:
+		if not ItemLibrary.exists(id):
+			event_orphans.append(String(id))
+	_check(event_orphans.is_empty(), "every item a floor event pays exists (%s)" % event_orphans)
+
 	# Authored floors fill their chests from a layout table rather than the pools
 	# above, and a typo there is just as silent -- the chest opens onto nothing.
 	var authored_orphans := PackedStringArray()
