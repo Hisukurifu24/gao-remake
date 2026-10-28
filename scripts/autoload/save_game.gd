@@ -140,6 +140,7 @@ func snapshot() -> Dictionary:
 			"place": map.display_name if map != null else "",
 			"mode": GameState.MODE_NAMES[GameState.mode],
 			"play_time": int(GameState.play_time),
+			"cleared": GameState.is_floor_cleared(FloorTuning.TOP_FLOOR),
 		},
 		"game": GameState.to_save(),
 		"quests": QuestLog.to_save(),

@@ -114,10 +114,14 @@ func _test_every_id_asked_for() -> void:
 			if path.ends_with(".tscn") or path.ends_with(".tres"):
 				if line.begins_with("sound = &\""):
 					sounds[StringName(id.search(line).get_string(1))] = at
+				# A boss's next bar may bring its own track ([member BossPhase.music]).
+				if line.begins_with("music = &\""):
+					tracks[StringName(id.search(line).get_string(1))] = at
 	var waystone := load("res://scenes/world/waystone.tscn").instantiate() as Waystone
 	sounds[waystone.sound] = "Waystone.sound"
 	waystone.free()
 	_check(sounds.size() >= 40, "the sweep found the game's sounds (%d ids)" % sounds.size())
+	_check(tracks.has(&"revelation"), "and the music a boss's next bar brings")
 	var unknown: PackedStringArray = []
 	for name in sounds:
 		if not SoundLibrary.has(name):
@@ -379,6 +383,7 @@ func _source_files() -> PackedStringArray:
 	var found := PackedStringArray()
 	var dirs: Array[String] = SOURCE_DIRS.duplicate()
 	dirs.append("res://resources/fx")
+	dirs.append("res://resources/enemies")
 	while not dirs.is_empty():
 		var dir: String = dirs.pop_back()
 		for sub in DirAccess.get_directories_at(dir):

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="StatusEffect" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/status_effect.gd" id="status"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Ui/Emote/emote25.png" id="emote_tex"]
+
+[resource]
+script = ExtResource("status")
+id = &"nerfed"
+display_name = "Nerfed"
+kind = 2
+magnitude = -30
+duration = 3
+color = Color(0.85, 0.35, 0.4, 1)
+is_debuff = true
+emote = ExtResource("emote_tex")

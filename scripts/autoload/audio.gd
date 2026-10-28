@@ -105,6 +105,7 @@ func _ready() -> void:
 	EventBus.avatar_logged_out.connect(_on_logged_out)
 	CombatManager.combat_began.connect(_on_combat_began)
 	CombatManager.combat_finished.connect(_on_combat_finished)
+	CombatManager.action_resolved.connect(_on_action_resolved)
 
 
 func _process(_delta: float) -> void:
@@ -271,6 +272,15 @@ func _on_combat_finished(result: CombatResult) -> void:
 		play(held)
 	_after_fight.clear()
 	_refresh_music(FIGHT_OUT)
+
+
+## A boss's next bar may bring its own music ([member BossPhase.music]).
+func _on_action_resolved(report: CombatReport) -> void:
+	if report.kind != CombatReport.Kind.PHASE or report.phase == null \
+			or report.phase.music.is_empty() or not CombatManager.is_running():
+		return
+	_fight_track = report.phase.music
+	_refresh_music(FIGHT_IN)
 
 
 # --- what the bus announces --------------------------------------------------

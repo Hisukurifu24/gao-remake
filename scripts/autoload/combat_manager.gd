@@ -415,7 +415,8 @@ func _apply_strike(actor: Combatant, target: Combatant, skill: Skill) -> CombatR
 		amount = mini(amount, target.hp - 1)
 	hit.amount = -target.take_damage(amount)
 	hit.staggered = target.take_stagger(skill.stagger)
-	if target.is_alive() and CombatMath.rolls_status(skill, _rng):
+	# A bar just broken starts its phase clean; nothing rides over into it.
+	if target.is_alive() and not target.breaking and CombatMath.rolls_status(skill, _rng):
 		target.apply_status(skill.applies)
 	return hit
 
@@ -455,6 +456,7 @@ func _announce_defeat(fallen: Combatant) -> void:
 func _settle(result: CombatResult) -> bool:
 	if result.fled:
 		return true
+	await _break_bars()
 	if _duel:
 		var beaten := _yielding()
 		if beaten != null:
@@ -467,6 +469,37 @@ func _settle(result: CombatResult) -> bool:
 	if _living(_party).is_empty():
 		return true
 	return false
+
+
+## Starts the next phase of everyone whose bar a blow or a tick has just emptied.
+## Here, at the end of a step, rather than mid-blow: the blow that broke it has
+## been drawn by then, and the phase that follows gets a beat of its own.
+func _break_bars() -> void:
+	for each in _enemies + _party:
+		while each.breaking and each.is_alive():
+			await _enter_phase(each)
+
+
+## [param boss]'s next bar: its phase applied, announced, spoken over the fight
+## and, if it opens with a swing, that swing -- out of turn.
+func _enter_phase(boss: Combatant) -> void:
+	var was := boss.display_name
+	var phase := boss.enter_phase()
+	if phase == null:
+		return
+	var left := boss.bars_left()
+	var report := CombatReport.make(CombatReport.Kind.PHASE, boss,
+			"%s's HP bar breaks! %s" % [was,
+				"The last bar." if left == 1 else "%d bars left." % left])
+	report.phase = phase
+	await _report(report)
+	var interlude := phase.interlude()
+	if interlude != null and step_delay > 0.0:
+		# Words, not rules: an unpaced fight -- a test, a tool -- has nobody to read
+		# them to, and the box would wait on a press that never comes.
+		await DialogueRunner.start(interlude)
+	if phase.opens_with != null and not _living(_party).is_empty():
+		await _resolve_skill(boss, CombatAction.use(phase.opens_with, _party[0]))
 
 
 ## The first of either side down to the HP it yields at, or null.
@@ -520,8 +553,11 @@ func _ai_choose(actor: Combatant) -> CombatAction:
 		if skill.kind == Skill.Kind.HEAL and wounded != null and wounded.hp_ratio() < 0.5:
 			return CombatAction.use(skill, wounded)
 
-	var offensive := ready.filter(func(s: Skill) -> bool: return s.is_offensive())
-	var bias: float = actor.source.skill_bias if actor.source != null else 0.5
+	# A guard it isn't already wearing is as good a move as a swing.
+	var offensive := ready.filter(func(s: Skill) -> bool:
+		return s.is_offensive() or (s.kind == Skill.Kind.STATUS and s.target == Skill.Target.SELF
+				and s.applies != null and not actor.has_status(s.applies.id)))
+	var bias := actor.skill_bias()
 	if offensive.is_empty() or _rng.randf() > bias:
 		return CombatAction.use(SkillLibrary.basic_attack(), _pick_target(actor))
 	return CombatAction.use(_weighted_pick(offensive), _pick_target(actor))

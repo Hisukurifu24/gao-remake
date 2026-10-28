@@ -157,10 +157,11 @@ loop, not gaps in it. Nothing here blocks M5.
   This is the standard way to make break/stagger reward planning, and adding it
   later touches `Skill`, `EnemyType` and `CombatMath` at once. Decide before the
   enemy roster grows past ten.
-- [ ] **Multi-phase bosses.** Illfang's actual gimmick (swapping to the talwar
-  partway through) is a plain skill, not a phase change. Floor 100 is specced as a
-  multi-phase fight and there is no phase machinery yet — this is the one item
-  here that the endgame genuinely requires.
+- [x] **Multi-phase bosses** -- built 2026-10-28 as SAO's **HP bars** (`BossPhase`):
+  a boss's HP shared between its bars, a bar emptied starting the next on a full one
+  with a new name, shape, moves, stats, words and music. Illfang draws the nodachi on
+  his last of four; floor 100 is Hisukurifu (see M6). *Damage types are still open --
+  the same decision was meant to touch them, and didn't need to.*
 - [ ] **Skill trees / build variety.** `SkillLibrary.for_level()` is a pure
   function of level with no learn-state to save, which is why it's simple today.
   One-handed vs. rapier vs. dual-blades turns it into a `GameState` lookup.
@@ -1524,8 +1525,51 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
   floor built on the shared `tools/authored_floor.gd`. See below.
 - [ ] The other 7 milestone floors (each is a layout script on `tools/authored_floor.gd`,
   a `.tres`, and its NPCs, quests and boss). 40 next.
-- [ ] **Floor 100: the final boss — *you* — as an authored multi-phase fight.** The one
-  encounter that should be hand-built end to end.
+- [x] **Floor 100: the final boss** *(decided and built 2026-10-28)*. Asked, the user
+  chose: the boss is **the developer -- "Hisukurifu"** (Heathcliff's name read out in
+  Japanese, the avatar of the man who made the world), and **his lines break the fourth
+  wall**; phases as **SAO's HP bars**; **an ending and a post-game**; and **Illfang's
+  weapon swap** on the same machinery.
+  - [x] **HP bars** (`BossPhase`, `EnemyType.phases`): the HP shared between the bars,
+    never added to, so adding one moves no boss's total. A bar emptied fills the next
+    at once (the rest of the blow is lost, as SAO's are) and the runner starts its
+    phase at the end of the step: statuses and stagger gone, poise whole, and whatever
+    the phase sets -- name, shape (`form`), moves, how often it uses them, stats off
+    what it came in with, a buff, a swing out of turn, music. A `PHASE` report, then the
+    phase's narration and lines in the conversation box over the fight (paced fights
+    only). On the map the boss flares white and changes shape; pips under its bar count
+    the bars left. The formation is found for its biggest shape before the fight.
+  - [x] **Illfang** fights on four bars: on the last he hurls away axe and buckler and
+    draws -- not a talwar -- a nodachi, faster and harder, and turns gold. Measured
+    back to where he was (11/12 at level 3, 12/12 at 5) once the test's auto-player
+    cut down the escort first by total HP rather than by the bar a boss is on.
+  - [x] **Hisukurifu**, alone at the top of the Ruby Palace, on four bars: the paladin
+    in red and white (divine cross, the cross shield's IMMORTAL OBJECT); the Game Master,
+    a winged red giant with permissions you don't have (patch notes that nerf you, a
+    hotfix to his own HP, a system call on everyone); the Developer, a red samurai, to
+    *Revelation* (Delete, a segmentation fault); and `hisukurifu.exe (Not Responding)`,
+    whose texture failed to load -- fast, hasted, fragile. He greets you by name and
+    level, has a word for how you chose to play, tells you your world seed and the
+    hours you spent, and knows a test fought him hundreds of times to make sure you
+    could win. Measured: 0/8 twelve levels short, 2/16 ten short, 10/16 at the level the
+    check fights him at -- the hardest fight in the game.
+  - [x] **The ending**: his farewell, Cardinal announcing the game cleared, the world
+    going white, an epilogue that reads your run, the credits rolled, "Thank you for
+    playing", the title. Under the white the player is moved to the Town of Beginnings
+    and the game saved there, marked **Cleared** on its card: Continue goes back to a
+    castle with every floor open. A marathon ends there. Losing to him: "Respawn. I'll
+    be here -- I'm hardcoded to be."
+  - [x] **Tests**: the combat test's HP-bar section and a final-boss balance check
+    (131), the dialogue test his words (68), the save test the ending run to the title
+    and Continue in the town (158), the audio test a phase's music in its sweep (49).
+    `tools/screenshot.gd -- --phases` shoots every bar of both, his words, the
+    epilogue, the credits and the title after.
+  - *Calls of mine, flag if wrong:* his four shapes (the pack's grey-haired master in
+    red, the red tengu, the red samurai, the white spirit as the missing texture);
+    every line he says; floor 100 stays a generated floor with an authored boss
+    rather than a hand-built floor; no escort; no loot (the game is the prize), more
+    Col instead; the cleared game is `is_floor_cleared(100)`, not a new flag; a rematch
+    after clearing isn't offered; the ending's track is *End Theme*.
 
 #### Floor variety — "the floors play the same" *(raised 2026-10-05; shapes, modifiers, events, landmarks and room shapes built)*
 The user, after M5.5's set landed: floors are repetitive — *both* to look at and to play,
@@ -2778,17 +2822,26 @@ where it left off once the fanfare is over. Blades swish and claws thud, chests
 chime, seals grind open, a solved puzzle plays its little tune, a storm rains on
 you; the menus click. Music and sound each have a volume in the settings.
 
+And it ends. Bosses carry SAO's stacked HP bars now: break one and the next is full,
+and the fight can change -- Illfang hurls away his axe on his last and draws a nodachi.
+At the top of the Ruby Palace a man in red and white is waiting, and he knows exactly
+what this is: Hisukurifu, who made the place. Four bars, four shapes -- the paladin,
+the Game Master, the Developer, and a placeholder where his texture should be -- and
+he talks to you, by name, about your run, your seed, your hours and the tests that
+said you could win. Beat him and the game is cleared: the world goes white, the
+credits roll, and your save comes back in the Town of Beginnings with the castle yours.
+
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 229-check game loop test
 "$GODOT" --headless --path . res://test/floor_test.tscn     # 160-check floor system test
-"$GODOT" --headless --path . res://test/dialogue_test.tscn  # 61-check dialogue test
+"$GODOT" --headless --path . res://test/dialogue_test.tscn  # 68-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 219-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 111-check combat test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 131-check combat test
 "$GODOT" --headless --path . res://test/quest_test.tscn     # 211-check quest test
-"$GODOT" --headless --path . res://test/save_test.tscn      # 150-check save test
-"$GODOT" --headless --path . res://test/audio_test.tscn     # 48-check audio test
+"$GODOT" --headless --path . res://test/save_test.tscn      # 158-check save test
+"$GODOT" --headless --path . res://test/audio_test.tscn     # 49-check audio test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -2851,8 +2904,9 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    (2026-10-27)**: caverns, L and cross halls and pillared halls in the rooms nothing
    else uses -- the last of the levers. **And villages' stock (2026-10-28)**: a trader
    in every village keeping the band's counter. **And M7's audio (2026-10-28)**:
-   music by band and by place, fights and fanfares, sounds, volumes. Next: Floor 40,
-   floor 100's phases, or M7's name entry and key binding.
+   music by band and by place, fights and fanfares, sounds, volumes. **And the end
+   (2026-10-28)**: HP bars and phases, Illfang's nodachi, Hisukurifu on floor 100 and
+   the ending. Next: Floor 40, or M7's name entry and key binding.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where
@@ -2887,7 +2941,6 @@ a few lines in `CombatManager._take_turn`); the view-only ones (lunge, flash, sh
 landed with M5.5 §5. The full list of what M4 left on the table — with why, and what
 each one would touch — is under *Deliberately deferred from M4*.
 
-**One item there is not optional forever:** floor 100 is specced as a multi-phase fight
-and there is no phase machinery in `CombatManager` yet. It doesn't block anything now, but
-it is the endgame's hard dependency, so don't let the enemy roster grow far past ten
-without deciding how phases (and damage types, which the same decision touches) work.
+**Phases are in** (2026-10-28, HP bars). **Damage types are not**, and the roster is
+past ten: decide them before it grows much further, since adding them later touches
+`Skill`, `EnemyType` and `CombatMath` at once.

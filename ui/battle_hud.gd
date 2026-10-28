@@ -73,6 +73,10 @@ func _ready() -> void:
 	CombatManager.command_requested.connect(_on_command_requested)
 	CombatManager.action_resolved.connect(_on_action_resolved)
 	CombatManager.combat_finished.connect(_on_combat_finished)
+	# A boss talking mid-fight ([BossPhase]) is the conversation box's: the message
+	# line steps aside for it rather than show through under it.
+	EventBus.dialogue_started.connect(func(_id: StringName) -> void: _log.modulate.a = 0.0)
+	EventBus.dialogue_finished.connect(func(_id: StringName) -> void: _log.modulate.a = 1.0)
 
 
 # --- input -----------------------------------------------------------------
@@ -288,7 +292,8 @@ func _show_targets(candidates: Array[Combatant]) -> void:
 	var labels := PackedStringArray()
 	for target in candidates:
 		var tags := target.status_labels()
-		labels.append("%s  %d/%d%s" % [target.display_name, target.hp, target.max_hp,
+		var bars := "  x%d" % target.bars_left() if target.bars_left() > 1 else ""
+		labels.append("%s  %d/%d%s%s" % [target.display_name, target.hp, target.max_hp, bars,
 				("  " + " ".join(tags)) if not tags.is_empty() else ""])
 	_populate(labels, PackedInt32Array())
 

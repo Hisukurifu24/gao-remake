@@ -117,6 +117,8 @@ func interact(by: Node) -> void:
 
 func get_prompt() -> String:
 	if GameState.is_floor_cleared(floor_number):
+		if floor_number >= FloorTuning.TOP_FLOOR:
+			return "The top of the castle"
 		return "Ascend to Floor %d" % (floor_number + 1)
 	return "Challenge %s" % _boss_label()
 
@@ -127,9 +129,12 @@ func _fight() -> void:
 		push_error("BossGate: floor %d has no boss encounter." % floor_number)
 		return
 
-	await DialogueRunner.say("", PackedStringArray([
-		"%s is waiting beyond the door." % _boss_label(),
-	]))
+	if FinalBoss.is_final(floor_number):
+		await DialogueRunner.start(FinalBoss.prelude())
+	else:
+		await DialogueRunner.say("", PackedStringArray([
+			"%s is waiting beyond the door." % _boss_label(),
+		]))
 
 	await _step_out(encounter)
 	var result: CombatResult = await CombatManager.start(encounter)
@@ -137,7 +142,13 @@ func _fight() -> void:
 	if result == null:
 		return
 
-	if result.victory:
+	if result.victory and FinalBoss.is_final(floor_number):
+		# The game cleared. The ending takes the player off this map, and this
+		# gate with it, so it runs itself from here.
+		GameState.clear_floor(floor_number)
+		await DialogueRunner.start(FinalBoss.farewell())
+		Ending.begin(get_tree())
+	elif result.victory:
 		GameState.clear_floor(floor_number)
 		EventBus.message_requested.emit("", PackedStringArray([
 			"%s falls." % _boss_label(),
@@ -227,7 +238,7 @@ func _revive(defeated: bool) -> void:
 	GameState.set_hp(maxi(1, roundi(GameState.total_max_hp() * DEFEAT_HP_RATIO)))
 	var map := get_parent() as GameMap
 	var spilled := map.player_fell() if defeated and map != null else 0
-	var lines := PackedStringArray([
+	var lines := FinalBoss.defeat_lines() if FinalBoss.is_final(floor_number) else PackedStringArray([
 		"%s stands over you." % _boss_label(),
 		"You come to at the entrance to the floor, barely.",
 	])
@@ -241,7 +252,7 @@ func _ascend() -> void:
 	if floor_number >= FloorTuning.TOP_FLOOR:
 		EventBus.message_requested.emit("", PackedStringArray([
 			"Floor 100. There is nothing above this.",
-			"The game is cleared -- or it would be, once the final fight exists.",
+			"The game is cleared. The hall where Hisukurifu waited is empty now.",
 		]))
 		return
 	SceneRouter.enter_floor(floor_number + 1, &"from_below")

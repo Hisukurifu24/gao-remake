@@ -4,7 +4,7 @@ extends PanelContainer
 ##
 ## Drawn from [method SaveGame.summary] and nothing else, so listing the slots
 ## never loads a game. A hardcore game wears a red badge -- the one thing about a
-## slot worth seeing before you pick it. [param note] replaces the last line, for
+## slot worth seeing before you pick it -- and a cleared one says so in gold. [param note] replaces the last line, for
 ## "press again to delete".
 
 const FACE := "res://assets/ninja_adventure/Actor/Character/SamuraiBlue/Faceset.png"
@@ -14,6 +14,7 @@ const FACE_SIZE := Vector2(38, 38)
 var _face: TextureRect
 var _name: Label
 var _badge: PanelContainer
+var _cleared: Label
 var _slot: Label
 var _where: Label
 var _when: Label
@@ -50,6 +51,10 @@ func _init() -> void:
 	lines.add_child(top)
 	_name = _label(top, &"")
 	_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_cleared = _label(top, &"")
+	_cleared.text = "Cleared"
+	_cleared.clip_text = false
+	_cleared.add_theme_color_override(&"font_color", UiPalette.READY)
 	_slot = _label(top, &"HintLabel")
 	_slot.clip_text = false
 
@@ -78,6 +83,7 @@ func show_slot(n: int, meta: Dictionary, note := "") -> void:
 	_face.modulate.a = 1.0
 	_badge.visible = not empty \
 			and GameState.mode_named(str(meta.get("mode", ""))) == GameState.Mode.HARDCORE
+	_cleared.visible = not empty and meta.get("cleared", false) == true
 	if empty:
 		_name.text = "Empty"
 		_name.add_theme_color_override(&"font_color", UiPalette.LOCKED)
@@ -98,8 +104,8 @@ func show_slot(n: int, meta: Dictionary, note := "") -> void:
 
 ## Everything the card says, line by line: for tests and tools.
 func text() -> String:
-	return "%s %s\n%s%s\n%s" % [_name.text, _slot.text, _where.text,
-			"  Hardcore" if _badge.visible else "", _when.text]
+	return "%s%s %s\n%s%s\n%s" % [_name.text, "  Cleared" if _cleared.visible else "",
+			_slot.text, _where.text, "  Hardcore" if _badge.visible else "", _when.text]
 
 
 ## "Floor 10, Ashlow Wood": a map's name may start with its floor's number,

@@ -1843,14 +1843,15 @@ func _check_staging(map: GameMap, player: Player, what: String) -> void:
 
 func _auto_battle(timeout_frames := 4000) -> void:
 	for _i in timeout_frames:
-		if CombatManager.is_running():
+		# A box first: a boss whose bar breaks speaks in the middle of its fight.
+		if DialogueRunner.is_running():
+			DialogueRunner.advance()
+		elif CombatManager.is_running():
 			if CombatManager.is_awaiting_command():
 				var enemies := CombatManager.living_enemies()
 				if not enemies.is_empty():
 					CombatManager.submit(CombatAction.use(
 							SkillLibrary.basic_attack(), enemies[0]))
-		elif DialogueRunner.is_running():
-			DialogueRunner.advance()
 		elif not GameState.is_input_locked():
 			return
 		await _idle()

@@ -17,6 +17,7 @@ const ENEMIES: PackedStringArray = [
 	"frenzy_boar", "dire_wolf", "little_nepent", "kobold_trooper", "cave_bat",
 	"ruin_wraith", "lizardman_soldier", "stone_golem", "ember_drake", "illfang",
 	"hollow_warden", "twin_giant", "pk_swordsman", "pk_knifer", "duellist",
+	"hisukurifu",
 ]
 
 ## The player killers who lie in wait on some floors ([FloorEvents]): players, not
@@ -66,6 +67,7 @@ const AUTHORED_BOSSES := {
 	1: &"illfang",
 	10: &"hollow_warden",
 	25: &"twin_giant",
+	100: &"hisukurifu",
 }
 
 ## What being the floor boss is worth on top of the template's own numbers.
@@ -254,6 +256,9 @@ static func _boss_template(floor_number: int) -> EnemyType:
 static func _escort_count(floor_number: int) -> int:
 	if floor_number == 1:
 		return 1
+	# The last fight is his alone.
+	if floor_number >= FloorTuning.TOP_FLOOR:
+		return 0
 	return mini(1, (floor_number - 1) / 45)
 
 

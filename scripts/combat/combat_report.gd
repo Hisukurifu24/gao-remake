@@ -17,6 +17,7 @@ enum Kind {
 	ITEM,     ## Something was spent out of the bag.
 	OPENING,  ## One side struck first; the other sits out round 1.
 	YIELD,    ## A duel was decided: someone yielded -- or wouldn't.
+	PHASE,    ## A boss's HP bar broke and the next began; [member phase] is how it fights now.
 }
 
 ## One number over one sprite.
@@ -36,6 +37,8 @@ var actor: Combatant = null
 var skill: Skill = null
 ## Set on [constant Kind.ITEM] reports, for a view that wants to show the icon.
 var item: Item = null
+## Set on [constant Kind.PHASE] reports: the phase the actor has just entered.
+var phase: BossPhase = null
 var text := ""
 var hits: Array[Hit] = []
 var success := true

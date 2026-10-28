@@ -48,6 +48,9 @@ extends Resource
 ## the attack's own, a sword's cut. Presentation only: the attack is the same
 ## [method SkillLibrary.basic_attack] everyone swings.
 @export var strike_fx: SkillFx
+## Further HP bars, each a change in how it fights once it is down to it ([BossPhase]).
+## Empty is one bar. Its HP is shared between the bars, never added to.
+@export var phases: Array[BossPhase] = []
 
 @export_group("Rewards")
 @export var xp_reward := 8
@@ -62,6 +65,21 @@ extends Resource
 ## carry more or less than its floor.
 @export var col_reward := FloorTuning.KILL_COL
 @export var col_growth := FloorTuning.KILL_COL_GROWTH
+
+
+## How many HP bars it fights on: one, and one more for each phase.
+func bars() -> int:
+	return 1 + phases.size()
+
+
+## Itself and every [member BossPhase.form] it takes, in order: whatever a
+## formation has to make room for before the fight changes its shape.
+func forms() -> Array[EnemyType]:
+	var all: Array[EnemyType] = [self]
+	for phase in phases:
+		if phase != null and phase.form != null and phase.form not in all:
+			all.append(phase.form)
+	return all
 
 
 func label() -> String:

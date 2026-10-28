@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/sparkle.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"hotfix"
+display_name = "Hotfix"
+description = "A change to his own HP, pushed straight to the live game."
+kind = 1
+target = 2
+power = 140
+accuracy = 100
+crit_chance = 0
+stagger = 0
+cooldown = 5
+post_motion = 0
+ai_weight = 1.0
+announce = "%s pushes a hotfix to his own HP bar."
+fx = ExtResource("fx_res")

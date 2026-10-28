@@ -1,14 +1,43 @@
-[gd_resource type="Resource" script_class="EnemyType" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="EnemyType" load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
 [ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
 [ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantRacoon/Idle.png" id="battler_art"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/nodachi_flurry.tres" id="nodachi_flurry"]
 [ext_resource type="Resource" path="res://resources/skills/enemy/shield_bash.tres" id="shield_bash"]
+[ext_resource type="Script" path="res://scripts/resources/boss_phase.gd" id="phase"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantRacoonGold/Idle.png" id="drawn_art"]
 
 [sub_resource type="AtlasTexture" id="battler"]
 atlas = ExtResource("battler_art")
 region = Rect2(0, 0, 60, 60)
+
+[sub_resource type="AtlasTexture" id="drawn_battler"]
+atlas = ExtResource("drawn_art")
+region = Rect2(0, 0, 60, 60)
+
+[sub_resource type="Resource" id="drawn"]
+script = ExtResource("enemy")
+id = &"illfang_drawn"
+display_name = "Illfang the Kobold Lord"
+battler = SubResource("drawn_battler")
+idle_frames = 6
+
+[sub_resource type="Resource" id="bar_2"]
+script = ExtResource("phase")
+
+[sub_resource type="Resource" id="bar_3"]
+script = ExtResource("phase")
+
+[sub_resource type="Resource" id="last_bar"]
+script = ExtResource("phase")
+form = SubResource("drawn")
+skills = Array[ExtResource("skill")]([ExtResource("nodachi_flurry")])
+skill_bias = 0.6
+attack_scale = 1.1
+defense_scale = 0.85
+speed_scale = 1.3
+narration = PackedStringArray("Illfang hurls his axe and buckler aside and reaches over his shoulder.", "The blade he draws is no talwar. It's a nodachi -- and he is faster with it.")
 
 [resource]
 script = ExtResource("enemy")
@@ -29,6 +58,7 @@ poise_growth = 2.0
 skill_bias = 0.55
 xp_reward = 45
 xp_growth = 6.0
-skills = Array[ExtResource("skill")]([ExtResource("nodachi_flurry"), ExtResource("shield_bash")])
+skills = Array[ExtResource("skill")]([ExtResource("shield_bash")])
+phases = Array[ExtResource("phase")]([SubResource("bar_2"), SubResource("bar_3"), SubResource("last_bar")])
 loot = Array[StringName]([&"anneal_blade"])
 loot_chance = 1.0

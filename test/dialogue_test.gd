@@ -54,6 +54,7 @@ func _run() -> void:
 	_test_jumps()
 	_test_queue_and_cancel()
 	_test_progression_gated_content()
+	_test_final_boss()
 
 
 # --- conditions ------------------------------------------------------------
@@ -327,6 +328,45 @@ func _test_progression_gated_content() -> void:
 	DialogueRunner.choose(_choice_index("Sell me a map"))
 	_check(_items == [&"map_floor_2"], "the map line hands over an item")
 	_close()
+
+
+## Hisukurifu's words ([FinalBoss]), built in code from the run: the first
+## meeting and the rematch, a line for each way of playing, and nothing left
+## unfilled.
+func _test_final_boss() -> void:
+	GameState.set_flag(&"final_boss_met", false)
+	_lines_seen.clear()
+	_speakers_seen.clear()
+	DialogueRunner.start(FinalBoss.prelude())
+	_close()
+	_check(GameState.has_flag(&"final_boss_met") and _lines_seen.size() >= 6,
+			"the first meeting runs through the runner and is remembered (%d lines)" % _lines_seen.size())
+	_check(FinalBoss.SPEAKER in _speakers_seen and "" in _speakers_seen,
+			"Hisukurifu speaks, and the narrator sets the scene")
+	_check(Array(_lines_seen).any(func(t: String) -> bool: return t.contains(GameState.player_name)),
+			"he greets the player by name")
+	var again := FinalBoss.prelude()
+	_check(again.id == &"final_boss_again" and again.lines.size() < _lines_seen.size(),
+			"a rematch is shorter")
+
+	var said := {}
+	for mode in [GameState.Mode.STANDARD, GameState.Mode.HARDCORE, GameState.Mode.MARATHON]:
+		GameState.mode = mode
+		GameState.set_flag(&"final_boss_met", false)
+		said[FinalBoss.prelude().lines[5].text] = true
+	GameState.mode = GameState.Mode.STANDARD
+	_check(said.size() == 3, "he has a word for each way of playing (%d)" % said.size())
+
+	var unfilled := PackedStringArray()
+	var texts: Array = Array(FinalBoss.epilogue()) + Array(FinalBoss.defeat_lines())
+	for line in FinalBoss.farewell().lines:
+		texts.append(line.text)
+	for text: String in texts:
+		if text.contains("%") or text.contains("{"):
+			unfilled.append(text)
+	_check(unfilled.is_empty(), "nothing he says is left unfilled (%s)" % unfilled)
+	_check(FinalBoss.farewell().lines[-1].speaker == FinalBoss.SYSTEM,
+			"and the system has the last word")
 
 
 # --- helpers ---------------------------------------------------------------

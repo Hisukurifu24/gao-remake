@@ -85,6 +85,8 @@ const SOUNDS := {
 	## A monster going up in smoke.
 	&"fall": {"files": ["Sounds/Hit & Impact/Hit9.wav"], "db": -6.0},
 	&"flee": {"files": ["Sounds/Jump & Bounce/Jump.wav"], "db": -6.0},
+	## A boss's HP bar breaking, and the next phase beginning.
+	&"bar_break": {"files": ["Sounds/Elemental/Explosion4.wav"], "db": -4.0},
 
 	# --- jingles ----------------------------------------------------------------
 	&"victory": {"files": ["Jingles/Success1.wav"], "db": -4.0, "jingle": true},
@@ -96,6 +98,7 @@ const SOUNDS := {
 	&"quest_accepted": {"files": ["Jingles/Success4.wav"], "db": -6.0, "jingle": true},
 	&"quest_done": {"files": ["Jingles/Success2.wav"], "db": -4.0, "jingle": true},
 	&"logged_out": {"files": ["Jingles/GameOver2.wav"], "db": -4.0, "jingle": true},
+	&"game_clear": {"files": ["Jingles/Secret4.wav"], "db": -2.0, "jingle": true},
 }
 
 static var _cache: Dictionary[String, AudioStream] = {}

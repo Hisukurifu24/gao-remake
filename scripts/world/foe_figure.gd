@@ -20,6 +20,10 @@ const IDLE_FRAME_TIME := 0.18
 
 var enemy: EnemyType
 var _sprite := Sprite2D.new()
+var _boss := false
+## The shape it is in now: [member enemy], or a phase's form.
+var _look: EnemyType
+var _facing := Vector2.DOWN
 ## Idle frames stepped through [member _art]'s region; 0 for none.
 var _frames := 0
 var _art: AtlasTexture = null
@@ -30,9 +34,30 @@ var _idle_time := 0.0
 
 func _init(type: EnemyType, boss: bool) -> void:
 	enemy = type
+	_boss = boss
 	name = "Foe_%s" % type.id
 	_sprite.name = "Sprite2D"
 	add_child(_sprite)
+	_dress(type)
+
+
+## Takes the shape of [param form] mid-fight -- a boss's next bar ([BossPhase]):
+## its art, and how it stands. Where it stands doesn't move; the formation made
+## room for its biggest shape before the fight began ([method body_of]).
+func become(form: EnemyType) -> void:
+	if form != null:
+		_dress(form)
+
+
+func _dress(type: EnemyType) -> void:
+	_look = type
+	_frames = 0
+	_art = null
+	_sprite.hframes = 1
+	_sprite.vframes = 1
+	_sprite.frame = 0
+	_sprite.flip_h = false
+	_sprite.scale = Vector2.ONE
 	var size := Vector2.ZERO
 	if type.sheet != null:
 		_sprite.texture = type.sheet
@@ -51,10 +76,11 @@ func _init(type: EnemyType, boss: bool) -> void:
 		else:
 			_sprite.texture = type.battler
 		size = _sprite.texture.get_size() if _sprite.texture != null else Vector2(16, 16)
-	if boss and maxf(size.x, size.y) <= SMALL_ART:
+	if _boss and maxf(size.x, size.y) <= SMALL_ART:
 		_sprite.scale = Vector2(2, 2)
 	# Feet at the node, so the map's y-sort stands it where it stands.
 	_sprite.position = Vector2(0.0, -size.y * _sprite.scale.y / 2.0)
+	face(_facing)
 
 
 func _process(delta: float) -> void:
@@ -64,19 +90,29 @@ func _process(delta: float) -> void:
 	var frame := int(_idle_time / IDLE_FRAME_TIME) % _frames
 	if _art != null:
 		_art.region = Rect2(_base.position + _step * frame, _base.size)
-	elif enemy.sheet_frames.y > 1:
-		_sprite.frame = frame * enemy.sheet_frames.x + _sprite.frame % enemy.sheet_frames.x
+	elif _look.sheet_frames.y > 1:
+		_sprite.frame = frame * _look.sheet_frames.x + _sprite.frame % _look.sheet_frames.x
 	else:
 		_sprite.frame = frame
 
 
-## How much of the map it covers, standing: width, and height above its feet.
+## How much of the map it covers, standing, at its biggest: width, and height
+## above its feet.
 func body() -> Vector2:
-	return body_of(enemy, _sprite.scale.x > 1.0)
+	return body_of(enemy, _boss)
 
 
-## [method body] before there is a figure -- what the formation has to make room for.
+## [method body] before there is a figure -- what the formation has to make room
+## for: the biggest of every shape it takes ([method EnemyType.forms]), so a boss
+## that grows on its next bar doesn't grow into you.
 static func body_of(type: EnemyType, boss: bool) -> Vector2:
+	var biggest := Vector2.ZERO
+	for form in type.forms():
+		biggest = biggest.max(_drawn_size(form, boss))
+	return biggest
+
+
+static func _drawn_size(type: EnemyType, boss: bool) -> Vector2:
 	var size := Vector2(16, 16)
 	if type.sheet != null:
 		size = type.sheet.get_size() / Vector2(type.sheet_frames)
@@ -94,9 +130,10 @@ func sprite() -> Sprite2D:
 ## Turns to look along [param direction]. A side view mirrors; a battler -- drawn
 ## facing you -- has no other way to look.
 func face(direction: Vector2) -> void:
-	if enemy.sheet == null:
+	_facing = direction
+	if _look.sheet == null:
 		return
-	if enemy.sheet_frames.y == 1:
+	if _look.sheet_frames.y == 1:
 		if absf(direction.x) > 0.01:
 			_sprite.flip_h = direction.x < 0.0
 		return

@@ -70,6 +70,7 @@ func _run() -> void:
 	await _test_new_game()
 	await _test_marathon()
 	await _test_idle_logout()
+	await _test_game_cleared()
 	await _test_hardcore()
 	await _test_title_screen()
 
@@ -661,6 +662,57 @@ func _on_idle_cleared() -> void:
 
 
 # --- hardcore ------------------------------------------------------------------
+
+# --- the game cleared -------------------------------------------------------------
+
+## Floor 100's boss beaten: the ending runs itself to the title, the player is put
+## down in the town on the way, and the save it writes says the game is cleared --
+## Continue goes back to a castle with every floor open.
+func _test_game_cleared() -> void:
+	SaveGame.delete(3)
+	await SaveGame.new_game(3, GameState.Mode.STANDARD)
+	await _until_unlocked()
+	for n in range(1, FloorTuning.TOP_FLOOR):
+		GameState.clear_floor(n)
+	await SceneRouter.enter_floor(FloorTuning.TOP_FLOOR)
+	await _until_unlocked()
+	var gates := SceneRouter.current_map().find_children("*", "BossGate", true, false)
+	var gate := gates[0] as BossGate if not gates.is_empty() else null
+	_check(gate != null and gate.get_prompt() == "Challenge %s" % FloorTuning.FINAL_BOSS,
+			"floor 100's door is Hisukurifu's (%s)" % (gate.get_prompt() if gate != null else "no door"))
+	_check(SaveGame.save_game(3) and SaveGame.summary(3).get("cleared") == false,
+			"a save short of the top isn't cleared")
+
+	GameState.clear_floor(FloorTuning.TOP_FLOOR)
+	_check(gate.get_prompt() == "The top of the castle", "and once he falls there is nothing to climb to")
+	_title_notices.clear()
+	Ending.pace = 0.01
+	Ending.begin(get_tree())
+	var over := func() -> bool:
+		return not _title_notices.is_empty() and not SceneRouter.is_busy() \
+				and get_tree().root.get_node_or_null("Ending") == null
+	await _until_true(over, 3000)
+	Ending.pace = 1.0
+	var title := _main.get_node("TitleScreen")
+	_check(_title_notices.size() == 1 and _title_notices[0].contains("cleared the game"),
+			"the ending runs itself to the title, saying so (%s)" % [_title_notices])
+	_check(title.call(&"is_open") and SceneRouter.current_map() == null,
+			"and leaves the title up with nothing over it")
+	var meta := SaveGame.summary(3)
+	_check(meta.get("cleared", false) == true and SaveCodec.whole(meta.get("floor"), 0) == 1,
+			"the save it wrote on the way out is cleared, and in the town (%s)" % [meta])
+	var card := SaveCard.new()
+	card.show_slot(3, meta)
+	_check(card.text().contains("Cleared"), "and its card says so")
+	card.free()
+
+	title.call(&"_hand_over")
+	var loaded: bool = await SaveGame.load_slot(3)
+	await _until_unlocked()
+	_check(loaded and GameState.current_floor == 1 and GameState.is_floor_cleared(FloorTuning.TOP_FLOOR)
+			and SceneRouter.current_map() != null,
+			"Continue goes back to the Town of Beginnings with the game cleared")
+
 
 func _test_hardcore() -> void:
 	SaveGame.delete(3)

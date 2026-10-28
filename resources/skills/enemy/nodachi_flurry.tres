@@ -7,7 +7,7 @@
 script = ExtResource("skill")
 id = &"nodachi_flurry"
 display_name = "Nodachi Flurry"
-description = "Illfang throws away the axe and buckler and draws the talwar. Everything after that comes faster."
+description = "Illfang's last bar: the axe and buckler gone, the nodachi out, and everything after it faster."
 kind = 0
 target = 0
 power = 180
@@ -17,5 +17,5 @@ stagger = 30
 cooldown = 3
 post_motion = 1
 ai_weight = 1.3
-announce = "%s draws the talwar!"
+announce = "%s's nodachi flashes!"
 fx = ExtResource("fx_res")

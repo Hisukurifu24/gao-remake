@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/rock_spike.tres" id="fx_res"]
+[ext_resource type="Resource" path="res://resources/statuses/dazed.tres" id="status"]
+
+[resource]
+script = ExtResource("skill")
+id = &"segfault"
+display_name = "Segmentation Fault"
+description = "The floor stutters under you, and so do you."
+kind = 0
+target = 0
+power = 115
+accuracy = 92
+crit_chance = 6
+stagger = 30
+cooldown = 3
+post_motion = 0
+apply_chance = 35
+applies = ExtResource("status")
+ai_weight = 1.0
+announce = "%s glitches the floor under you. Segmentation fault!"
+fx = ExtResource("fx_res")

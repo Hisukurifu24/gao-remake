@@ -1,0 +1,134 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=37 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Script" path="res://scripts/resources/boss_phase.gd" id="phase"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Character/Master/SpriteSheet.png" id="paladin_art"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/TenguRed/Idle.png" id="gm_art"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/TenguRed/Faceset.png" id="gm_face"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantRedSamurai/Idle.png" id="dev_art"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantRedSamurai/Faceset.png" id="dev_face"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantSpirit/Idle.png" id="exe_art"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantSpirit/Faceset.png" id="exe_face"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/divine_cross.tres" id="divine_cross"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/cross_guard.tres" id="cross_guard"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/patch_notes.tres" id="patch_notes"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/hotfix.tres" id="hotfix"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/system_call.tres" id="system_call"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/delete_key.tres" id="delete_key"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/segfault.tres" id="segfault"]
+[ext_resource type="Resource" path="res://resources/fx/cut_x.tres" id="paladin_strike"]
+[ext_resource type="Resource" path="res://resources/fx/ring_orange.tres" id="gm_strike"]
+[ext_resource type="Resource" path="res://resources/fx/explosion.tres" id="dev_strike"]
+[ext_resource type="Resource" path="res://resources/statuses/hasted.tres" id="hasted"]
+
+[sub_resource type="AtlasTexture" id="paladin_walk"]
+atlas = ExtResource("paladin_art")
+region = Rect2(0, 0, 64, 64)
+
+[sub_resource type="AtlasTexture" id="paladin_battler"]
+atlas = ExtResource("paladin_art")
+region = Rect2(0, 0, 16, 16)
+
+[sub_resource type="AtlasTexture" id="gm_battler"]
+atlas = ExtResource("gm_art")
+region = Rect2(13, 25, 56, 34)
+
+[sub_resource type="AtlasTexture" id="dev_battler"]
+atlas = ExtResource("dev_art")
+region = Rect2(13, 5, 70, 40)
+
+[sub_resource type="AtlasTexture" id="exe_battler"]
+atlas = ExtResource("exe_art")
+region = Rect2(4, 3, 42, 46)
+
+[sub_resource type="Resource" id="gm_form"]
+script = ExtResource("enemy")
+id = &"hisukurifu_gm"
+display_name = "Hisukurifu, Game Master"
+battler = SubResource("gm_battler")
+idle_frames = 6
+strike_fx = ExtResource("gm_strike")
+
+[sub_resource type="Resource" id="dev_form"]
+script = ExtResource("enemy")
+id = &"hisukurifu_developer"
+display_name = "Hisukurifu, the Developer"
+battler = SubResource("dev_battler")
+idle_frames = 6
+strike_fx = ExtResource("dev_strike")
+
+[sub_resource type="Resource" id="exe_form"]
+script = ExtResource("enemy")
+id = &"hisukurifu_exe"
+display_name = "hisukurifu.exe"
+battler = SubResource("exe_battler")
+idle_frames = 5
+strike_fx = ExtResource("dev_strike")
+
+[sub_resource type="Resource" id="game_master"]
+script = ExtResource("phase")
+display_name = "Hisukurifu, Game Master"
+form = SubResource("gm_form")
+skills = Array[ExtResource("skill")]([ExtResource("patch_notes"), ExtResource("hotfix"), ExtResource("system_call")])
+skill_bias = 0.6
+attack_scale = 1.05
+defense_scale = 1.0
+speed_scale = 1.0
+lines = PackedStringArray("Hm. You actually broke a bar. Most people's playtests end about here.", "Fine. I'll drop the paladin act.", "This is the avatar I log in as when something is broken. Game Master. It has permissions you don't.")
+speaker = "Hisukurifu"
+portrait = ExtResource("gm_face")
+
+[sub_resource type="Resource" id="developer"]
+script = ExtResource("phase")
+display_name = "Hisukurifu, the Developer"
+form = SubResource("dev_form")
+skills = Array[ExtResource("skill")]([ExtResource("delete_key"), ExtResource("segfault")])
+skill_bias = 0.6
+attack_scale = 1.15
+defense_scale = 1.05
+speed_scale = 1.0
+lines = PackedStringArray("No more avatars, then. This is me.", "Your world seed is {seed}. Every floor under your feet grew out of that one number. The rest I built by hand, one table at a time.", "And every time I changed a number, a test fought me hundreds of times to make sure you could still win. It said you could.", "Let's find out if it was right.")
+speaker = "Hisukurifu"
+portrait = ExtResource("dev_face")
+music = &"revelation"
+
+[sub_resource type="Resource" id="not_responding"]
+script = ExtResource("phase")
+display_name = "hisukurifu.exe (Not Responding)"
+form = SubResource("exe_form")
+attack_scale = 1.15
+defense_scale = 0.75
+speed_scale = 1.2
+narration = PackedStringArray("Hisukurifu's texture fails to load.")
+lines = PackedStringArray("...That isn't supposed to happen. Ignore it. I'm still the final boss.", "{hours} hours and {minutes} minutes. That's how long you've spent in my world, {player}. Let me make the last minute count.")
+speaker = "Hisukurifu"
+portrait = ExtResource("exe_face")
+buff = ExtResource("hasted")
+
+[resource]
+script = ExtResource("enemy")
+id = &"hisukurifu"
+display_name = "Hisukurifu"
+battler = SubResource("paladin_battler")
+sheet = SubResource("paladin_walk")
+sheet_frames = Vector2i(4, 4)
+max_hp = 46
+attack = 10
+defense = 8
+speed = 7
+poise = 60
+hp_growth = 7.5
+attack_growth = 1.05
+defense_growth = 0.9
+speed_growth = 0.25
+poise_growth = 2.4
+skills = Array[ExtResource("skill")]([ExtResource("divine_cross"), ExtResource("cross_guard")])
+skill_bias = 0.55
+strike_fx = ExtResource("paladin_strike")
+phases = Array[ExtResource("phase")]([SubResource("game_master"), SubResource("developer"), SubResource("not_responding")])
+xp_reward = 16
+xp_growth = 5.5
+loot_chance = 0.0
+col_reward = 8
+col_growth = 2.5

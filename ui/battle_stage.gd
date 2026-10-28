@@ -53,6 +53,12 @@ const FRAME_LIFT := 12.0
 const HEADROOM := 12.0
 ## How far round each fighter the dark lifts, in cells.
 const LIGHT_RADIUS := 4
+## A boss's HP bar breaking: a white flare over it while it changes shape.
+const BREAK_FLARE := Color(4.0, 4.0, 4.0)
+const BREAK_TIME := 0.5
+## The pips under a boss's bar, one per bar to come, in world pixels.
+const PIP := Vector2(3, 1)
+const PIP_GAP := 1.0
 ## Anyone else in frame stands back to this, so a frozen boar at the edge of the
 ## fight doesn't read as a second enemy.
 const BYSTANDER_ALPHA := 0.25
@@ -72,6 +78,8 @@ var _player_camera: Camera2D
 ## Enemy [Combatant] to the map node standing in for it.
 var _nodes: Dictionary[Combatant, Node2D] = {}
 var _bars: Dictionary[Combatant, ProgressBar] = {}
+## A pip under a boss's bar for every HP bar still behind the one it is on.
+var _pips: Dictionary[Combatant, Array] = {}
 var _player: Combatant = null
 ## The bubble over each fighter's head, and who is showing the opening's alarm.
 var _emotes: Dictionary[Combatant, Sprite2D] = {}
@@ -214,6 +222,15 @@ func _build_bars() -> void:
 		add_child(bar)
 		bar.position = field.enemy_spots[field.enemy_nodes.find(_nodes[enemy])] + Vector2(-width / 2.0, 2)
 		_bars[enemy] = bar
+		var pips: Array[ColorRect] = []
+		for i in enemy.bars - 1:
+			var pip := ColorRect.new()
+			pip.size = PIP
+			pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			pip.position = bar.position + Vector2(i * (PIP.x + PIP_GAP), bar.size.y + 1)
+			add_child(pip)
+			pips.append(pip)
+		_pips[enemy] = pips
 		_refresh_bar(enemy)
 
 
@@ -224,9 +241,17 @@ func _refresh_bar(enemy: Combatant) -> void:
 	bar.value = enemy.hp_ratio() * 100.0
 	UiPalette.paint_bar(bar, UiPalette.hp_color(enemy.hp_ratio()))
 	bar.visible = enemy.is_alive()
+	var pips: Array = _pips.get(enemy, [])
+	for i in pips.size():
+		var pip := pips[i] as ColorRect
+		pip.color = UiPalette.hp_color(1.0)
+		pip.visible = enemy.is_alive() and i < enemy.bars_left() - 1
 
 
 func _on_action_resolved(report: CombatReport) -> void:
+	if report.kind == CombatReport.Kind.PHASE:
+		_break_bar(report)
+		return
 	if report.kind == CombatReport.Kind.OPENING \
 			or (report.kind == CombatReport.Kind.YIELD and not report.success):
 		_alarm(report.actor)
@@ -277,9 +302,9 @@ func _fx_of(report: CombatReport) -> SkillFx:
 		return ITEM_FX
 	if report.kind != CombatReport.Kind.SKILL or report.skill == null:
 		return null
-	var source := report.actor.source if report.actor != null else null
-	if report.skill == SkillLibrary.basic_attack() and source != null and source.strike_fx != null:
-		return source.strike_fx
+	var own := report.actor.strike_fx() if report.actor != null else null
+	if report.skill == SkillLibrary.basic_attack() and own != null:
+		return own
 	return report.skill.fx
 
 
@@ -402,6 +427,32 @@ func _refresh_emotes() -> void:
 		var over := _node_of(fighter)
 		bubble.position = (_spot_of(fighter) + Vector2(
 				roundf(_width_of(over) / 4.0), -_height_of(over) - shown.get_height())).round()
+
+
+## A boss's bar breaks: it flares white, takes its next shape under the flare
+## ([member BossPhase.form]) and fades back in, the bar full and a pip gone.
+func _break_bar(report: CombatReport) -> void:
+	var boss := report.actor
+	var node := _nodes.get(boss) as Node2D
+	_refresh_bar(boss)
+	_refresh_emotes()
+	var form := report.phase.form if report.phase != null else null
+	if CombatManager.step_delay <= 0.0:
+		if node != null and form != null and node.has_method(&"become"):
+			node.call(&"become", form)
+		return
+	Audio.play(&"bar_break")
+	_shake_camera()
+	var sprite := _sprite_of(boss)
+	if sprite == null:
+		return
+	var flare := sprite.create_tween()
+	flare.tween_property(sprite, "self_modulate", BREAK_FLARE, BREAK_TIME * 0.4)
+	flare.tween_callback(func() -> void:
+		if form != null and is_instance_valid(node) and node.has_method(&"become"):
+			node.call(&"become", form)
+		_refresh_emotes())
+	flare.tween_property(sprite, "self_modulate", Color.WHITE, BREAK_TIME * 0.6)
 
 
 ## A felled monster goes out in the pack's puff of smoke where it stands; the

@@ -90,6 +90,11 @@ func _ready() -> void:
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
 		get_tree().quit()
 		return
+	if "--phases" in OS.get_cmdline_user_args():
+		await _capture_phases(main)
+		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
+		get_tree().quit()
+		return
 	if "--bosses" in OS.get_cmdline_user_args():
 		await _capture_boss_fights()
 		print("screenshots in ", ProjectSettings.globalize_path(SHOTS))
@@ -486,27 +491,8 @@ func _capture_boss_fights() -> void:
 				GameState.clear_floor(below)
 			SceneRouter.change_map(fight[1], &"default")
 			map = await _arrived(floor_number, fight[1])
-		var walls := map.get_node("Walls") as TileMapLayer
-		var gate := map.get_node("BossGate") as BossGate
-		var player := map.get_node("Player") as Player
-		gate.reveal()
-		await _dismiss()
-		map.refresh_solids()
-		# Challenged from the doorstep: below it if that is floor, else beside it.
-		var door := walls.local_to_map(gate.position)
-		var stand := door + Vector2i.DOWN * 2
-		for offset: Vector2i in [Vector2i(0, 2), Vector2i(0, -2), Vector2i(2, 0), Vector2i(-2, 0),
-				Vector2i(0, 1), Vector2i(1, 1), Vector2i(-1, 1)]:
-			if map.is_standable(door + offset):
-				stand = door + offset
-				break
-		GameState.push_input_lock()
-		player.global_position = walls.map_to_local(stand) + Vector2(0, 4)
-		player.facing = Vector2(door - stand).normalized()
-		await _wait(0.4)
-		GameState.pop_input_lock()
-
-		gate.interact(player)
+		var gate := await _to_doorstep(map)
+		gate.interact(map.get_node("Player") as Player)
 		await _dismiss()
 		await _wait(0.25)
 		await _capture(tag + "a_stepout")
@@ -525,6 +511,102 @@ func _capture_boss_fights() -> void:
 		await _capture(tag + "d_hit")
 		await _finish(tag + "e_fall")
 		await _dismiss()
+
+
+## Stands the player on [param map]'s boss door's step -- below it if that is
+## floor, else beside it -- with the door found, and returns the door.
+func _to_doorstep(map: GameMap) -> BossGate:
+	var walls := map.get_node("Walls") as TileMapLayer
+	var gate := map.get_node("BossGate") as BossGate
+	var player := map.get_node("Player") as Player
+	gate.reveal()
+	await _dismiss()
+	map.refresh_solids()
+	var door := walls.local_to_map(gate.position)
+	var stand := door + Vector2i.DOWN * 2
+	for offset: Vector2i in [Vector2i(0, 2), Vector2i(0, -2), Vector2i(2, 0), Vector2i(-2, 0),
+			Vector2i(0, 1), Vector2i(1, 1), Vector2i(-1, 1)]:
+		if map.is_standable(door + offset):
+			stand = door + offset
+			break
+	GameState.push_input_lock()
+	player.global_position = walls.map_to_local(stand) + Vector2(0, 4)
+	player.facing = Vector2(door - stand).normalized()
+	await _wait(0.4)
+	GameState.pop_input_lock()
+	return gate
+
+
+## A boss's HP bars broken one by one ([BossPhase]): Illfang drawing the nodachi on
+## his last, and Hisukurifu through all four of his shapes -- his words before the
+## fight, at each bar and after it, and the ending it ends in.
+func _capture_phases(main: Node) -> void:
+	for fight: Array in [[1, "res://scenes/world/field.tscn", "illfang"],
+			[FloorTuning.TOP_FLOOR, "", "hisukurifu"]]:
+		var floor_number: int = fight[0]
+		var tag := "08p_%s_" % fight[2]
+		GameState.level = 150
+		GameState.max_hp = 9999
+		GameState.attack = 600
+		GameState.hp = GameState.max_hp
+		var map: GameMap
+		if (fight[1] as String).is_empty():
+			map = await _enter(floor_number)
+		else:
+			SceneRouter.change_map(fight[1], &"default")
+			map = await _arrived(floor_number, fight[1])
+		var gate := await _to_doorstep(map)
+		gate.interact(map.get_node("Player") as Player)
+		await _typed(main)
+		await _capture(tag + "0_door")
+		await _read_through(main)
+		await _until_command()
+		await _wait(0.3)
+		await _capture(tag + "1_menu")
+		var boss := CombatManager.living_enemies()[0]
+		for escort in CombatManager.living_enemies().slice(1):
+			escort.take_damage(escort.hp)
+		while boss.bars_left() > 1:
+			var bar := boss.bars - boss.bars_left() + 2
+			boss.hp = 1
+			_submit(CombatAction.use(SkillLibrary.basic_attack(), boss))
+			await _until(func() -> bool: return DialogueRunner.is_running() \
+					or CombatManager.is_awaiting_command() and boss.bars - boss.bars_left() + 1 == bar, 10.0)
+			if DialogueRunner.is_running():
+				await _typed(main)
+				await _capture(tag + "%d_words" % bar)
+				await _read_through(main)
+			await _until_command()
+			await _wait(0.6)
+			await _capture(tag + "%d_menu" % bar)
+		await _finish(tag + "9_fall")
+		if floor_number < FloorTuning.TOP_FLOOR:
+			await _dismiss()
+			continue
+		await _typed(main)
+		await _capture(tag + "a_farewell")
+		await _read_through(main)
+		Ending.pace = 0.25
+		await _until(func() -> bool: return get_tree().root.get_node_or_null("Ending") != null, 5.0)
+		var ending := get_tree().root.get_node("Ending") as Ending
+		await _wait(2.4 * Ending.pace + 1.2)
+		await _capture(tag + "b_epilogue")
+		await _until(func() -> bool: return ending._roll.visible, 30.0)
+		await _wait(2.5)
+		await _capture(tag + "c_credits")
+		await _until(func() -> bool: return get_tree().root.get_node_or_null("Ending") == null, 60.0)
+		await _wait(0.5)
+		await _capture(tag + "d_title")
+		Ending.pace = 1.0
+
+
+## Presses on through a conversation, a page at a time, until it closes.
+func _read_through(main: Node) -> void:
+	for _i in 40:
+		if not DialogueRunner.is_running():
+			return
+		await _typed(main)
+		await _press(&"interact")
 
 
 ## One monster fight in a room of each band's generated floor, and the lot on
@@ -604,6 +686,8 @@ func _finish(shot := "") -> void:
 	if not living.is_empty():
 		for escort in living.slice(1):
 			escort.take_damage(escort.hp)
+		# The bars behind this one go too, so the blow that ends it ends the fight.
+		living[0].phases.clear()
 		living[0].take_damage(living[0].hp - 1)
 		_submit(CombatAction.use(SkillLibrary.basic_attack(), living[0]))
 		if not shot.is_empty():

@@ -54,6 +54,7 @@ func _run() -> void:
 	await _test_rules()
 	await _test_opening()
 	await _test_duels()
+	await _test_phases()
 	await _test_determinism()
 	await _test_balance()
 
@@ -101,8 +102,18 @@ func _test_content() -> void:
 	var skills: Array[Skill] = [SkillLibrary.basic_attack(), load(Bestiary.BOSS_SKILL),
 			load(Bestiary.BETRAYAL_SKILL)]
 	skills.append_array(SkillLibrary.all())
+	var formless := PackedStringArray()
 	for id in Bestiary.ENEMIES:
-		skills.append_array(Bestiary.get_enemy(StringName(id)).skills)
+		var type := Bestiary.get_enemy(StringName(id))
+		skills.append_array(type.skills)
+		for phase in type.phases:
+			skills.append_array(phase.skills)
+			for extra: Skill in [phase.opens_with]:
+				if extra != null:
+					skills.append(extra)
+			if phase.form != null and phase.form.battler == null:
+				formless.append(id)
+	_check(formless.is_empty(), "every form a boss takes has a sprite (%s)" % formless)
 	var unseen := PackedStringArray()
 	var unmarked := PackedStringArray()
 	var statuses: Array[StatusEffect] = []
@@ -114,6 +125,10 @@ func _test_content() -> void:
 			unmarked.append(skill.id)
 		if skill.applies != null:
 			statuses.append(skill.applies)
+	for id in Bestiary.ENEMIES:
+		for phase in Bestiary.get_enemy(StringName(id)).phases:
+			if phase.buff != null:
+				statuses.append(phase.buff)
 	for id in ItemLibrary.ITEMS:
 		var item := ItemLibrary.get_item(StringName(id))
 		if item != null and item.applies != null:
@@ -491,6 +506,90 @@ func _test_duels() -> void:
 	_policy = &"attack"
 
 
+## A boss's HP bars ([BossPhase]): the HP shared between them, a bar emptied
+## filling the next and starting its phase -- a clean slate, the phase's moves,
+## stats and name -- and the fight only won on the last.
+func _test_phases() -> void:
+	print("\n-- HP bars and phases --")
+	var illfang := Bestiary.get_enemy(&"illfang")
+	_check(illfang.bars() == 4, "Illfang fights on four bars (%d)" % illfang.bars())
+	var whole := Combatant.from_enemy(illfang, 5)
+	_check(absi(whole.max_hp * whole.bars - illfang.hp_at(5)) <= whole.bars,
+			"his HP is shared between them, not added to (%d x %d against %d)" % [
+				whole.max_hp, whole.bars, illfang.hp_at(5)])
+	var nodachi := load("res://resources/skills/enemy/nodachi_flurry.tres") as Skill
+	_check(nodachi not in whole.skills, "the nodachi stays sheathed on the first bar")
+
+	# A bar emptied: the next is full at once, and what was left of the blow is lost.
+	var boss := Combatant.from_enemy(illfang, 5)
+	boss.apply_status(load("res://resources/statuses/poison.tres"))
+	boss.poise = 1
+	var dealt := boss.take_damage(boss.max_hp + 50)
+	_check(dealt == boss.max_hp and boss.hp == boss.max_hp and boss.breaking and boss.is_alive(),
+			"a blow that empties a bar takes only that bar, and the next is full")
+	_check(not boss.take_stagger(99), "a breaking bar can't be staggered")
+	var phase := boss.enter_phase()
+	_check(phase != null and not boss.breaking and boss.bars_left() == 3,
+			"entering the next phase leaves three bars (%d)" % boss.bars_left())
+	_check(boss.statuses.is_empty() and boss.poise == boss.max_poise,
+			"a new bar starts clean: no statuses, poise whole")
+	boss.take_damage(boss.max_hp)
+	boss.enter_phase()
+	var attack := boss.attack
+	var speed := boss.speed
+	boss.take_damage(boss.max_hp)
+	boss.enter_phase()
+	_check(nodachi in boss.skills and SkillLibrary.basic_attack() in boss.usable_skills(),
+			"on his last bar Illfang draws the nodachi")
+	_check(boss.attack > attack and boss.speed > speed,
+			"and fights harder and faster with it (%d->%d attack, %d->%d speed)" % [
+				attack, boss.attack, speed, boss.speed])
+	_check(boss.phase.form != null and boss.battler == boss.phase.form.battler,
+			"and looks it")
+	boss.take_damage(boss.max_hp + 1)
+	_check(not boss.is_alive() and not boss.breaking, "the last bar emptied is a death")
+
+	# The runner: a phase is reported, the fight is only won on the last bar, and
+	# the kill is announced once.
+	_set_player(40)
+	_spy(true)
+	_policy = &"attack"
+	CombatManager.set_seed(100)
+	var encounter := Bestiary.boss_encounter(1)
+	var result: CombatResult = await CombatManager.start(encounter)
+	var phases := _reports.filter(func(r: CombatReport) -> bool:
+		return r.kind == CombatReport.Kind.PHASE)
+	_check(result.victory, "a level-40 player cuts through all four of Illfang's bars")
+	_check(phases.size() == 3, "each bar broken is reported (%d)" % phases.size())
+	_check(phases.all(func(r: CombatReport) -> bool: return r.phase != null and r.actor.source == illfang),
+			"with the phase it starts")
+	_check(_defeated.count(&"illfang") == 1, "and Illfang falls once (%d)" % _defeated.count(&"illfang"))
+	_spy(false)
+
+	# The last fight: Hisukurifu's four bars, each another shape of him.
+	var final := Bestiary.boss_encounter(FloorTuning.TOP_FLOOR)
+	_check(final.boss_name == FloorTuning.FINAL_BOSS and final.enemies.size() == 1,
+			"floor 100's boss is %s, alone" % final.boss_name)
+	var names := PackedStringArray()
+	var him := Bestiary.build_boss(final.enemies[0], final.level, final.boss_name)
+	names.append(him.display_name)
+	while him.bars_left() > 1:
+		him.take_damage(him.max_hp)
+		him.enter_phase()
+		names.append(him.display_name)
+	_check(names.size() == 4 and Array(names).filter(func(n: String) -> bool:
+			return names.count(n) == 1).size() == 4,
+			"he fights as four different things (%s)" % ", ".join(names))
+	var spoken := 0
+	for each in final.enemies[0].phases:
+		if each.interlude() != null:
+			spoken += 1
+			for line in each.interlude().lines:
+				if "{" in line.text:
+					spoken = -100
+	_check(spoken == 3, "and has something to say at every bar, every key filled in")
+
+
 func _spy_turn(actor: Combatant) -> void:
 	_turns.append([CombatManager.round_number(), actor.is_player])
 
@@ -553,6 +652,10 @@ func _test_balance() -> void:
 
 	var fair := await _win_rate(50, 12, 4)
 	_check(fair == 0, "a badly underlevelled player loses to a floor 50 boss (%d/4)" % fair)
+	# The last fight is the hardest in the game: measured at 10/16 at the level its
+	# floor expects, 2/16 ten short and none twelve short.
+	var early := await _win_rate(FloorTuning.TOP_FLOOR, FloorTuning.enemy_level(FloorTuning.TOP_FLOOR) - 6, 8)
+	_check(early <= 2, "Hisukurifu is no walkover twelve levels short (%d/8)" % early)
 
 	# Floor events ([FloorEvents]), met partway up their floor: a field boss -- a
 	# floor's monster fought as a boss, alone -- and the pair of player killers. The
@@ -649,9 +752,11 @@ func _on_command_requested(actor: Combatant) -> void:
 ## weakest enemy first. Roughly how an attentive player fights, which is the
 ## standard the balance checks are written against.
 func _play_well(actor: Combatant, enemies: Array[Combatant]) -> bool:
+	# Weakest by all its HP, not by the bar it is on: a boss's bar is a fraction
+	# of it, and the escort beside it is still the one to cut down first.
 	var target: Combatant = enemies[0]
 	for enemy in enemies:
-		if enemy.max_hp < target.max_hp:
+		if enemy.max_hp * enemy.bars < target.max_hp * target.bars:
 			target = enemy
 
 	var best: Skill = SkillLibrary.basic_attack()

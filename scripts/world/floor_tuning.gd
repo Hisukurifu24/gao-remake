@@ -134,7 +134,14 @@ static func infested_count(floor_number: int) -> int:
 	return monster_count(floor_number) / 2
 
 
+## Who waits at the top of the Ruby Palace: the game's own developer, in the
+## avatar Heathcliff's name became when it was read out in Japanese.
+const FINAL_BOSS := "Hisukurifu"
+
+
 static func boss_name(floor_number: int) -> String:
+	if floor_number >= TOP_FLOOR:
+		return FINAL_BOSS
 	# Deterministic: floor 37's boss is always floor 37's boss. The two indices
 	# are mixed on different strides so they don't cycle in lockstep -- this
 	# pairing yields 100 distinct names across 100 floors.

@@ -54,6 +54,20 @@ var post_motion := 0
 ## Set when poise runs out: the next turn is lost and damage taken goes up.
 var staggered := false
 
+## The HP bars still to come after this one ([BossPhase]), in order, and how many
+## bars it started with. [member max_hp] is one bar's worth.
+var phases: Array[BossPhase] = []
+var bars := 1
+## Set by the blow that empties a bar with another behind it: the next bar is
+## already full, and [CombatManager] starts its phase before anything else happens.
+var breaking := false
+## The phase being fought now, null on the first bar, and the stats it came in with
+## that a phase scales.
+var phase: BossPhase = null
+var _base := Vector3i.ZERO
+## The moves the bar it is on brought, which the next phase's replace.
+var _own_skills: Array[Skill] = []
+
 
 static func from_enemy(type: EnemyType, at_level: int, override_name := "") -> Combatant:
 	var c := Combatant.new()
@@ -61,7 +75,10 @@ static func from_enemy(type: EnemyType, at_level: int, override_name := "") -> C
 	c.source = type
 	c.battler = type.battler
 	c.level = at_level
-	c.max_hp = type.hp_at(at_level)
+	# Its HP shared between its bars, so a phase moves the total nowhere.
+	c.bars = type.bars()
+	c.phases = type.phases.duplicate()
+	c.max_hp = maxi(1, roundi(type.hp_at(at_level) / float(c.bars)))
 	c.hp = c.max_hp
 	c.attack = type.attack_at(at_level)
 	c.defense = type.defense_at(at_level)
@@ -138,9 +155,16 @@ func is_incapacitated() -> bool:
 
 # --- damage ----------------------------------------------------------------
 
+## Takes up to [param amount] off the bar it is on, and returns what it took.
+## Emptying a bar with another behind it fills that one at once and marks it
+## [member breaking]: what was left of the blow is lost, as SAO's bars lose it.
 func take_damage(amount: int) -> int:
 	var dealt := mini(amount, hp)
 	hp = maxi(0, hp - amount)
+	if hp == 0 and not phases.is_empty():
+		hp = max_hp
+		breaking = true
+		return dealt
 	if hp == 0:
 		# Dying clears the reeling state so a corpse never reports as staggered.
 		staggered = false
@@ -156,13 +180,68 @@ func heal(amount: int) -> int:
 
 ## Chips away at poise. Returns true on the hit that breaks it.
 func take_stagger(amount: int) -> bool:
-	if amount <= 0 or staggered or not is_alive():
+	if amount <= 0 or staggered or breaking or not is_alive():
 		return false
 	poise = maxi(0, poise - amount)
 	if poise > 0:
 		return false
 	staggered = true
 	return true
+
+
+## HP bars left, counting the one it is on.
+func bars_left() -> int:
+	return phases.size() + 1
+
+
+## Starts the next bar's phase, which [method take_damage] has already filled:
+## a clean slate -- no statuses, no stagger, poise whole -- and whatever the phase
+## changes. Returns the phase, or null if there was none to start.
+func enter_phase() -> BossPhase:
+	breaking = false
+	if phases.is_empty():
+		return null
+	if phase == null:
+		_base = Vector3i(attack, defense, speed)
+		_own_skills = source.skills.duplicate() if source != null else [] as Array[Skill]
+	var next: BossPhase = phases.pop_front()
+	statuses.clear()
+	staggered = false
+	post_motion = 0
+	poise = max_poise
+	if not next.display_name.is_empty():
+		display_name = next.display_name
+	if not next.skills.is_empty():
+		for skill in _own_skills:
+			skills.erase(skill)
+		for skill in next.skills:
+			if skill not in skills:
+				skills.append(skill)
+		_own_skills = next.skills.duplicate()
+	attack = maxi(1, roundi(_base.x * next.attack_scale))
+	defense = maxi(0, roundi(_base.y * next.defense_scale))
+	speed = maxi(1, roundi(_base.z * next.speed_scale))
+	if next.form != null:
+		battler = next.form.battler
+	phase = next
+	if next.buff != null:
+		apply_status(next.buff)
+	return next
+
+
+## How its plain attack looks where it lands: its form's, or its type's. Null
+## lands with the attack's own.
+func strike_fx() -> SkillFx:
+	if phase != null and phase.form != null and phase.form.strike_fx != null:
+		return phase.form.strike_fx
+	return source.strike_fx if source != null else null
+
+
+## How often it reaches for a skill: its phase's, or its type's.
+func skill_bias() -> float:
+	if phase != null and phase.skill_bias >= 0.0:
+		return phase.skill_bias
+	return source.skill_bias if source != null else 0.5
 
 
 ## Called when the stagger has been paid for with a lost turn.
