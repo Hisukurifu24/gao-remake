@@ -29,6 +29,12 @@ const ITEMS: PackedStringArray = [
 	"lizard_scale", "drake_scale", "golem_core", "spirit_ash",
 	# Key items
 	"map_floor_2", "raid_tag",
+	# Villages' specialities -- each band's own, sold only at its villages' counter
+	# (ShopLibrary.village_shop), a wearable sidegrade and a consumable apiece
+	"clover_charm", "meadow_honey", "wolfskin_cloak", "bark_tonic", "delvers_pick",
+	"glowcap_broth", "kingdom_signet", "hourglass_sand", "lizardhide_vest", "marsh_remedy",
+	"glass_scimitar", "oasis_water", "snowfur_mantle", "smoked_char", "emberforged_blade",
+	"ember_scroll", "skyglass_pendant", "gale_scroll", "palace_guard_coat", "royal_elixir",
 ]
 
 static var _cache: Dictionary[StringName, Item] = {}

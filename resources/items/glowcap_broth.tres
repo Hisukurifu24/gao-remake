@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/glowcap_broth.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"glowcap_broth"
+display_name = "Glowcap Broth"
+description = "Mushroom broth that glows faintly in the bowl. Heals and settles whatever is in your blood."
+icon = ExtResource("icon")
+kind = 0
+rarity = 1
+max_stack = 10
+heal_percent = 45
+cures_debuffs = true
+price = 150
+shop_floor = 23

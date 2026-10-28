@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Shop" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/shop.gd" id="shop"]
+
+[resource]
+script = ExtResource("shop")
+id = &"village_sky"
+display_name = "Windward Stall"
+greeting = "Skyglass and gale scrolls. Mind the edge on your way out."
+wares = Array[StringName]([&"skyglass_pendant", &"gale_scroll", &"small_potion", &"health_potion", &"antidote"])

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Shop" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/shop.gd" id="shop"]
+
+[resource]
+script = ExtResource("shop")
+id = &"village_cave"
+display_name = "Delvers' Store"
+greeting = "Picks, lamps, broth. Everything you need down here but daylight."
+wares = Array[StringName]([&"delvers_pick", &"glowcap_broth", &"small_potion", &"health_potion", &"antidote"])

@@ -764,6 +764,57 @@ func _test_shops() -> void:
 			"the town, Ashlow and Lanternfall each have a shop (%s)" % [counters.keys()])
 	GameState._cleared_floors.clear()
 	GameState.reset_col()
+	_test_village_shops()
+
+
+## Every band's villages keep a counter whose specialities are the band's own: sold
+## at no other counter, a wearable and a consumable, and on the shelf the first
+## time a village of that band can be walked into -- floor n settles once n+3 is
+## cleared, so its shelf is read with n+3 reached at the most.
+func _test_village_shops() -> void:
+	var first_village: Dictionary[StringName, int] = {}
+	for n in range(1, FloorTuning.TOP_FLOOR + 1):
+		var biome := FloorRegistry.get_floor(n).biome.id
+		if LocalQuests.settles(n) and not first_village.has(biome):
+			first_village[biome] = n
+	var elsewhere := {}
+	for shop in ShopLibrary.all():
+		if not String(shop.id).begins_with("village_"):
+			for ware in shop.wares:
+				elsewhere[ware] = true
+	var problems := PackedStringArray()
+	var claimed := {}
+	for biome: StringName in first_village:
+		var shop := ShopLibrary.village_shop(biome)
+		if shop == null:
+			problems.append("%s has no village counter" % biome)
+			continue
+		var own := shop.wares.slice(0, ShopLibrary.SPECIALITIES)
+		var kinds := {}
+		for ware in own:
+			var item := ItemLibrary.get_item(ware)
+			if elsewhere.has(ware) or claimed.has(ware):
+				problems.append("%s's %s is sold elsewhere too" % [biome, ware])
+			claimed[ware] = true
+			kinds[item.is_equipment()] = true
+			if item.shop_floor > first_village[biome] + LocalQuests.SETTLE_AFTER:
+				problems.append("%s's %s isn't shelved until floor %d, past its first village's %d" % [
+						biome, ware, item.shop_floor, first_village[biome] + LocalQuests.SETTLE_AFTER])
+		if kinds.size() != 2:
+			problems.append("%s's specialities aren't a wearable and a consumable" % biome)
+		for ware in shop.wares.slice(ShopLibrary.SPECIALITIES):
+			if not elsewhere.has(ware):
+				problems.append("%s's staple %s is sold nowhere else" % [biome, ware])
+	_check(problems.is_empty() and first_village.size() == FloorRegistry.BIOME_BANDS.size(),
+			"every band's villages keep a counter of their own specialities, shelved by the first village (%s)" % problems)
+	# A speciality whose only effect lands in a fight is refused in the field, like
+	# the whetstone: a cure or a buff has nothing to work on outside one.
+	var field := PackedStringArray()
+	for ware in claimed:
+		var item := ItemLibrary.get_item(ware)
+		if item.is_consumable() and item.heal_percent == 0 and item.usable_in_field:
+			field.append(String(ware))
+	_check(field.is_empty(), "no speciality that only works in a fight is offered in the field (%s)" % field)
 
 
 ## The smith (M5.6's deep sink): a copy's +N, how it reaches combat, and the

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Shop" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/shop.gd" id="shop"]
+
+[resource]
+script = ExtResource("shop")
+id = &"village_meadow"
+display_name = "Village Stall"
+greeting = "Honey from the hives behind the houses, and clover from the field. And the usual, for the road."
+wares = Array[StringName]([&"clover_charm", &"meadow_honey", &"small_potion", &"health_potion", &"antidote"])

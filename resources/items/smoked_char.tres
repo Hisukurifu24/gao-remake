@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Item" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/smoked_char.png" id="icon"]
+[ext_resource type="Resource" path="res://resources/statuses/regen.tres" id="status"]
+
+[resource]
+script = ExtResource("item")
+id = &"smoked_char"
+display_name = "Smoked Char"
+description = "Ice-fished and smoked over pine. Heals half, and keeps you warm for a few turns more."
+icon = ExtResource("icon")
+kind = 0
+rarity = 1
+max_stack = 10
+heal_percent = 50
+applies = ExtResource("status")
+price = 700
+shop_floor = 63

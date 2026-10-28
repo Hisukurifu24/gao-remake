@@ -41,6 +41,9 @@ const SETTLERS: PackedStringArray = [
 	"Hollis", "Breda", "Odo", "Maeve", "Tobin", "Sefa", "Ewan", "Linnet", "Corra",
 	"Piet", "Aldis", "Runa", "Bastian", "Ivy", "Merrit", "Oona", "Fenwick", "Isolde",
 ]
+## Who keeps a village's counter: never a sheet a giver or anyone on an authored
+## floor wears, so the trader reads as the trader.
+const TRADER_SHEETS: PackedStringArray = ["Sultan2", "Village6", "Shaman"]
 ## Whoever goes into a labyrinth to map it and doesn't come back.
 const LOST_SHEETS: PackedStringArray = ["NinjaLeaf", "CamouflageRed", "Master", "Monk2", "Hunter"]
 
@@ -262,6 +265,27 @@ static func lost_person(floor_number: int) -> Dictionary:
 	if job.is_empty():
 		return {}
 	return {"name": job["lost"], "sheet": job["lost_sheet"]}
+
+
+## Who keeps floor [param floor_number]'s village counter: [code]{name, sheet}[/code],
+## or empty for a floor that never settles. Drawn from a stream of its own
+## ([code]hash("<seed>:trade")[/code]), so adding the counter moved no job: the
+## name is a settler's nobody else on the floor has.
+static func trader(floor_number: int) -> Dictionary:
+	if not settles(floor_number):
+		return {}
+	var plan := _plan(floor_number)
+	var taken := {}
+	for job: Dictionary in plan["jobs"]:
+		taken[job["giver"]] = true
+		taken[job["lost"]] = true
+	var names: Array = Array(SETTLERS).filter(func(n: String) -> bool: return not taken.has(n))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%d:trade" % FloorRegistry.seed_for(floor_number))
+	return {
+		"name": names[rng.randi() % names.size()],
+		"sheet": TRADER_SHEETS[rng.randi() % TRADER_SHEETS.size()],
+	}
 
 
 static func lost_talk_id(floor_number: int) -> StringName:

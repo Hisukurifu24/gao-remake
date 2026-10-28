@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/oasis_water.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"oasis_water"
+display_name = "Oasis Water"
+description = "Clear water from the one spring nobody's fouled. Heals most of what you've lost."
+icon = ExtResource("icon")
+kind = 0
+rarity = 1
+max_stack = 10
+heal_percent = 70
+price = 500
+shop_floor = 53

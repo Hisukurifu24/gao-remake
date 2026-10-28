@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/kingdom_signet.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"kingdom_signet"
+display_name = "Old Kingdom Signet"
+description = "A ring from whoever lived here before the players. The wraiths seem to know it."
+icon = ExtResource("icon")
+kind = 3
+rarity = 2
+attack_bonus = 4
+defense_bonus = 3
+price = 4000
+shop_floor = 33

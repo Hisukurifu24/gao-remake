@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/delvers_pick.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"delvers_pick"
+display_name = "Delver's Pick"
+description = "A miner's pick ground to an edge. Heavy, slow, and it does not glance off anything."
+icon = ExtResource("icon")
+kind = 1
+rarity = 1
+attack_bonus = 12
+defense_bonus = 3
+speed_bonus = -2
+price = 2400
+shop_floor = 23

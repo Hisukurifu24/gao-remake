@@ -1708,9 +1708,11 @@ func _settle_camera(player: Player) -> void:
 
 
 ## The same camps settled into villages, three floors behind the front line; a
-## settler offering their job; the lost player it sends you after, waiting in the
-## labyrinth; and the village on the map.
+## settler offering their job; the trader at the band's counter, and the counter
+## open; the lost player it sends you after, waiting in the labyrinth; and the
+## village on the map.
 func _capture_villages(main: Node) -> void:
+	var traded := false
 	for floor_number: int in CAMP_FLOORS:
 		GameState.clear_floor(floor_number - 1)
 		GameState.clear_floor(floor_number + LocalQuests.SETTLE_AFTER)
@@ -1718,9 +1720,23 @@ func _capture_villages(main: Node) -> void:
 		var map := await _arrived(floor_number)
 		await _wait(0.3)
 		await _capture("04zv_village_floor%02d" % floor_number)
+		var player := map.get_node("Player") as Player
+		# The first village with a counter: not every plot leaves its trader room.
+		var trader := map.get_node_or_null("Trader") as Npc
+		if trader != null and not traded:
+			traded = true
+			EventBus.col_granted.emit(40000)
+			_stand_by(map, player, trader)
+			await _wait(0.3)
+			await _capture("04zv_village_trader")
+			trader.interact(player)
+			await _wait(0.2)
+			await _press(&"move_down")
+			await _capture("04zv_village_counter")
+			main.get_node("ShopScreen").call(&"close")
+			await _frames(2)
 		if floor_number != CAMP_FLOORS[0]:
 			continue
-		var player := map.get_node("Player") as Player
 		var settler := map.get_node_or_null("Settler0") as Npc
 		if settler != null:
 			_stand_by(map, player, settler)

@@ -48,12 +48,35 @@ const ICONS := {
 	&"raid_tag": "Other/Stamp.png",
 	&"warden_seal": "Other/Letter3.png",
 	&"foremans_lantern": "",
+	# Villages' specialities
+	&"clover_charm": "Resource/Grass.png",
+	&"meadow_honey": "Food/Honey.png",
+	&"wolfskin_cloak": "",
+	&"bark_tonic": "Resource/Branch.png",
+	&"delvers_pick": "Weapons/Pickaxe/Sprite.png",
+	&"glowcap_broth": "Potion/MilkPot.png",
+	&"kingdom_signet": "",
+	&"hourglass_sand": "Object/Hourglass.png",
+	&"lizardhide_vest": "",
+	&"marsh_remedy": "Object/Gourd.png",
+	&"glass_scimitar": "Weapons/Katana/Sprite.png",
+	&"oasis_water": "Resource/Water.png",
+	&"snowfur_mantle": "",
+	&"smoked_char": "Food/Fish.png",
+	&"emberforged_blade": "Weapons/Sword2/Sprite.png",
+	&"ember_scroll": "Scroll/ScrollFire.png",
+	&"skyglass_pendant": "Resource/GemYellow.png",
+	&"gale_scroll": "Scroll/ScrollThunder.png",
+	&"palace_guard_coat": "",
+	&"royal_elixir": "Potion/Heart.png",
 }
 
 ## Item id -> a colour the sprite's pale, unsaturated pixels -- a blade's steel --
 ## are multiplied by, for a piece drawn as another's sprite in another metal.
 const TINTS := {
 	&"heartwood_blade": Color(0.62, 0.95, 0.5),
+	&"glass_scimitar": Color(0.62, 0.92, 1.0),
+	&"emberforged_blade": Color(1.0, 0.62, 0.38),
 }
 
 const INK := "141b1b"
@@ -124,6 +147,15 @@ var DRAWN := {
 	&"blackwyrm_coat": [_mirror(COAT_HALF),
 			{"c": "6b7486", "a": "454c5c", "b": "2e3340", "d": "1b1f26", "e": "a33c3c"}],
 	&"guard_ring": [RING, {"c": "ffffff", "a": "c9d4d8", "b": "7d8c94"}],
+	&"wolfskin_cloak": [_mirror(COAT_HALF),
+			{"c": "b8b8b0", "a": "8c8a84", "b": "625f5a", "d": "3a3836", "e": "c8a46a"}],
+	&"lizardhide_vest": [_mirror(COAT_HALF),
+			{"c": "8fb86a", "a": "5f8a48", "b": "3f6034", "d": "263c22", "e": "b0884a"}],
+	&"snowfur_mantle": [_mirror(COAT_HALF),
+			{"c": "ffffff", "a": "dfe6f0", "b": "aab6c8", "d": "6c7a90", "e": "7aa4d8"}],
+	&"palace_guard_coat": [_mirror(COAT_HALF),
+			{"c": "e0605a", "a": "b23a36", "b": "7e2426", "d": "4a1418", "e": "f0c860"}],
+	&"kingdom_signet": [RING, {"c": "fff2b0", "a": "e0b84a", "b": "a07a2a"}],
 	&"foremans_lantern": [LANTERN,
 			{"m": "c9944c", "d": "7a4f2e", "y": "ffd27a", "l": "fff4c8", "f": "f08a3c"}],
 }

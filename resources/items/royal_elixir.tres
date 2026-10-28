@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/royal_elixir.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"royal_elixir"
+display_name = "Royal Elixir"
+description = "From the palace's own cellars. Heals everything and clears everything."
+icon = ExtResource("icon")
+kind = 0
+rarity = 2
+max_stack = 10
+heal_percent = 100
+cures_debuffs = true
+price = 1500
+shop_floor = 93

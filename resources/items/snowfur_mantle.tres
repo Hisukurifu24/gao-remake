@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/snowfur_mantle.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"snowfur_mantle"
+display_name = "Snowfur Mantle"
+description = "Golem-hunters' furs, three layers deep. Warm, thick and slow."
+icon = ExtResource("icon")
+kind = 2
+rarity = 2
+defense_bonus = 12
+speed_bonus = -1
+max_hp_bonus = 60
+price = 14000
+shop_floor = 63

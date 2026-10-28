@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Shop" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/shop.gd" id="shop"]
+
+[resource]
+script = ExtResource("shop")
+id = &"village_castle"
+display_name = "Palace Quartermaster"
+greeting = "The palace guard's own kit, and the cellars' elixir. They won't be needing them."
+wares = Array[StringName]([&"palace_guard_coat", &"royal_elixir", &"small_potion", &"health_potion", &"antidote"])

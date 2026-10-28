@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/emberforged_blade.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"emberforged_blade"
+display_name = "Emberforged Blade"
+description = "Folded in the drakes' own fire. Runs hot in the hand; you learn to swing it fast or not at all."
+icon = ExtResource("icon")
+kind = 1
+rarity = 2
+attack_bonus = 42
+speed_bonus = -2
+max_hp_bonus = 20
+price = 20000
+shop_floor = 73

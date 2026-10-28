@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/lizardhide_vest.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"lizardhide_vest"
+display_name = "Lizardhide Vest"
+description = "Scale over leather, tanned in the bog. Stops a spear; doesn't help you run."
+icon = ExtResource("icon")
+kind = 2
+rarity = 2
+defense_bonus = 8
+speed_bonus = -2
+max_hp_bonus = 40
+price = 6500
+shop_floor = 43

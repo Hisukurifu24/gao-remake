@@ -77,6 +77,8 @@ var _villages := 0
 var _whole_villages := 0
 ## Villages with [constant FloorCamp.MIN_HOUSES] houses or more.
 var _streets := 0
+## Villages with a trader at the band's counter.
+var _traders := 0
 var _lost_jobs := 0
 var _lost_players := 0
 ## Gathered by [method _audit_arena] across every open field.
@@ -424,6 +426,10 @@ func _run() -> void:
 			and _lost_players == _lost_jobs,
 			"%d of %d settling floors grow a whole village (%d with %d houses or more), and all %d lost players wait in a dead end" % [
 				_whole_villages, _settling, _streets, FloorCamp.MIN_HOUSES, _lost_jobs])
+	# And most keep a counter: the trader stands on a camper's old cell, so a plot
+	# the village's houses fill has none. Measured at 76 of 94 on this seed.
+	_check(_traders * 100 >= _villages * 75,
+			"%d of %d villages keep their band's counter" % [_traders, _villages])
 	# A gilded chest is a gamble only if all three outcomes turn up somewhere.
 	var plain: int = _gilded.get(Chest.Trap.NONE, 0)
 	var alarms: int = _gilded.get(Chest.Trap.ALARM, 0)
@@ -2242,6 +2248,8 @@ func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_numbe
 	var campers: Array[Npc] = []
 	# A village's settlers stand in the camp too, and are held to what campers are.
 	var settlers: Array[Npc] = []
+	# And its trader, solid like them, with a counter rather than a conversation.
+	var traders: Array[Npc] = []
 	for child in map.get_children():
 		var node := child as Node2D
 		if node == null:
@@ -2252,6 +2260,8 @@ func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_numbe
 			campers.append(node)
 		if node is Npc and String(node.name).begins_with("Settler"):
 			settlers.append(node)
+		if node is Npc and node.name == &"Trader":
+			traders.append(node)
 	if fire != null and fire.rests:
 		return "%s's cookfire rests you" % label
 	# The plot was carved whole, so anything on the walls in it is a tent's or a
@@ -2265,7 +2275,7 @@ func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_numbe
 
 	# Everything solid the camp put down, gone and back.
 	var shapes: Array[CollisionShape2D] = []
-	for node: Node2D in ([fire] if fire != null else []) + campers + settlers:
+	for node: Node2D in ([fire] if fire != null else []) + campers + settlers + traders:
 		shapes.append(node.get_node("Solid/CollisionShape2D") as CollisionShape2D)
 	var atlas: Array[Vector2i] = []
 	for cell in tent_cells:
@@ -2315,10 +2325,27 @@ func _audit_camp(map: GameMap, walls: TileMapLayer, start: Vector2i, floor_numbe
 			reached = reached or with.has(at + step)
 		if not reached:
 			return "%s's %s can't be walked up to" % [label, camper.name]
+	var biome := FloorRegistry.get_floor(floor_number).biome
+	for trader in traders:
+		var at := walls.local_to_map(trader.position)
+		if not map.has_meta(&"village"):
+			return "%s has a trader before it has settled" % label
+		if not plot.has_point(at):
+			return "%s's trader stands outside the camp" % label
+		var counter := ShopLibrary.village_shop(biome.id)
+		if trader.shop == null or counter == null or trader.shop.id != counter.id \
+				or trader.shop.wares != counter.wares:
+			return "%s's trader doesn't keep the %s villages' counter" % [label, biome.id]
+		if trader.shop.keeper.is_empty() or trader.shop.keeper != trader.display_name:
+			return "%s's trader is nobody" % label
+		var reached := false
+		for step: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			reached = reached or with.has(at + step)
+		if not reached:
+			return "%s's trader can't be walked up to" % label
 
 	# A footprint with no tent or house drawn over it is an invisible wall -- and a
 	# house drawn where nothing stands is one you walk through.
-	var biome := FloorRegistry.get_floor(floor_number).biome
 	var props := map.get_node_or_null("Props") as TileMapLayer
 	var source := biome.tile_set.get_source(0) as TileSetAtlasSource
 	var tents := 0
@@ -2398,6 +2425,15 @@ func _audit_village(map: GameMap, camp_plot: Rect2i, unsettled: String, floor_nu
 	var houses: Array = map.get_meta(&"village")
 	if not houses.is_empty() and settlers == jobs.size():
 		_whole_villages += 1
+	# Kept by someone nobody else on the floor is.
+	var trader := map.get_node_or_null("Trader") as Npc
+	if trader != null:
+		for i in jobs.size():
+			if LocalQuests.giver(jobs[i]).get("name", "") == trader.display_name:
+				return "%s's trader is also %s's giver" % [label, jobs[i]]
+		if LocalQuests.lost_person(floor_number).get("name", "") == trader.display_name:
+			return "%s's trader is the player lost in its labyrinth" % label
+		_traders += 1
 	if houses.size() >= FloorCamp.MIN_HOUSES:
 		_streets += 1
 

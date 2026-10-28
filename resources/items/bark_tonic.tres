@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Item" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/bark_tonic.png" id="icon"]
+[ext_resource type="Resource" path="res://resources/statuses/guarded.tres" id="status"]
+
+[resource]
+script = ExtResource("item")
+id = &"bark_tonic"
+display_name = "Bark Tonic"
+description = "Bitter as the pines it's boiled from. Your skin goes hard as bark for a few turns."
+icon = ExtResource("icon")
+kind = 0
+rarity = 1
+max_stack = 5
+applies = ExtResource("status")
+usable_in_field = false
+price = 80
+shop_floor = 14

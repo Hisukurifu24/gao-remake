@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Shop" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/shop.gd" id="shop"]
+
+[resource]
+script = ExtResource("shop")
+id = &"village_desert"
+display_name = "Glassblower's"
+greeting = "Glass from the dunes, water from the spring. Both cost what they cost."
+wares = Array[StringName]([&"glass_scimitar", &"oasis_water", &"small_potion", &"health_potion", &"antidote"])

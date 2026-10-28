@@ -1484,7 +1484,7 @@ already chosen, so no new decision was asked for; the numbers are mine, flagged 
   floor's kills and that she sells the door rather than the route; the peddler's 40%
   and town prices (no mark-up for the walk); and Lanternfall and Ashlow having no
   smith of their own yet.
-- *Still not built:* villages' floor-exclusive stock. (Death Game mode: built with M7.)
+- *Villages' stock*: built 2026-10-28, under M6's settling. (Death Game mode: built with M7.)
 
 ### M6 — World depth & floor content
 The 100-floor architecture is in (see *Floors of Aincrad* below); this is the pass that
@@ -2161,9 +2161,57 @@ Built:
   through the settler's real conversation; the inventory test covers the jobs' pay;
   the smoke test settles a real floor 2 and finds its lost player.
   `tools/screenshot.gd -- --villages` frames one per band.
-- *Not built:* the higher tiers (generated floors top out at village, decided), and
-  floor-exclusive stock — M5.6's shops are in (2026-10-07), so a settler's counter is
-  a `Shop` and an `Npc.shop` away.
+- *Not built:* the higher tiers (generated floors top out at village, decided).
+- [x] **Villages' stock** *(decided and built 2026-10-28)*. **Decided** (asked): next
+  after room shapes, over Floor 40, M7's polish and floor 100's phases. The rest were
+  calls of mine, below.
+  - [x] **One counter per band** (`resources/shops/village_<biome>.tres`,
+    `ShopLibrary.village_shop()`): every village of a band keeps the same counter --
+    the band's two **specialities**, sold at no other counter, then the staples (both
+    potions, the antidote). A speciality is a **wearable sidegrade** and a
+    **consumable**, so the gates go back to a band for something it makes, never for
+    power the climb needs:
+
+    | band | wearable | consumable |
+    |---|---|---|
+    | meadow | Clover Charm (HP+20, SPD+1) | Meadow Honey (heals 25%, regenerates) |
+    | forest | Wolfskin Cloak (DEF+2, SPD+2, HP+10) | Bark Tonic (*Guarded*: DEF+30%) |
+    | cave | Delver's Pick (ATK+12, DEF+3, SPD-2) | Glowcap Broth (heals 45%, cures) |
+    | ruins | Old Kingdom Signet (ATK+4, DEF+3) | Hourglass Sand (*Hasted*: SPD+30%) |
+    | swamp | Lizardhide Vest (DEF+8, HP+40, SPD-2) | Marsh Remedy (cures, regenerates) |
+    | desert | Glass Scimitar (ATK+30, DEF-4, SPD+1) | Oasis Water (heals 70%) |
+    | ice | Snowfur Mantle (DEF+12, HP+60, SPD-1) | Smoked Char (heals 50%, regenerates) |
+    | volcanic | Emberforged Blade (ATK+42, SPD-2, HP+20) | Ember Scroll (heals 30%, *Focused*) |
+    | sky | Skyglass Pendant (SPD+6, HP+40) | Gale Scroll (heals 30%, *Hasted*) |
+    | castle | Palace Guard Coat (DEF+20, HP+80, SPD-3) | Royal Elixir (heals 100%, cures) |
+
+    Two new buffs carry them, `guarded` and `hasted` (`resources/statuses/`). Each
+    piece is shelved from its band's first village (`shop_floor` = that floor + 3:
+    5, 14, 23 ... 93) and priced at a sixth or so of a climb's kills by then; the
+    economy check holds every one to being affordable. Icons are pack sprites (honey,
+    a pickaxe, an hourglass, scrolls, the heart) and four more of the coat table and
+    one of the ring in band colours (`tools/build_item_icons.gd`).
+  - [x] **The trader** (`Trader`) stands on the first of the campers' cells the
+    village leaves free and in one piece. The campers have gone up with the front
+    line, and their cells are out of the open cells the puzzles read on *every*
+    floor, so the counter moved nothing and asked no stream where to stand. Who
+    keeps it is the floor's (`LocalQuests.trader()`, its own stream
+    `hash("<seed>:trade")`): a settler's name no giver or lost player there has, in
+    a merchant's sheet nobody else wears.
+  - [x] Tests: the inventory test holds every band to a counter of its own
+    specialities (a wearable and a consumable, sold nowhere else, shelved by its
+    first village, staples sold elsewhere too), a fight-only speciality to being
+    refused in the field, and every ware to the economy check; the floor test's
+    village audit wants the trader in the plot, walkable up to, solid without
+    cutting anything off, keeping the band's counter under a name of its own -- 76
+    of 94 villages have one on the test's seed (it wants 75%). `tools/screenshot.gd -- --villages` frames the trader and the
+    counter open.
+  - *Calls of mine, flag if wrong:* the twenty items and their numbers; one counter
+    per band, not per floor (a floor-by-floor shelf would be ninety to remember); the
+    staples beside the specialities; no trader where every camper's cell is taken;
+    and **Argo** not yet telling you who sells what (the plan's note) -- a band's
+    counter is the same in every village of it, so there is less to remember than
+    the note assumed.
 
 #### Floor 10 — Ashlow Wood ✅
 
@@ -2618,7 +2666,10 @@ gate and the camp has become a village: the adventurers have moved on with the f
 line, houses in the band's own style stand round the tents they left — igloos on the
 ice, stilt huts over the bog — and the people who stopped climbing have jobs for you.
 Thin out the boars at the door, bring in three wolf fangs, or go back into the
-labyrinth after the mapmaker who never came out.
+labyrinth after the mapmaker who never came out. And someone in every village keeps a
+counter of what the band makes and nobody else sells: clover charms and honey in the
+meadow, wolfskin in the pines, glass blades and spring water in the desert, snowfur on
+the ice, the palace guard's own coats under the Ruby Palace.
 
 And not every floor is a maze any more. About one floor in seven is an open field:
 no labyrinth and no dark, a wider spread of clearings, and the boss's arena standing in
@@ -2669,10 +2720,10 @@ the settings or quit to the title. A loaded game puts you on the very spot you s
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 229-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 159-check floor system test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 160-check floor system test
 "$GODOT" --headless --path . res://test/dialogue_test.tscn  # 61-check dialogue test
-"$GODOT" --headless --path . res://test/inventory_test.tscn # 207-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 97-check combat test
+"$GODOT" --headless --path . res://test/inventory_test.tscn # 219-check inventory test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 111-check combat test
 "$GODOT" --headless --path . res://test/quest_test.tscn     # 211-check quest test
 "$GODOT" --headless --path . res://test/save_test.tscn      # 150-check save test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
@@ -2735,14 +2786,15 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    floors have a lake, a great tree, a memorial or a ruined arch in a room of their
    own, named on **M**, read with **E**, pointed out by the camp. **And room shapes
    (2026-10-27)**: caverns, L and cross halls and pillared halls in the rooms nothing
-   else uses -- the last of the levers. Next: the villages' floor-exclusive stock,
-   Floor 40, or M7's polish.
+   else uses -- the last of the levers. **And villages' stock (2026-10-28)**: a trader
+   in every village keeping the band's counter. Next: Floor 40, M7's polish, or floor
+   100's phases.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where
    you fall. **The sinks built 2026-10-09**: Nezha's forge (+N per copy, Col and
-   materials, can fail), Argo selling boss doors, a peddler in some safe zones. Still
-   to build: villages' floor-exclusive stock. (Death Game mode landed with M7's
+   materials, can fail), Argo selling boss doors, a peddler in some safe zones. **And
+   villages' stock, 2026-10-28**: each band's specialities at its villages' counter. (Death Game mode landed with M7's
    title screen, 2026-10-21.)
 4. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
    a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest

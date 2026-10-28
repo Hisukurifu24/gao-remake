@@ -21,7 +21,8 @@ extends RefCounted
 ## [b]The camp settles[/b] once the floor [constant LocalQuests.SETTLE_AFTER] above
 ## it is cleared: the players who camped there have gone up with the front line,
 ## houses of the band's own look go up round the tents they left, and a settler
-## stands outside each of two of them with a job ([LocalQuests]). Where they go is
+## stands outside each of two of them with a job ([LocalQuests]), and a trader keeps
+## the band's counter ([method ShopLibrary.village_shop]) on a camper's old ground. Where they go is
 ## planned on every floor, settled or not, and kept out of what the puzzles see --
 ## so a floor that settles moves nothing but the houses going up. Which houses
 ## comes from a stream of its own ([code]hash("<seed>:village")[/code]).
@@ -206,6 +207,9 @@ var house_variants: Array[int] = []
 var cabins: Array[int] = []
 ## Where each job's settler stands, in tiles, outside a house.
 var settlers: Array[Vector2i] = []
+## Where the village's trader stands, in tiles, or (-1, -1) where no camper's cell
+## is left free: one of [member people], so it was never open to the puzzles.
+var trader_cell := Vector2i(-1, -1)
 ## Where the floor's lost player waits, in tiles: a dead end in the labyrinth.
 var lost_cell := Vector2i(-1, -1)
 
@@ -429,6 +433,13 @@ func _plan_village(layout: Array) -> void:
 			spot = _person_spot(hearth, GATHER, taken, roofs)
 		if spot.x >= 0:
 			settlers.append(spot)
+	# The trader on the first camper's cell the village leaves free and in one
+	# piece. Only the campers' cells: they are out of the open cells the puzzles
+	# read on every floor, so a counter moves nothing -- and no stream is asked.
+	for cell in people:
+		if not roofs.has(cell) and not taken.has(cell) and _fits(Rect2i(cell, Vector2i.ONE), taken):
+			trader_cell = cell
+			break
 
 	for house in houses:
 		for y in range(house.position.y, house.end.y):
@@ -664,6 +675,17 @@ func _place_village(map: Node2D, dead_end: Array) -> void:
 		var who := LocalQuests.giver(jobs[i])
 		var npc := _person(settlers[i], who["sheet"], who["name"], LocalQuests.giver_dialogue(jobs[i]))
 		npc.name = "Settler%d" % i
+		map.add_child(npc)
+	var counter := ShopLibrary.village_shop(_biome.id)
+	var keeper := LocalQuests.trader(floor_number)
+	if trader_cell.x >= 0 and counter != null and not keeper.is_empty():
+		# The band's counter, kept by this floor's trader.
+		var shop := counter.duplicate() as Shop
+		shop.keeper = keeper["name"]
+		var npc := _person(trader_cell, keeper["sheet"], keeper["name"], null)
+		npc.name = "Trader"
+		npc.set(&"shop", shop)
+		npc.set(&"prompt_verb", "Trade with")
 		map.add_child(npc)
 	var lost := LocalQuests.lost_person(floor_number)
 	var job := LocalQuests.talk_quest(floor_number)
