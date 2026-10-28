@@ -23,6 +23,7 @@
 y_sort_enabled = true
 script = ExtResource("1_g6yr2")
 map_id = &"town"
+music = &"town"
 display_name = "Town of Beginnings"
 floor_number = 1
 

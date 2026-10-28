@@ -23,6 +23,7 @@ dim_region = Rect2(48, 48, 16, 16)
 lit_region = Rect2(64, 48, 16, 16)
 pulses = false
 woken_line = "The lever comes down with a clank, and stays down."
+sound = &"lever"
 progress_line = "%s of %s. Somewhere ahead, something heavy shifts in the stone."
 prompt_verb = "Pull"
 display_name = "the lever"

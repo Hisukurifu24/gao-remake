@@ -31,6 +31,7 @@ func _init() -> void:
 
 func interact(by: Node) -> void:
 	super.interact(by)
+	Audio.play(&"read")
 	EventBus.message_requested.emit("", lines)
 
 

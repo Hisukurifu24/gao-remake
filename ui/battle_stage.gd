@@ -249,6 +249,7 @@ func _on_action_resolved(report: CombatReport) -> void:
 
 
 func _land(report: CombatReport) -> void:
+	_hear(report)
 	var heavy := false
 	var fx := _fx_of(report)
 	var swing := Vector2(field.axis) * (1.0 if report.actor != null and report.actor.is_player else -1.0)
@@ -280,6 +281,33 @@ func _fx_of(report: CombatReport) -> SkillFx:
 	if report.skill == SkillLibrary.basic_attack() and source != null and source.strike_fx != null:
 		return source.strike_fx
 	return report.skill.fx
+
+
+## What [param report] sounds like where it lands: the blow's own sound
+## ([member SkillFx.sound]) if anything was hit, a whoosh if it all missed, and a
+## crack over it for a crit or a stagger. A guard, a poison's tick and a
+## regeneration's have their own.
+func _hear(report: CombatReport) -> void:
+	if CombatManager.step_delay <= 0.0:
+		return
+	match report.kind:
+		CombatReport.Kind.DEFEND:
+			Audio.play(&"guard")
+			return
+		CombatReport.Kind.STATUS:
+			for hit in report.hits:
+				Audio.play(&"hurt" if hit.amount < 0 else &"heal")
+			return
+	if report.hits.is_empty():
+		return
+	var landed := report.hits.filter(func(hit: CombatReport.Hit) -> bool: return not hit.missed)
+	if landed.is_empty():
+		Audio.play(&"miss")
+		return
+	var fx := _fx_of(report)
+	Audio.play(fx.sound if fx != null and not fx.sound.is_empty() else &"hit")
+	if landed.any(func(hit: CombatReport.Hit) -> bool: return hit.crit or hit.staggered):
+		Audio.play(&"crit")
 
 
 ## Plays [param fx] once over [param target]'s body. A cut is mirrored or turned
@@ -341,6 +369,7 @@ func _on_turn_began(_actor: Combatant) -> void:
 func _alarm(striker: Combatant) -> void:
 	if striker == null or CombatManager.step_delay <= 0.0:
 		return
+	Audio.play(&"alarm")
 	for fighter in _emotes:
 		if fighter.is_player != striker.is_player:
 			_alarmed.append(fighter)
@@ -385,6 +414,7 @@ func _fall(enemy: Combatant) -> void:
 	if CombatManager.step_delay <= 0.0:
 		sprite.modulate.a = 0.0
 		return
+	Audio.play(&"fall")
 	var fade := sprite.create_tween()
 	fade.tween_interval(FLASH_TIME)
 	fade.tween_property(sprite, "modulate:a", 0.0, SMOKE_FRAME_TIME * 2)

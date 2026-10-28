@@ -69,6 +69,7 @@ func _physics_process(delta: float) -> void:
 		State.IDLE:
 			if gap <= NOTICE:
 				state = State.LEADING
+				Audio.play(&"wisp")
 		State.LEADING:
 			if gap > WAIT:
 				state = State.WAITING
@@ -108,6 +109,7 @@ func _arrive() -> void:
 	await tween.finished
 	if solved_flag != &"":
 		GameState.set_flag(solved_flag)
+	Audio.play(&"solved")
 	EventBus.message_requested.emit("", PackedStringArray([
 		"The wisp sinks into the stone lantern, and it lights from inside.",
 	]))

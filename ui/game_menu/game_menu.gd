@@ -76,6 +76,7 @@ func open(on_tab := Tab.STATUS, force := false) -> void:
 	_open = true
 	visible = true
 	GameState.push_input_lock()
+	Audio.play(&"open")
 	EventBus.game_menu_toggled.emit(true)
 	_paint_col()
 	_tab = on_tab
@@ -104,6 +105,7 @@ func show_tab(next: Tab) -> void:
 		return
 	if next == _tab:
 		return
+	Audio.play(&"tab")
 	_pages[_tab].hidden()
 	_tab = next
 	_show_current()
@@ -130,12 +132,16 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	get_viewport().set_input_as_handled()
 	if event.is_action_pressed(&"pause") or event.is_action_pressed(&"ui_cancel"):
-		if not _pages[_tab].back():
+		if _pages[_tab].back():
+			Audio.play(&"cancel")
+		else:
+			Audio.play(&"close")
 			close()
 		return
 	for action: StringName in HOTKEYS:
 		if action != &"pause" and event.is_action_pressed(action):
 			if HOTKEYS[action] == _tab:
+				Audio.play(&"close")
 				close()
 			else:
 				show_tab(HOTKEYS[action])

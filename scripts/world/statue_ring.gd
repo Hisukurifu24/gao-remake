@@ -73,8 +73,10 @@ func _on_turned(_by: Node, statue: Statue) -> void:
 		return
 	for i in turned_by(statue.index, statues.size()):
 		statues[i].face(statues[i].facing + 1)
+	Audio.play(&"stone")
 	if all_facing():
 		GameState.set_flag(solved_flag)
+		Audio.play(&"solved")
 		EventBus.message_requested.emit("", PackedStringArray([
 			"The last statue grinds round to face the altar, and the orb on it wakes.",
 		]))

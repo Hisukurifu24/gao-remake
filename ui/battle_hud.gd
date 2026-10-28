@@ -89,9 +89,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		_move_selection(1)
 	elif event.is_action_pressed(&"interact") or event.is_action_pressed(&"ui_accept"):
 		get_viewport().set_input_as_handled()
+		Audio.play(&"accept")
 		_confirm()
 	elif event.is_action_pressed(&"ui_cancel"):
 		get_viewport().set_input_as_handled()
+		if _phase != Phase.ROOT:
+			Audio.play(&"cancel")
 		_cancel()
 
 
@@ -329,11 +332,14 @@ func _move_selection(step: int) -> void:
 	var count := _list.get_child_count()
 	if count == 0:
 		return
+	var was := _selected
 	for i in range(1, count + 1):
 		var candidate := (_selected + step * i + count * count) % count
 		if not _list.get_child(candidate).get_meta(&"locked", false):
 			_selected = candidate
 			break
+	if _selected != was:
+		Audio.play(&"move")
 	_paint()
 
 

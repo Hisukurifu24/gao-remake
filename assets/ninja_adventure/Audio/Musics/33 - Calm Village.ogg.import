@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/33 - Calm Village.ogg-2dde71e95b4638d10a8dd29
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

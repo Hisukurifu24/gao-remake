@@ -9,3 +9,4 @@ sheet = ExtResource("sheet")
 frames = 4
 frame_time = 0.06
 follows_swing = true
+sound = &"slash"

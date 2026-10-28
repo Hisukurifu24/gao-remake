@@ -35,6 +35,7 @@ func interact(by: Node) -> void:
 		_say("You warm your hands at the fire. You are already rested.")
 		return
 	GameState.heal_to_full()
+	Audio.play(&"rest")
 	_say("You sit by the fire a while. Your wounds close.")
 
 

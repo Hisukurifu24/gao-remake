@@ -102,6 +102,8 @@ func interact(by: Node) -> void:
 		GameState.set_flag(opened_flag)
 	_puff()
 	break_open()
+	Audio.play(&"crumble")
+	Audio.play(&"solved")
 	EventBus.message_requested.emit("", PackedStringArray([
 		"The cracked %s gives under your hand and falls in." % _noun(),
 		"There is a hollow behind it.",

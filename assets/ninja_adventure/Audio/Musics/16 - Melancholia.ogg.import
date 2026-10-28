@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/16 - Melancholia.ogg-a536429895403b111678b2a7
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

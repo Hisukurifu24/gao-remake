@@ -183,6 +183,7 @@ func _step_out(encounter: Encounter) -> void:
 		EventBus.battle_staged.emit(field)
 		return
 	GameState.push_input_lock()
+	Audio.play(&"boss_appears")
 	for figure in _figures:
 		figure.modulate.a = 0.0
 	var out := create_tween().set_parallel()

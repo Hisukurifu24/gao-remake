@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/28 - Tension.ogg-3bca71095d4694c99cc5ee616619
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

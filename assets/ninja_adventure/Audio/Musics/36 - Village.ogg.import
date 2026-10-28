@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/36 - Village.ogg-a5404d8eae3e1fbc881c036fb437
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

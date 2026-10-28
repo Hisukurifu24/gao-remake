@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/35 - Adventure.ogg-930586b9383a698768fe3d2fb3
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/24 - Final Area.ogg-f0a9a32d06b07876636844b95
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

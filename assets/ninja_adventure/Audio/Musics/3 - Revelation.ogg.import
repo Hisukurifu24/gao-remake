@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/3 - Revelation.ogg-13aa4ef5be872a22187cb64e77
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

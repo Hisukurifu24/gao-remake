@@ -133,7 +133,7 @@ loop, not gaps in it. Nothing here blocks M5.
   M5.5 §5's battle screen. Hit-stop deliberately not (see there).
 - [ ] **Speed-up / auto-repeat for trash.** Hold to fast-forward, repeat the last
   action. `CombatManager.step_delay` is already the one knob for pacing.
-- [ ] Combat SFX and music (bundled into M7 with the rest of audio).
+- [x] Combat SFX and music -- built with the rest of M7's audio (2026-10-28).
 
 *Blocked on another milestone:*
 - [x] **Items in battle** — landed with M3. `CombatAction.Kind.ITEM` costs the
@@ -2321,7 +2321,7 @@ And what the tests learned from it:
 - The generated-floor check said "all 99" and had been counting fewer since Floor 10. It
   counts now: 97.
 
-### M7 — Save/load, polish, audio *(the save decided and built 2026-10-15; title, pause and the three modes built 2026-10-21; the menus redone classic and settings built 2026-10-22)*
+### M7 — Save/load, polish, audio *(the save decided and built 2026-10-15; title, pause and the three modes built 2026-10-21; the menus redone classic and settings built 2026-10-22; audio built 2026-10-28)*
 Asked, the user chose: **save anywhere plus autosave** (a hardcore mode with no saving
 at all comes later), **three slots**, a loaded game resumes on **the exact spot**, and
 the first slice is **the save/load core and its tests** -- no menus yet.
@@ -2448,8 +2448,62 @@ the first slice is **the save/load core and its tests** -- no menus yet.
     Status**, not on System; category tabs are walked into from the bag (up off its top
     row) rather than given keys of their own; no volume settings until there is audio,
     no key rebinding yet; the credits name the user and the pack's authors.
-- [ ] Settings still to come: volume once there is audio, key bindings.
-- [ ] SFX/music, screen shake, hit-stop, transitions; controller support.
+- [x] **Audio** *(decided and built 2026-10-28)*. **Decided** (asked): audio next,
+  over Floor 40, floor 100's phases and name entry/key binding. The rest were calls
+  of mine, below. All of it is the Ninja Adventure pack's own audio, which was
+  already in the repo.
+  - [x] **`Audio` (autoload, `scripts/autoload/audio.gd`)** -- a view, like the HUD.
+    It hears the bus for whatever is already announced (a level, a quest taken or
+    turned in, a door found, Col paid outside a fight, a field potion, a full bag, the
+    forge taking, a manual save, a flight, the idle countdown, a logout); nodes ask it
+    by id for what only they know (a chest's lid, a wall breaking, a seal, a lever, a
+    monster noticing you, a boss stepping out, a cursor). Two tables say what an id
+    is: `SoundLibrary` (files, level, detune, jingle or not) and `MusicLibrary`.
+  - [x] **Music by place, then by fight.** `GameMap` says what kind of place the
+    player has stepped into (`EventBus.map_area_entered`: the open, a labyrinth's
+    dark, a safe zone) and the music follows: one track per band (Adventure,
+    Dark Forest, The Cave, Ruins, Curse, Temple, Dream, Tension, Ascension, Dark
+    Castle), the town its own (Village), every labyrinth's dark *Dungeon* and every
+    safe zone *Clearing*, on any floor. A dungeon's lit entrance hall is the open.
+    A fight lays *Fight* over it -- a floor's or a field boss's the longer *Fight*,
+    the top floor's *Final Area* -- and the place's track comes back where it was
+    left. The title plays *Adventure Begin*, the credits page *Credit Theme*.
+    Crossfades throughout.
+  - [x] **Jingles**: a fanfare on a win (a bigger one for a boss), the pack's game
+    over on a loss, a level-up (after a fight's fanfare, not over it), a door found
+    and a puzzle solved (the pack's two *Secret*s), a quest taken and turned in, and
+    a logout's. One at a time, in turn, the music ducked under each.
+  - [x] **Sounds**: every skill effect lands with its own (`SkillFx.sound`: slashes,
+    claws, flame, a blast, a quake, a spell), a whoosh on a miss, a crack over a crit
+    or stagger, a guard, a poison's tick, a monster going up in smoke; chests (gilded
+    louder), the trap's alarm and warp, the campfire, braziers, statues, the crack,
+    seals, waystones, levers, the wisp setting off, tablets and landmarks read, the
+    gate's warp, Col, the forge's success and failure, a monster noticing you, a boss
+    stepping out; and the menus -- cursor, confirm, refuse, back, tabs, open, close,
+    a page of conversation.
+  - [x] **A storm is heard**: rain, a blizzard's wind, a sandstorm's, ash falling
+    in a near-silent wind -- looping, on the map's `Weather`.
+  - [x] **Volume settings**: Music and Sounds, in tenths (0 mutes), on the title and
+    in System, written to `settings.cfg` like the rest; two buses
+    (`default_bus_layout.tres`).
+  - [x] **Tests**: `test/audio_test.tscn`, the eighth suite. The tables (every file
+    loads, tracks loop and sounds don't, jingles short); **an id sweep** reading every
+    script and scene for the sounds and tracks they ask for -- a missing one is
+    silence, which nobody reports; each band's track and the fights'; the buses and
+    volumes; jingles taking turns; a storm heard once its map is up; and a booted game
+    walked from the town into a floor 2's labyrinth and safe zone and out, then a fight
+    won there, the music following each step. The save test's settings page counts
+    the two new rows.
+  - *Calls of mine, flag if wrong:* **which track plays where** (chosen by the pack's
+    titles, not by ear -- the table is one line each to change); one track for every
+    labyrinth and every safe zone rather than one per band; no music of its own for
+    camps and villages (they play the band's); a place's track resumes after a fight
+    rather than restarting; the fanfare and level-up as jingles over ducked music
+    rather than stopping it; mouse hover making the cursor sound like a key does; no
+    footsteps (the pack has none) and no typewriter blips; music 7/10 and sounds 8/10
+    by default.
+- [ ] Settings still to come: key bindings.
+- [ ] Screen shake beyond the fight's, hit-stop, transitions; controller support.
 
 ---
 
@@ -2716,6 +2770,14 @@ menu -- your status, the bag with you standing in your gear, the journal, the ma
 and the system page to save, go back to the last save (not on Hardcore), change
 the settings or quit to the title. A loaded game puts you on the very spot you saved on.
 
+And it sounds like something now. Every band has its own music, the town has its
+own, and a labyrinth's dark has one that follows you in on every floor -- until you
+reach the campfire, where something gentler plays. A monster that catches you
+cuts to a fight's theme, a boss to a bigger one, and the walk's music comes back
+where it left off once the fanfare is over. Blades swish and claws thud, chests
+chime, seals grind open, a solved puzzle plays its little tune, a storm rains on
+you; the menus click. Music and sound each have a volume in the settings.
+
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
@@ -2726,6 +2788,7 @@ GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --headless --path . res://test/combat_test.tscn    # 111-check combat test
 "$GODOT" --headless --path . res://test/quest_test.tscn     # 211-check quest test
 "$GODOT" --headless --path . res://test/save_test.tscn      # 150-check save test
+"$GODOT" --headless --path . res://test/audio_test.tscn     # 48-check audio test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -2787,8 +2850,9 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    own, named on **M**, read with **E**, pointed out by the camp. **And room shapes
    (2026-10-27)**: caverns, L and cross halls and pillared halls in the rooms nothing
    else uses -- the last of the levers. **And villages' stock (2026-10-28)**: a trader
-   in every village keeping the band's counter. Next: Floor 40, M7's polish, or floor
-   100's phases.
+   in every village keeping the band's counter. **And M7's audio (2026-10-28)**:
+   music by band and by place, fights and fanfares, sounds, volumes. Next: Floor 40,
+   floor 100's phases, or M7's name entry and key binding.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where
@@ -2806,7 +2870,8 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    it, so it no longer gets more expensive by itself. **The title screen, the pause
    menu and the three modes (standard, Hardcore, Marathon -- named so 2026-10-23) built 2026-10-21; the
    menus redone classic (a tabbed game menu, a paged title) and settings built
-   2026-10-22.** Left on M7: name entry, volume/key settings, and the polish/audio half. *The old note, for the record:*
+   2026-10-22; audio and the volume settings 2026-10-28.** Left on M7: name entry,
+   key settings, and the rest of the polish (transitions, hit-stop, controller). *The old note, for the record:*
    **M7 save/load is the one thing getting more expensive with every milestone.**
    M5.6 added the purse (`GameState._col`), the dropped pile (`_dropped_col`) and
    every gear stack's `plus` -- worn ones too, since a slot now holds the stack.

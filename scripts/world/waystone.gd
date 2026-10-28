@@ -26,6 +26,8 @@ const PULSE_DEPTH := 0.18
 ## while there are more to wake.
 @export var woken_line := "The waystone wakes under your hand, and a light comes up in it."
 @export var progress_line := "%s of %s. Somewhere across the field the arena's seal hums."
+## What waking it sounds like ([SoundLibrary]).
+@export var sound: StringName = &"waystone"
 
 var _time := 0.0
 
@@ -66,6 +68,7 @@ func interact(by: Node) -> void:
 	# Said before the flag is set: the last stone's flag breaks the seal, and what
 	# the seal says has to come after this, not before it.
 	EventBus.message_requested.emit("", lines)
+	Audio.play(sound)
 	GameState.set_flag(flag)
 	_show()
 

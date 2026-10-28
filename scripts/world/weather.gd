@@ -9,6 +9,8 @@ extends Node2D
 ## where you can see, and a labyrinth's black stays black. It keeps itself over whatever
 ## camera is current, the player's or a fight's, so the weather never runs out at
 ## the edge of a view; what has already fallen stays where it fell in the world.
+## And it is heard: the pack's rain or wind, looping on the Sounds bus for as long
+## as the map is up.
 
 const RAIN := preload("res://assets/ninja_adventure/FX/Particle/Rain.png")
 const SPLASH := preload("res://assets/ninja_adventure/FX/Particle/RainOnFloor.png")
@@ -19,31 +21,36 @@ const FOG := preload("res://assets/ninja_adventure/FX/Environment/Fog.png")
 ## frames, drawn in [code]colour[/code]) -- along [code]fall[/code] at
 ## [code]speed[/code] px/s, [code]amount[/code] at once, each for
 ## [code]life[/code] seconds -- whether rain splashes, and the haze's colour and
-## drift in px/s.
+## drift in px/s -- and what it sounds like, a looping file under
+## [constant SoundLibrary.ROOT] at [code]db[/code].
 const LOOKS := {
 	&"rain": {
 		"tint": Color(0.76, 0.8, 0.9), "sheet": "rain", "frames": 3,
 		"colour": Color(0.85, 0.9, 1.0, 0.75), "fall": Vector2(-0.45, 1.0),
 		"speed": Vector2(230, 270), "amount": 110, "life": 0.65, "splash": true,
 		"haze": Color(0.8, 0.85, 0.95, 0.22), "drift": Vector2(-10, 4),
+		"sound": "Sounds/Ambient/Rain2.wav", "db": -8.0,
 	},
 	&"snow": {
 		"tint": Color(0.9, 0.93, 1.0), "sheet": "flakes", "frames": 7,
 		"colour": Color(0.78, 0.85, 1.0, 0.95), "fall": Vector2(1.0, 0.55),
 		"speed": Vector2(70, 110), "amount": 170, "life": 3.5, "splash": false,
 		"haze": Color(1, 1, 1, 0.26), "drift": Vector2(36, 8),
+		"sound": "Sounds/Ambient/Wind.wav", "db": -6.0,
 	},
 	&"sand": {
 		"tint": Color(1.0, 0.88, 0.72), "sheet": "flakes", "frames": 7,
 		"colour": Color(0.95, 0.8, 0.55, 0.85), "fall": Vector2(1.0, 0.12),
 		"speed": Vector2(170, 230), "amount": 130, "life": 2.0, "splash": false,
 		"haze": Color(0.95, 0.78, 0.5, 0.42), "drift": Vector2(70, 2),
+		"sound": "Sounds/Ambient/Wind2.wav", "db": -6.0,
 	},
 	&"ash": {
 		"tint": Color(0.82, 0.74, 0.72), "sheet": "flakes", "frames": 7,
 		"colour": Color(0.78, 0.74, 0.72, 0.9), "fall": Vector2(0.25, 1.0),
 		"speed": Vector2(16, 30), "amount": 180, "life": 7.0, "splash": false,
 		"haze": Color(0.35, 0.25, 0.22, 0.25), "drift": Vector2(6, 3),
+		"sound": "Sounds/Ambient/Wind.wav", "db": -14.0,
 	},
 }
 ## Over everything on the map but the dark ([Darkness] is 10).
@@ -112,6 +119,14 @@ func setup(weather: StringName) -> void:
 		_splashes.anim_speed_min = 1.0
 		_splashes.anim_speed_max = 1.0
 		_splashes.color = Color(0.85, 0.9, 1.0, 0.6)
+	# Plays once the map is in the tree, and stops with it.
+	var sound := AudioStreamPlayer.new()
+	sound.name = "Sound"
+	sound.stream = load(SoundLibrary.ROOT + str(look["sound"])) as AudioStream
+	sound.volume_db = look["db"]
+	sound.bus = &"Sounds"
+	sound.autoplay = true
+	add_child(sound)
 
 
 func _particles(node_name: String, sheet: Texture2D, frames: int) -> CPUParticles2D:

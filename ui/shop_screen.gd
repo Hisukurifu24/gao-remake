@@ -79,6 +79,7 @@ func open(shop: Shop) -> void:
 	_greeting.text = "%s: \"%s\"" % [shop.keeper, shop.greeting] if not shop.keeper.is_empty() \
 			else shop.greeting
 	GameState.push_input_lock()
+	Audio.play(&"open")
 	_set_mode(Mode.BUY)
 
 
@@ -112,6 +113,11 @@ func trade() -> bool:
 	if done:
 		_news = "Bought %s." % item.label() if _mode == Mode.BUY \
 				else "Sold %s for %d col." % [item.label(), item.sell_price()]
+		# A sale is the purse being paid, which [Audio] hears for itself.
+		if _mode == Mode.BUY:
+			Audio.play(&"buy")
+	else:
+		Audio.play(&"refuse")
 	_refresh()
 	return done
 
@@ -155,6 +161,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 	if event.is_action_pressed(&"ui_cancel"):
+		Audio.play(&"close")
 		close()
 	elif event.is_action_pressed(&"move_up") or event.is_action_pressed(&"ui_up"):
 		_select(_index - 1)
@@ -162,6 +169,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_select(_index + 1)
 	elif event.is_action_pressed(&"move_left") or event.is_action_pressed(&"ui_left") \
 			or event.is_action_pressed(&"move_right") or event.is_action_pressed(&"ui_right"):
+		Audio.play(&"tab")
 		_set_mode(Mode.SELL if _mode == Mode.BUY else Mode.BUY)
 	elif event.is_action_pressed(&"interact") or event.is_action_pressed(&"ui_accept"):
 		trade()
@@ -171,6 +179,7 @@ func _select(index: int) -> void:
 	index = clampi(index, 0, maxi(0, _entries.size() - 1))
 	if index == _index:
 		return
+	Audio.play(&"move")
 	_index = index
 	_news = ""
 	_scroll_to(index)

@@ -82,8 +82,17 @@ func text_of(at: int) -> String:
 	return said
 
 
+## The cursor moved by the player -- a key, the wheel, the mouse -- which is
+## heard; [method select] is the page putting it somewhere, which isn't.
 func move(by: int) -> void:
-	select(index + by)
+	_moved_to(index + by)
+
+
+func _moved_to(at: int) -> void:
+	var was := index
+	select(at)
+	if index != was:
+		Audio.play(&"move")
 
 
 func select(at: int) -> void:
@@ -99,12 +108,14 @@ func select(at: int) -> void:
 
 func choose() -> void:
 	if index >= 0 and index < _rows.size():
+		Audio.play(&"accept" if is_enabled(index) else &"refuse")
 		chosen.emit(index)
 
 
 ## Left and right on a row with a value; nothing on one without.
 func step(by: int) -> void:
 	if index >= 0 and index < _rows.size() and _rows[index].has("value"):
+		Audio.play(&"move" if is_enabled(index) else &"refuse")
 		stepped.emit(index, by)
 
 
@@ -117,7 +128,7 @@ func _rebuild() -> void:
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_STOP
 		row.add_theme_constant_override(&"separation", 3)
-		row.mouse_entered.connect(select.bind(i))
+		row.mouse_entered.connect(_moved_to.bind(i))
 		row.gui_input.connect(_on_row_input.bind(i))
 
 		var cursor := TextureRect.new()

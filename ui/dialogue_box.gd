@@ -57,6 +57,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_move_selection(1)
 		elif event.is_action_pressed(&"interact") or event.is_action_pressed(&"ui_accept"):
 			get_viewport().set_input_as_handled()
+			Audio.play(&"accept")
 			DialogueRunner.choose(_selected)
 		return
 
@@ -66,6 +67,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _is_typing():
 			_finish_typing()
 		else:
+			Audio.play(&"advance")
 			DialogueRunner.advance()
 
 
@@ -159,11 +161,14 @@ func _move_selection(step: int) -> void:
 	var count := _choices.size()
 	if count == 0:
 		return
+	var was := _selected
 	for i in range(1, count + 1):
 		var candidate := (_selected + step * i + count * count) % count
 		if _choices[candidate].is_unlocked():
 			_selected = candidate
 			break
+	if _selected != was:
+		Audio.play(&"move")
 	_paint_selection()
 
 

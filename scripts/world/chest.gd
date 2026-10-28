@@ -89,6 +89,7 @@ func interact(by: Node) -> void:
 		return
 
 	_open()
+	Audio.play(&"chest_gilded" if gilded else &"chest")
 	EventBus.item_granted.emit(item_id, amount)
 	var coins := col_amount()
 	if coins > 0:
@@ -101,6 +102,7 @@ func interact(by: Node) -> void:
 	match trap:
 		Trap.ALARM:
 			_say(found, "The lid clicks. An alarm shrieks through the floor, and something answers it.")
+			Audio.play(&"alarm")
 			_sound_alarm(by as Node2D)
 		Trap.TELEPORT:
 			_say(found, "The lid clicks. The floor flares white under your feet --")
@@ -227,6 +229,7 @@ func _teleport(by: Node2D) -> void:
 		return
 	if DialogueRunner.is_running():
 		await EventBus.dialogue_finished
+	Audio.play(&"warp")
 	await SceneRouter.blink(func() -> void:
 		if not is_instance_valid(by):
 			return

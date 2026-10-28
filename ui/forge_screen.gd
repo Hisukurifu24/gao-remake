@@ -81,6 +81,7 @@ func open(smith: Smith) -> void:
 	_greeting.text = "%s: \"%s\"" % [smith.keeper, smith.greeting] if not smith.keeper.is_empty() \
 			else smith.greeting
 	GameState.push_input_lock()
+	Audio.play(&"open")
 	_deaf_until = _seconds() + Player.INTERACT_GRACE
 	_index = 0
 	_top = 0
@@ -110,7 +111,10 @@ func extra() -> int:
 
 func set_extra(value: int) -> void:
 	var stack := selected()
+	var was := _extra
 	_extra = clampi(value, 0, Smith.max_extra(stack) if stack != null else 0)
+	if _extra != was:
+		Audio.play(&"move")
 	_news = ""
 	_paint()
 
@@ -128,6 +132,9 @@ func work(roll := -1.0) -> Smith.Outcome:
 		Smith.Outcome.FAILED:
 			_news = "It didn't take. Still +%d." % stack.plus
 			_news_good = false
+			Audio.play(&"forge_failed")
+		Smith.Outcome.REFUSED:
+			Audio.play(&"refuse")
 	_refresh()
 	return outcome
 
@@ -170,6 +177,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 	if event.is_action_pressed(&"ui_cancel"):
+		Audio.play(&"close")
 		close()
 	elif event.is_action_pressed(&"move_up") or event.is_action_pressed(&"ui_up"):
 		_select(_index - 1)
@@ -188,6 +196,7 @@ func _select(index: int) -> void:
 	index = clampi(index, 0, maxi(0, _entries.size() - 1))
 	if index == _index:
 		return
+	Audio.play(&"move")
 	_index = index
 	_extra = 0
 	_news = ""

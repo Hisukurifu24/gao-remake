@@ -147,6 +147,7 @@ func _select(index: int) -> void:
 	index = clampi(index, 0, _entries.size() - 1)
 	if index == _index:
 		return
+	Audio.play(&"move")
 	_index = index
 	_paint_rows()
 	_draw_detail()
@@ -156,6 +157,7 @@ func _select(index: int) -> void:
 ## anything that is not a live quest, so a finished one simply does nothing.
 func _track_selected() -> void:
 	if _selected_id() != &"":
+		Audio.play(&"accept")
 		QuestLog.track(_selected_id())
 
 

@@ -70,6 +70,7 @@ func open(here: int) -> void:
 	_scroll_to(_index)
 	GameState.push_input_lock()
 	_counts.text = "%d floor%s reached" % [_entries.size(), "" if _entries.size() == 1 else "s"]
+	Audio.play(&"open")
 	_paint()
 
 
@@ -91,8 +92,10 @@ func selected_floor() -> int:
 func travel() -> void:
 	var floor_number := selected_floor()
 	if floor_number <= 0 or floor_number == _here:
+		Audio.play(&"refuse")
 		return
 	close()
+	Audio.play(&"warp")
 	SceneRouter.enter_floor(floor_number, &"gate")
 
 
@@ -119,6 +122,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 	if event.is_action_pressed(&"ui_cancel"):
+		Audio.play(&"close")
 		close()
 	elif event.is_action_pressed(&"move_up") or event.is_action_pressed(&"ui_up"):
 		_select(_index - 1)
@@ -138,6 +142,7 @@ func _select(index: int) -> void:
 	index = clampi(index, 0, _entries.size() - 1)
 	if index == _index:
 		return
+	Audio.play(&"move")
 	_index = index
 	_scroll_to(index)
 	_paint()

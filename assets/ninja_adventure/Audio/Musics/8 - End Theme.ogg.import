@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/8 - End Theme.ogg-b14a0ece21aeca27d76d2c227f5
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

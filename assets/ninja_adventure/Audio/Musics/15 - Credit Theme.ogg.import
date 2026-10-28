@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/15 - Credit Theme.ogg-38bb4f121a36ee72abf3c8e
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

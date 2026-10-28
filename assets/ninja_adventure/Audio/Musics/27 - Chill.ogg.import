@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/27 - Chill.ogg-1a3ca5db3d0fd8729aed438509f43b
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

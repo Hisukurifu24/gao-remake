@@ -134,6 +134,8 @@ func _show_page(next: Page) -> void:
 	_cards.visible = next in [Page.LOAD, Page.NEW_MODE, Page.NEW_SLOT]
 	_settings.visible = next == Page.SETTINGS
 	_credits.visible = next == Page.CREDITS
+	# The credits have a tune of their own; every other page plays the title's.
+	Audio.play_over(&"credits" if next == Page.CREDITS else &"")
 	match next:
 		Page.MAIN:
 			_menu.set_rows(_main_rows())
@@ -367,6 +369,8 @@ func delete_selected() -> void:
 
 
 func _back() -> void:
+	if _page != Page.MAIN:
+		Audio.play(&"cancel")
 	match _page:
 		Page.NEW_SLOT:
 			_show_page(Page.NEW_MODE)

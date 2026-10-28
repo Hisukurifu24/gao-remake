@@ -1,7 +1,7 @@
 class_name SkillFx
 extends Resource
-## How a blow looks where it lands: one of the pack's effect sheets, played once
-## over whoever it hits.
+## How a blow looks and sounds where it lands: one of the pack's effect sheets,
+## played once over whoever it hits, and a sound from [SoundLibrary].
 ##
 ## Pure presentation, like [member Skill.announce]. Combat never reads it; the
 ## view that draws the fight does ([code]ui/battle_stage.gd[/code]). One sheet
@@ -15,3 +15,6 @@ extends Resource
 ## The pack draws its cuts and claws sweeping one way. Mirrored when the blow
 ## travels the other, so a slash always follows the swing.
 @export var follows_swing := true
+## What it sounds like landing: an id in [constant SoundLibrary.SOUNDS]. Empty
+## is a plain hit.
+@export var sound: StringName = &""

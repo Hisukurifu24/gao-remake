@@ -70,6 +70,7 @@ func _initialize() -> void:
 
 func _build_town(biome: BiomeKit) -> Node2D:
 	var map := _new_map("Town", &"town", "Town of Beginnings", biome)
+	map.set(&"music", &"town")
 	var ground: TileMapLayer = map.get_node("Ground")
 	var walls: TileMapLayer = map.get_node("Walls")
 

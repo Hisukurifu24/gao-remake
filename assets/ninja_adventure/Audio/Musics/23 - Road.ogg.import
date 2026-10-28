@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/23 - Road.ogg-e8157aea8ad2c2b75a976400b57d4f1
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

@@ -9,7 +9,8 @@ extends MenuList
 
 signal back
 
-const ROWS: Array[StringName] = [&"fullscreen", &"window_scale", &"text_speed", &"screen_shake"]
+const ROWS: Array[StringName] = [&"fullscreen", &"window_scale", &"text_speed", &"screen_shake",
+		&"music_volume", &"sound_volume"]
 
 
 func _ready() -> void:
@@ -26,6 +27,8 @@ func refresh() -> void:
 				"enabled": not Settings.fullscreen},
 		{"text": "Text speed", "value": Settings.text_speed_name()},
 		{"text": "Screen shake", "value": "On" if Settings.screen_shake else "Off"},
+		{"text": "Music", "value": _volume(Settings.music_volume)},
+		{"text": "Sounds", "value": _volume(Settings.sound_volume)},
 		{"text": "Back"},
 	]
 	set_rows(rows, true)
@@ -39,6 +42,8 @@ func describe(at: int) -> String:
 				if not Settings.fullscreen else "Fullscreen fills the screen."
 		2: return "How fast conversations write themselves out."
 		3: return "Whether a critical hit or a stagger shakes the camera."
+		4: return "How loud the music plays."
+		5: return "How loud everything else is: blows, chests, menus, fanfares."
 	return "Settings are saved as you change them."
 
 
@@ -57,6 +62,14 @@ func _on_stepped(at: int, by: int) -> void:
 					wrapi(Settings.text_speed + by, 0, Settings.TEXT_SPEEDS.size()))
 		&"screen_shake":
 			Settings.set_value(&"screen_shake", not Settings.screen_shake)
+		&"music_volume", &"sound_volume":
+			var now := int(Settings.get(ROWS[at]))
+			Settings.set_value(ROWS[at], wrapi(now + by, 0, Settings.VOLUME_STEPS + 1))
+
+
+## A volume as the row shows it: off, or tenths.
+static func _volume(steps: int) -> String:
+	return "Off" if steps <= 0 else "%d / %d" % [steps, Settings.VOLUME_STEPS]
 
 
 func _on_chosen(at: int) -> void:

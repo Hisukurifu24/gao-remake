@@ -265,6 +265,7 @@ func _set_state(next: State) -> void:
 	_unseen = 0.0
 	if next == State.CHASE:
 		_alert = ALERT_SECONDS
+		Audio.play(&"notice")
 	elif next == State.WANDER:
 		_goal = global_position
 		_rest = randf_range(0.5, 1.5)

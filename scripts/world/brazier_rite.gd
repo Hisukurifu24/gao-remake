@@ -64,6 +64,7 @@ func _on_lit(_by: Node, brazier: Brazier) -> void:
 	if is_solved() or brazier.lit or _failing:
 		return
 	brazier.set_lit(true)
+	Audio.play(&"fire")
 	if mode == Mode.ORDERED and brazier.index != order[_lit.size()]:
 		_failing = true
 		await get_tree().create_timer(WRONG_FLARE).timeout
@@ -78,12 +79,14 @@ func _on_lit(_by: Node, brazier: Brazier) -> void:
 		for each in braziers:
 			each.set_fuel(1.0)
 		GameState.set_flag(solved_flag)
+		Audio.play(&"solved")
 		EventBus.message_requested.emit("", PackedStringArray([
 			"The last fire catches. Somewhere close, stone grinds against stone.",
 		]))
 
 
 func _fail(text: String) -> void:
+	Audio.play(&"refuse")
 	for brazier in braziers:
 		brazier.set_lit(false)
 	_lit.clear()

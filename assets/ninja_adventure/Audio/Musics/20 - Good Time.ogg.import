@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/20 - Good Time.ogg-f181d2159a3b85d07dd1fa08ac
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

@@ -802,8 +802,8 @@ func _test_title_screen() -> void:
 	rows.select(3)
 	rows.choose()
 	var settings := title.call(&"list") as MenuList
-	_check(title.call(&"page") == 4 and settings is SettingsList and settings.row_count() == 5,
-			"Settings lists the window, the text, the camera, and Back")
+	_check(title.call(&"page") == 4 and settings is SettingsList and settings.row_count() == 7,
+			"Settings lists the window, the text, the camera, the two volumes, and Back")
 	settings.select(2)
 	settings.step(1)
 	var file := ConfigFile.new()

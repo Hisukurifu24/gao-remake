@@ -31,7 +31,7 @@ func set_cards(cards: Array[PanelContainer], keep_cursor := false) -> void:
 	for i in cards.size():
 		var card := cards[i]
 		card.mouse_filter = Control.MOUSE_FILTER_STOP
-		card.mouse_entered.connect(select.bind(i))
+		card.mouse_entered.connect(_moved_to.bind(i))
 		card.gui_input.connect(_on_card_input.bind(i))
 		add_child(card)
 	index = clampi(index if keep_cursor else 0, 0, maxi(0, cards.size() - 1))
@@ -46,8 +46,17 @@ func card(at: int) -> PanelContainer:
 	return _cards[at] if at >= 0 and at < _cards.size() else null
 
 
+## The cursor moved by the player, which is heard; [method select] is the page
+## putting it somewhere, which isn't.
 func move(by: int) -> void:
-	select(index + by)
+	_moved_to(index + by)
+
+
+func _moved_to(at: int) -> void:
+	var was := index
+	select(at)
+	if index != was:
+		Audio.play(&"move")
 
 
 func select(at: int) -> void:
@@ -63,6 +72,7 @@ func select(at: int) -> void:
 
 func choose() -> void:
 	if index >= 0 and index < _cards.size():
+		Audio.play(&"accept")
 		chosen.emit(index)
 
 

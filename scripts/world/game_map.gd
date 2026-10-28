@@ -61,6 +61,9 @@ const DROPPED_COL_SCENE := preload("res://scenes/world/dropped_col.tscn")
 ## How far a [Monster] notices you, as a share of [constant Monster.AGGRO_RADIUS]:
 ## less in a storm.
 @export var notice_scale := 1.0
+## The map's own music ([constant MusicLibrary.TRACKS]); empty plays its band's.
+## A labyrinth's dark and a safe zone have theirs wherever they are.
+@export var music: StringName = &""
 
 var _player: Player = null
 var _walls: TileMapLayer = null
@@ -68,6 +71,8 @@ var _walls: TileMapLayer = null
 var _biome: BiomeKit = null
 ## The cell the player was last seen from, so fog only works when they move.
 var _seen_from := Vector2i(1 << 30, 1 << 30)
+## What kind of place that cell is, for the music ([method area_at]).
+var _area: StringName = &""
 var _darkness: Darkness = null
 ## Floor cells a standing prop draws over -- the lane a forest's crowns hang
 ## across. Built on first use; props never move.
@@ -218,6 +223,10 @@ func _physics_process(_delta: float) -> void:
 	_seen_from = cell
 	if is_safe_cell(cell) and not was_safe:
 		_entered_safe_zone()
+	var area := area_at(cell)
+	if area != _area:
+		_area = area
+		EventBus.map_area_entered.emit(self, area)
 	var lit := FogOfWar.visible_from(cell, FogOfWar.RADIUS, blocks_sight)
 	GameState.explore(map_id, lit)
 	var near: Array[Vector2i] = []
@@ -258,6 +267,20 @@ func is_safe(point: Vector2) -> bool:
 		return false
 	_resolve_layers()
 	return _walls != null and is_safe_cell(_walls.local_to_map(_walls.to_local(to_global(point))))
+
+
+## What kind of place [param cell] is: by a safe zone's fire, in the dark, or
+## out in the open ([constant MusicLibrary.SAFE] / [constant MusicLibrary.DARK] /
+## [constant MusicLibrary.OPEN]). A lit hall in the dark is the open.
+func area_at(cell: Vector2i) -> StringName:
+	if is_safe_cell(cell):
+		return MusicLibrary.SAFE
+	if dark_area.has_point(cell):
+		for lit in lit_areas:
+			if lit.has_point(cell):
+				return MusicLibrary.OPEN
+		return MusicLibrary.DARK
+	return MusicLibrary.OPEN
 
 
 func is_safe_cell(cell: Vector2i) -> bool:

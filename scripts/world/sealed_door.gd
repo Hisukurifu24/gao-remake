@@ -100,6 +100,7 @@ func _set_opened() -> void:
 
 
 func _break() -> void:
+	Audio.play(&"unseal")
 	var tween := create_tween()
 	tween.tween_property(_stone, ^"modulate:a", 0.0, OPEN_TIME)
 	_puff()

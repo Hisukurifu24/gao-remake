@@ -146,6 +146,7 @@ func handle(event: InputEvent) -> bool:
 	elif is_key(event, KEY_X):
 		_drop()
 	elif is_key(event, KEY_R):
+		Audio.play(&"tab")
 		Inventory.sort()
 	else:
 		return false
@@ -173,6 +174,18 @@ func hints() -> Array:
 
 
 func _move(dx: int, dy: int) -> void:
+	var was := _cursor()
+	_step(dx, dy)
+	if _cursor() != was:
+		Audio.play(&"move")
+
+
+## Where the cursor is, all of it: what the page is on, and where in each part.
+func _cursor() -> Vector4i:
+	return Vector4i(_focus, _bag_index, _doll_index, _category)
+
+
+func _step(dx: int, dy: int) -> void:
 	match _focus:
 		Focus.TABS:
 			if dy > 0:
@@ -205,21 +218,23 @@ func _confirm() -> void:
 		Focus.TABS:
 			_move(0, 1)
 		Focus.DOLL:
-			Inventory.unequip(Inventory.SLOTS[_doll_index])
+			if Inventory.equipped(Inventory.SLOTS[_doll_index]) != null:
+				Audio.play(&"equip" if Inventory.unequip(Inventory.SLOTS[_doll_index]) else &"refuse")
 		Focus.BAG:
 			var stack := _selected_stack()
 			if stack == null:
 				return
 			if stack.item.is_equipment():
-				Inventory.equip_stack(stack)
-			elif stack.item.is_consumable():
-				Inventory.use(stack.item.id)
+				Audio.play(&"equip" if Inventory.equip_stack(stack) else &"refuse")
+			elif stack.item.is_consumable() and not Inventory.use(stack.item.id):
+				# A potion that worked is heard by [Audio] off the bus.
+				Audio.play(&"refuse")
 
 
 func _drop() -> void:
 	var stack := _selected_stack()
 	if stack != null:
-		Inventory.drop_stack(stack)
+		Audio.play(&"drop" if Inventory.drop_stack(stack) else &"refuse")
 
 
 ## Shows one category's stacks, or all of them. The tabs above the bag, or

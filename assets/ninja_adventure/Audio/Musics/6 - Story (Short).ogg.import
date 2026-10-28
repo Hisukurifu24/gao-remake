@@ -12,7 +12,7 @@ dest_files=["res://.godot/imported/6 - Story (Short).ogg-bef4f9d83c1f5bcaa594f98
 
 [params]
 
-loop=false
+loop=true
 loop_offset=0
 bpm=0
 beat_count=0

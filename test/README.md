@@ -1,6 +1,6 @@
 # Tests
 
-Six suites, no dependencies. Each exits non-zero on failure.
+Eight suites, no dependencies. Each exits non-zero on failure.
 
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
@@ -10,6 +10,8 @@ GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --headless --path . res://test/inventory_test.tscn  # the inventory system
 "$GODOT" --headless --path . res://test/combat_test.tscn     # the combat system (~20s)
 "$GODOT" --headless --path . res://test/quest_test.tscn      # the quest system
+"$GODOT" --headless --path . res://test/save_test.tscn       # the save, the title, the menus
+"$GODOT" --headless --path . res://test/audio_test.tscn      # the sound
 ```
 
 They run as **scenes**, not with `--script`. Autoloads are registered after a
@@ -87,6 +89,17 @@ in the game will say so.
 Every section calls `_reset()` first. For a system built entirely out of persistent
 flags, leftovers from the previous section are the easiest way to write a test that
 proves nothing. Instantiates **no journal and no tracker**.
+
+## Audio test
+
+Headless, nothing is heard, so it reads what `Audio` decided and its `played` spy.
+The tables: every file loads, every track loops and no sound does. **The id sweep**
+reads every script and scene for `Audio.play(&"...")` (and the music calls, and
+`sound = &"..."` in scenes and skill effects) and fails on an id that isn't in
+`SoundLibrary` / `MusicLibrary` -- a missing sound is silence, which nobody
+reports. Then the buses and volumes, jingles taking turns, a storm heard once its
+map is up, and a booted game walked from the town into a floor 2's labyrinth and
+safe zone and back out, with a fight won there.
 
 ## GUT (not installed yet)
 

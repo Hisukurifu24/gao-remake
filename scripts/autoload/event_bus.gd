@@ -126,6 +126,11 @@ signal floor_cleared(floor_number: int)
 ## somewhere. A *request*, like [signal item_granted]: the gate menu is its only
 ## listener, and answers by sending them -- or by not, if they think better of it.
 signal teleport_requested(floor_number: int)
+## The player has stepped into another kind of place on [param map] -- out in the
+## open, into a labyrinth's dark, by a safe zone's fire ([constant MusicLibrary.OPEN],
+## [constant MusicLibrary.DARK], [constant MusicLibrary.SAFE]) -- or has just arrived
+## on it. Emitted by the map. For the music; nothing in the game reacts to it.
+signal map_area_entered(map: Node, area: StringName)
 ## The player walked into a floor's hidden boss room and the door showed itself.
 signal boss_room_found(floor_number: int)
 ## A map has been arrived on, and this is its headline: a floor's modifier
