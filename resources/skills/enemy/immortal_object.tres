@@ -6,9 +6,9 @@
 
 [resource]
 script = ExtResource("skill")
-id = &"cross_guard"
-display_name = "Cross Guard"
-description = "The tower shield comes up, and nothing gets past it for a while."
+id = &"immortal_object"
+display_name = "Immortal Object"
+description = "The Game Master marks himself as part of the scenery, and the scenery cannot be hurt."
 kind = 2
 target = 2
 power = 0
@@ -20,5 +20,5 @@ post_motion = 0
 apply_chance = 100
 applies = ExtResource("status")
 ai_weight = 0.8
-announce = "%s raises the cross shield. IMMORTAL OBJECT."
+announce = "%s taps the air beside his HP bar. IMMORTAL OBJECT."
 fx = ExtResource("fx_res")

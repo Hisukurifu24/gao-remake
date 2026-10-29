@@ -17,6 +17,15 @@ extends Node2D
 ## A boss whose art is this small or smaller is drawn doubled.
 const SMALL_ART := 24.0
 const IDLE_FRAME_TIME := 0.18
+## A slow change ([method transfigure]): the share of it spent washing out to
+## white, and the share held there before coming back.
+const WASH_IN := 0.35
+const WASH_HELD := 0.2
+const FLARE := Color(4.0, 4.0, 4.0)
+## Breaking into light ([method shatter]).
+const SHARDS := 60
+const SHARD_TIME := 2.0
+const SHATTER_FLARE := 0.6
 
 var enemy: EnemyType
 var _sprite := Sprite2D.new()
@@ -47,6 +56,49 @@ func _init(type: EnemyType, boss: bool) -> void:
 func become(form: EnemyType) -> void:
 	if form != null:
 		_dress(form)
+
+
+## Flickers, faster and fainter, for [param time] -- a shape failing -- and
+## stands whole again at the end of it. Returns the tween, to wait on.
+func falter(time: float) -> Tween:
+	var flicker := _sprite.create_tween()
+	var left := time
+	var beat := 0.16
+	while left > beat:
+		flicker.tween_property(_sprite, "modulate:a", 0.35, 0.0)
+		flicker.tween_interval(beat * 0.4)
+		flicker.tween_property(_sprite, "modulate:a", 1.0, 0.0)
+		flicker.tween_interval(beat * 0.6)
+		left -= beat
+		beat = maxf(0.06, beat * 0.85)
+	flicker.tween_property(_sprite, "modulate:a", 1.0, 0.0)
+	return flicker
+
+
+## Washes out to white, [method become]s [param form] under it, and comes back
+## out of it, over [param time]. Returns the tween, to wait on.
+func transfigure(form: EnemyType, time: float) -> Tween:
+	_sprite.modulate.a = 1.0
+	var wash := _sprite.create_tween()
+	wash.tween_property(_sprite, "self_modulate", FLARE, time * WASH_IN).set_ease(Tween.EASE_IN)
+	wash.tween_callback(become.bind(form))
+	wash.tween_interval(time * WASH_HELD)
+	wash.tween_property(_sprite, "self_modulate", Color.WHITE, time * (1.0 - WASH_IN - WASH_HELD)) \
+			.set_ease(Tween.EASE_OUT)
+	return wash
+
+
+## Flares and breaks into shards of light where it stands, as SAO draws a death.
+## Returns the tween, to wait on; the figure is left drawn as nothing.
+func shatter() -> Tween:
+	var flare := _sprite.create_tween()
+	flare.tween_property(_sprite, "self_modulate", Color(2.2, 2.6, 3.0, 1.0), SHATTER_FLARE)
+	flare.tween_callback(func() -> void:
+		var parent := get_parent() as Node2D
+		if parent != null:
+			Shards.burst(_sprite, parent, SHARDS, SHARD_TIME))
+	flare.tween_interval(SHARD_TIME)
+	return flare
 
 
 func _dress(type: EnemyType) -> void:

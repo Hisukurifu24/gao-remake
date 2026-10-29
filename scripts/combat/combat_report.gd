@@ -18,6 +18,7 @@ enum Kind {
 	OPENING,  ## One side struck first; the other sits out round 1.
 	YIELD,    ## A duel was decided: someone yielded -- or wouldn't.
 	PHASE,    ## A boss's HP bar broke and the next began; [member phase] is how it fights now.
+	CHANGE,   ## A held phase's new shape arriving ([member BossPhase.hold]), after its narration.
 }
 
 ## One number over one sprite.

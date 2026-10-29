@@ -80,6 +80,13 @@ const SOUNDS := {
 	&"aura": {"files": ["Sounds/Magic & Skill/Magic4.wav"], "db": -6.0},
 	&"spirit": {"files": ["Sounds/Magic & Skill/Spirit.wav"], "db": -6.0},
 	&"sparkle": {"files": ["Sounds/Magic & Skill/Heal3.wav"], "db": -6.0},
+	&"frost": {"files": ["Sounds/Magic & Skill/Magic5.wav"], "db": -6.0},
+	&"thunder": {"files": ["Sounds/Elemental/Explosion5.wav"], "db": -6.0},
+	## Hisukurifu's Explosion, under the screen going white.
+	&"explosion_spell": {"files": ["Sounds/Elemental/Explosion6.wav"], "db": -2.0},
+	&"punch": {"files": ["Sounds/Hit & Impact/Hit3.wav", "Sounds/Hit & Impact/Hit8.wav"],
+			"db": -6.0, "spread": 0.08},
+	&"kick": {"files": ["Sounds/Hit & Impact/Impact4.wav"], "db": -6.0},
 	## A poison's or a bleed's tick.
 	&"hurt": {"files": ["Sounds/Elemental/Bubble.wav"], "db": -10.0},
 	## A monster going up in smoke.

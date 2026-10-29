@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/explosion_spell.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"explosion"
+display_name = "Explosion"
+description = "The one spell he always wanted to cast. He casts it once, as the Game Master's bar empties, and it takes everything he has."
+kind = 0
+target = 1
+power = 330
+accuracy = 100
+crit_chance = 0
+stagger = 60
+cooldown = 0
+post_motion = 3
+ai_weight = 0.0
+announce = "%s's bar empties -- and he laughs, and starts a long chant. The orb burns crimson, the hall goes quiet, the floor starts to shake... EXPLOSION!"
+fx = ExtResource("fx_res")

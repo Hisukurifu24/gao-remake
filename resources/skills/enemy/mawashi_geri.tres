@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/kick.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"mawashi_geri"
+display_name = "Mawashi-geri"
+description = "A roundhouse kick, turned all the way through the hip."
+kind = 0
+target = 0
+power = 190
+accuracy = 88
+crit_chance = 10
+stagger = 48
+cooldown = 3
+post_motion = 1
+ai_weight = 1.1
+announce = "%s pivots on his standing foot. Mawashi-geri!"
+fx = ExtResource("fx_res")

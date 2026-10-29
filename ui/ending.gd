@@ -2,8 +2,9 @@ class_name Ending
 extends CanvasLayer
 ## The game cleared: the world goes white, the epilogue, the credits, the title.
 ##
-## Started by [BossGate] once Hisukurifu's last bar is gone and he has said his
-## piece ([method FinalBoss.farewell]), and from then on it runs itself -- the
+## Started by [BossGate] once Hisukurifu's last bar is gone, he has said his
+## piece ([method FinalBoss.farewell]), broken into light, and the system has
+## announced it ([method FinalBoss.announcement]); from then on it runs itself -- the
 ## gate is on floor 100's map, which this takes the player off. Under the white
 ## the player is moved to the Town of Beginnings, so the save written on the way
 ## out (and Continue, later) puts them back there with every floor behind them:

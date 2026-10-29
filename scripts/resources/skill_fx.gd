@@ -18,3 +18,6 @@ extends Resource
 ## What it sounds like landing: an id in [constant SoundLibrary.SOUNDS]. Empty
 ## is a plain hit.
 @export var sound: StringName = &""
+## The whole screen goes white as it lands, and fades back: a blow too big to
+## draw over one body. Honours the screen-shake setting, as the shake does.
+@export var whiteout := false

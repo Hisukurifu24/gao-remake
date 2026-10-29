@@ -589,6 +589,22 @@ func _test_phases() -> void:
 					spoken = -100
 	_check(spoken == 3, "and has something to say at every bar, every key filled in")
 
+	# The Game Master's bar goes out with a parting shot ([member BossPhase.parting]):
+	# Explosion, cast in the shape that is leaving, before the gi takes over.
+	_set_player(150)
+	_spy(true)
+	_policy = &"attack"
+	CombatManager.set_seed(100)
+	await CombatManager.start(Bestiary.boss_encounter(FloorTuning.TOP_FLOOR))
+	var parting := _reports.filter(func(r: CombatReport) -> bool:
+		return r.kind == CombatReport.Kind.PHASE or r.skill != null and r.skill.id == &"explosion")
+	_check(parting.size() >= 2 and parting[0].kind == CombatReport.Kind.SKILL \
+			and parting[1].kind == CombatReport.Kind.PHASE,
+			"his first bar breaks with Explosion, before the next shape takes over")
+	_check(not parting.is_empty() and parting[0].text.begins_with(FloorTuning.FINAL_BOSS + "'s bar"),
+			"cast by the Game Master, not the black belt (%s)" % (parting[0].text if not parting.is_empty() else "none"))
+	_spy(false)
+
 
 func _spy_turn(actor: Combatant) -> void:
 	_turns.append([CombatManager.round_number(), actor.is_player])
@@ -652,8 +668,9 @@ func _test_balance() -> void:
 
 	var fair := await _win_rate(50, 12, 4)
 	_check(fair == 0, "a badly underlevelled player loses to a floor 50 boss (%d/4)" % fair)
-	# The last fight is the hardest in the game: measured at 10/16 at the level its
-	# floor expects, 2/16 ten short and none twelve short.
+	# The last fight is the hardest in the game: measured over 32 fights at 16/32 at
+	# the level its floor expects, 9/32 six short and 3/32 twelve short (the old
+	# paladin's four bars: 17, 8 and 2).
 	var early := await _win_rate(FloorTuning.TOP_FLOOR, FloorTuning.enemy_level(FloorTuning.TOP_FLOOR) - 6, 8)
 	_check(early <= 2, "Hisukurifu is no walkover twelve levels short (%d/8)" % early)
 

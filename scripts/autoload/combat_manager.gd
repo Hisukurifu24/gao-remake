@@ -30,6 +30,9 @@ signal combat_finished(result: CombatResult)
 
 ## A fight that has gone this long is not going to resolve itself.
 const MAX_ROUNDS := 50
+## A held change ([member BossPhase.hold]): the broken shape flickers this share
+## of the hold in silence before anything is said.
+const HELD_BREAK := 0.5
 
 ## Seconds the loop waits after each step so a view can animate it. Tests set
 ## this to 0; the runner then yields a frame instead, keeping the loop async
@@ -480,12 +483,21 @@ func _break_bars() -> void:
 			await _enter_phase(each)
 
 
-## [param boss]'s next bar: its phase applied, announced, spoken over the fight
-## and, if it opens with a swing, that swing -- out of turn.
+## [param boss]'s next bar: the old shape's parting shot, if the phase has one,
+## then the phase applied, announced, spoken over the fight and, if it opens with
+## a swing, that swing -- all out of turn.
 func _enter_phase(boss: Combatant) -> void:
 	var was := boss.display_name
+	var parting := boss.next_phase().parting if boss.next_phase() != null else null
+	var spent := 0
+	if parting != null and not _living(_party).is_empty():
+		await _resolve_skill(boss, CombatAction.use(parting, _party[0]))
+		spent = boss.post_motion
 	var phase := boss.enter_phase()
 	if phase == null:
+		return
+	boss.post_motion = maxi(boss.post_motion, spent)
+	if _living(_party).is_empty():
 		return
 	var left := boss.bars_left()
 	var report := CombatReport.make(CombatReport.Kind.PHASE, boss,
@@ -493,11 +505,26 @@ func _enter_phase(boss: Combatant) -> void:
 				"The last bar." if left == 1 else "%d bars left." % left])
 	report.phase = phase
 	await _report(report)
-	var interlude := phase.interlude()
-	if interlude != null and step_delay > 0.0:
-		# Words, not rules: an unpaced fight -- a test, a tool -- has nobody to read
-		# them to, and the box would wait on a press that never comes.
-		await DialogueRunner.start(interlude)
+	# Words, not rules: an unpaced fight -- a test, a tool -- has nobody to read
+	# them to, and the box would wait on a press that never comes.
+	var paced := step_delay > 0.0
+	if phase.hold > 0.0:
+		# A change that should land: the blow taken and told, then the new shape
+		# arriving in its own beat, then what it has to say.
+		if paced:
+			await get_tree().create_timer(phase.hold * HELD_BREAK).timeout
+		if paced and phase.told() != null:
+			await DialogueRunner.start(phase.told())
+		var change := CombatReport.make(CombatReport.Kind.CHANGE, boss, boss.display_name)
+		change.phase = phase
+		action_resolved.emit(change)
+		if paced:
+			await get_tree().create_timer(phase.hold).timeout
+		await _pause()
+		if paced and phase.said() != null:
+			await DialogueRunner.start(phase.said())
+	elif paced and phase.interlude() != null:
+		await DialogueRunner.start(phase.interlude())
 	if phase.opens_with != null and not _living(_party).is_empty():
 		await _resolve_skill(boss, CombatAction.use(phase.opens_with, _party[0]))
 

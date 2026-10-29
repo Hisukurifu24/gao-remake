@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/impact.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"seiken_zuki"
+display_name = "Seiken-zuki"
+description = "A straight punch from the hip, the first thing a dojo teaches and the last thing it stops teaching."
+kind = 0
+target = 0
+power = 150
+accuracy = 96
+crit_chance = 14
+stagger = 26
+cooldown = 2
+post_motion = 0
+ai_weight = 1.2
+announce = "%s steps in and drives a straight punch through your guard. Seiken-zuki!"
+fx = ExtResource("fx_res")

@@ -194,6 +194,11 @@ func bars_left() -> int:
 	return phases.size() + 1
 
 
+## The bar it goes on to when this one breaks, or null on its last.
+func next_phase() -> BossPhase:
+	return phases[0] if not phases.is_empty() else null
+
+
 ## Starts the next bar's phase, which [method take_damage] has already filled:
 ## a clean slate -- no statuses, no stagger, poise whole -- and whatever the phase
 ## changes. Returns the phase, or null if there was none to start.

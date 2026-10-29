@@ -13,7 +13,10 @@ class_name FinalBoss
 ## clearing floor 100 ([method GameState.is_floor_cleared]).
 
 const SPEAKER := "Hisukurifu"
-const PORTRAIT := "res://assets/ninja_adventure/Actor/Character/Master/Faceset.png"
+## His face as you meet him -- the Game Master -- and as he is at the end: the
+## developer, in his hoodie ([code]tools/build_hisukurifu.gd[/code] draws both).
+const PORTRAIT := "res://assets/hisukurifu/face_wizard.png"
+const LAST_PORTRAIT := "res://assets/hisukurifu/face_developer.png"
 ## Who speaks for the system. In SAO the announcement after the last boss has no
 ## face and no name; here it is Cardinal's, as the idle logout is.
 const SYSTEM := "Cardinal"
@@ -47,10 +50,10 @@ static func prelude() -> Dialogue:
 		return _dialogue(&"final_boss_again", lines)
 	lines.append_array([
 		["", "The last door of the Ruby Palace opens onto a quiet hall."],
-		["", "A man in red and white waits in it, a cross shield at his side. The name over his head reads Hisukurifu, and the cursor under it is neither a monster's nor a player's."],
+		["", "A man waits in it in a white robe, gold at every hem and violet under it, leaning on a staff taller than he is. Its orb is lit. The name over his head reads Hisukurifu, and the cursor under it is neither a monster's nor a player's."],
 		[SPEAKER, "Welcome to floor 100, %s. Level %d." % [GameState.player_name, GameState.level]],
-		[SPEAKER, "You were expecting a dragon. Sorry. The art pack only had so many, and I wanted this one to be me."],
-		[SPEAKER, "I made this place. Every floor, every boar on floor 2, every chest that turned out to be a trap. Hisukurifu is just the avatar I wear to come in and look around."],
+		[SPEAKER, "You were expecting a dragon. Sorry. Everything else up here came out of an art pack; this one I drew myself, because I wanted it to be me."],
+		[SPEAKER, "I made this place. Every floor, every boar on floor 2, every chest that turned out to be a trap. The robe is the avatar I wear to come in and look around. Game Master. It has permissions you don't."],
 		[SPEAKER, _how_you_played()],
 		[SPEAKER, "Honestly, I wrote this floor last, and I was never sure anyone would test it this far. So thank you. Now let's see what you learned."],
 		[SPEAKER, "There's no flee button on this one. I took it out."],
@@ -60,14 +63,21 @@ static func prelude() -> Dialogue:
 	return dialogue
 
 
-## After the last bar: his last words, and the system's announcement.
+## After the last bar: his last words, over him where he fell.
 static func farewell() -> Dialogue:
 	return _dialogue(&"final_boss_farewell", [
-		["", "The placeholder that was Hisukurifu flickers, and for a moment it is a man in red and white again."],
+		["", "The glitching stops. For a moment Hisukurifu is only a man in a hoodie again, standing very still."],
 		[SPEAKER, "...Huh. You did it."],
-		[SPEAKER, "Good. A boss nobody beats is just a wall, and I didn't build a hundred floors to end on a wall."],
+		[SPEAKER, "It's all right. I said I didn't want to die -- but a game nobody can finish isn't alive either. It's just stuck."],
+		[SPEAKER, "A boss nobody beats is a wall, and I didn't build a hundred floors to end on a wall."],
 		[SPEAKER, "%s of your life in a world I made. I don't really know how to thank you for that, %s. So: thank you." % [_sentence(time_played()), GameState.player_name]],
 		[SPEAKER, "Go on. The castle's yours now."],
+	], LAST_PORTRAIT)
+
+
+## Once he is gone: the system's announcement, as SAO's came after Heathcliff's.
+static func announcement() -> Dialogue:
+	return _dialogue(&"final_boss_announcement", [
 		[SYSTEM, "%s: the game has been cleared." % Time.get_time_string_from_system().substr(0, 5)],
 		[SYSTEM, "All players will now be logged out, in sequence."],
 	])
@@ -76,7 +86,7 @@ static func farewell() -> Dialogue:
 ## What you hear coming to at the entrance after he beats you.
 static func defeat_lines() -> PackedStringArray:
 	return PackedStringArray([
-		"Hisukurifu lowers his sword. \"Respawn. I'll be here -- I'm hardcoded to be.\"",
+		"Hisukurifu's voice follows you down: \"Respawn. I'll be here -- I'm hardcoded to be.\"",
 		"You come to at the entrance to the floor, barely.",
 	])
 
@@ -125,10 +135,10 @@ static func _sentence(text: String) -> String:
 	return text.left(1).to_upper() + text.substr(1)
 
 
-static func _dialogue(id: StringName, lines: Array) -> Dialogue:
+static func _dialogue(id: StringName, lines: Array, portrait := PORTRAIT) -> Dialogue:
 	var dialogue := Dialogue.new()
 	dialogue.id = id
-	var face := load(PORTRAIT) as Texture2D
+	var face := load(portrait) as Texture2D
 	for entry: Array in lines:
 		var line := DialogueLine.new()
 		line.speaker = entry[0]

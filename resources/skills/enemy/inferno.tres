@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/flame.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"inferno"
+display_name = "Inferno"
+description = "A lance of fire from the orb. The first spell anyone learns, cast by the man who wrote it."
+kind = 0
+target = 0
+power = 150
+accuracy = 92
+crit_chance = 8
+stagger = 28
+cooldown = 2
+post_motion = 0
+ai_weight = 1.2
+announce = "%s levels his staff, and the orb spits a lance of fire!"
+fx = ExtResource("fx_res")

@@ -570,12 +570,18 @@ func _capture_phases(main: Node) -> void:
 			var bar := boss.bars - boss.bars_left() + 2
 			boss.hp = 1
 			_submit(CombatAction.use(SkillLibrary.basic_attack(), boss))
-			await _until(func() -> bool: return DialogueRunner.is_running() \
-					or CombatManager.is_awaiting_command() and boss.bars - boss.bars_left() + 1 == bar, 10.0)
-			if DialogueRunner.is_running():
+			# A held change is told, then shown, then said: two conversations.
+			for page: String in ["words", "said"]:
+				await _until(func() -> bool: return DialogueRunner.is_running() \
+						or CombatManager.is_awaiting_command() and boss.bars - boss.bars_left() + 1 == bar, 20.0)
+				if not DialogueRunner.is_running():
+					break
 				await _typed(main)
-				await _capture(tag + "%d_words" % bar)
+				await _capture(tag + "%d_%s" % [bar, page])
 				await _read_through(main)
+				if page == "words" and boss.phase != null and boss.phase.hold > 0.0:
+					await _wait(boss.phase.hold * FoeFigure.WASH_IN + 0.2)
+					await _capture(tag + "%d_change" % bar)
 			await _until_command()
 			await _wait(0.6)
 			await _capture(tag + "%d_menu" % bar)
@@ -583,8 +589,19 @@ func _capture_phases(main: Node) -> void:
 		if floor_number < FloorTuning.TOP_FLOOR:
 			await _dismiss()
 			continue
+		# He falls as himself, and is left standing for his last words; then he
+		# breaks into light, and the system has its say.
+		await _wait(BossGate.LAST_BEAT + BossGate.LAST_FALTER + BossGate.LAST_CHANGE * 0.4)
+		await _capture(tag + "9_becoming")
+		await _until(func() -> bool: return DialogueRunner.is_running(), 15.0)
 		await _typed(main)
 		await _capture(tag + "a_farewell")
+		await _read_through(main)
+		await _wait(FoeFigure.SHATTER_FLARE + 0.4)
+		await _capture(tag + "a_shatter")
+		await _until(func() -> bool: return DialogueRunner.is_running(), 15.0)
+		await _typed(main)
+		await _capture(tag + "a_announcement")
 		await _read_through(main)
 		Ending.pace = 0.25
 		await _until(func() -> bool: return get_tree().root.get_node_or_null("Ending") != null, 5.0)

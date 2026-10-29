@@ -51,6 +51,11 @@ extends Resource
 ## Further HP bars, each a change in how it fights once it is down to it ([BossPhase]).
 ## Empty is one bar. Its HP is shared between the bars, never added to.
 @export var phases: Array[BossPhase] = []
+## The shape it is left standing in when its last bar empties, read for its look
+## alone, as a [member BossPhase.form] is: it doesn't go up in smoke, so there is
+## someone there for what is said over it, and whoever staged the fight takes it
+## away after. Null falls as any monster does.
+@export var falls_as: EnemyType
 
 @export_group("Rewards")
 @export var xp_reward := 8
@@ -72,13 +77,16 @@ func bars() -> int:
 	return 1 + phases.size()
 
 
-## Itself and every [member BossPhase.form] it takes, in order: whatever a
-## formation has to make room for before the fight changes its shape.
+## Itself, every [member BossPhase.form] it takes and the shape it falls in, in
+## order: whatever a formation has to make room for before the fight changes its
+## shape.
 func forms() -> Array[EnemyType]:
 	var all: Array[EnemyType] = [self]
 	for phase in phases:
 		if phase != null and phase.form != null and phase.form not in all:
 			all.append(phase.form)
+	if falls_as != null and falls_as not in all:
+		all.append(falls_as)
 	return all
 
 

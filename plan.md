@@ -1570,6 +1570,54 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
     rather than a hand-built floor; no escort; no loot (the game is the prize), more
     Col instead; the cleared game is `is_floor_cleared(100)`, not a new flag; a rematch
     after clearing isn't offered; the ending's track is *End Theme*.
+  - [x] **Playtest fixes (2026-10-29)**: the user loved the fight. Fixed: his name
+    spoiled before the door -- until his opening words set `FinalBoss.MET_FLAG` he is
+    `FinalBoss.UNMET` ("???") on the door's prompt, in Argo's sale and in the floor-100
+    camp (its own `final_` lines); the ending promising Continue on a run with no save
+    slot (a debug `--floor` start), which loaded an older save -- it now saves first and
+    says whether it could; "1 minutes" / "0 hours and 0 minutes" (`FinalBoss.time_played()`,
+    `{time}` in a `BossPhase`'s lines). In the same playtest: invisible walls in the
+    Ruby Palace's rooms -- the castle's obstacle slot was cut from an empty cell of
+    `TilesetDungeon.png`; now the stone block at (8, 3), and the floor test checks every
+    band's obstacle draws something.
+  - [x] **Hisukurifu redrawn as the user** *(asked 2026-10-29; built the same day)*. Drawn
+    by `tools/build_hisukurifu.gd` into `assets/hisukurifu/` -- pixel tables, the ink line
+    and edge shading added in code, idle frames derived (breath, orb pulse, glitch) -- at
+    30x44, finer and taller than anyone in the pack, on purpose. His look as described:
+    blonde, pale, green-blue eyes, a short ordered beard, fit. Four bars, four shapes, four
+    portraits (38 px facesets on the pack's ground):
+    1. **The Game Master** -- white and gold robe, violet lining, a gold circlet, a staff
+       with a lit orb: *Inferno*, *Frost Nova* (slows), *Judgment Bolt* (dazes) and
+       *Immortal Object* (SAO's GM shield, kept from the paladin). **The Megumin
+       reference is *Explosion***: cast as his bar empties (`BossPhase.parting`, new --
+       the old shape's last act, before the next takes over), a long chant, the screen
+       white (`SkillFx.whiteout`, new), and he comes out of it spent (its 3 turns of
+       post-motion carry into the next bar), the robe falling away. The second
+       reference is the hoodie's print: her crimson-banded witch's hat.
+    2. **Black Belt** -- white gi, black belt, a fist raised: *Seiken-zuki*,
+       *Mawashi-geri*, *Kata* (focus), *Ibuki* (karate's breathing, a heal).
+    3. **The Developer** -- hoodie, headphones: Delete, Segmentation Fault, Patch Notes,
+       Hotfix, System Call (to *Revelation*).
+    4. **hisukurifu.exe (Not Responding)** -- the developer washed white like a hung
+       window, rows slipping, the colour split, magenta-and-black missing-texture checks,
+       a tear; same skills, hasted. His words: "I still don't want to die." The farewell
+       answers it ("a game nobody can finish isn't alive either. It's just stuck") in
+       the developer's face; the prelude now meets the wizard.
+    Balance, measured over 32 fights each against the old four bars: at the level the
+    check fights him at, 16/32 (old 17); six short 9/32 (8); twelve short 3/32 (2) --
+    attack growth 1.05 -> 1.12, HP growth 7.5 -> 8.0, since the new bars have less
+    sustain than the old. Explosion as a random pick was a coin flip that flattened the
+    level curve (four fights in twelve, half your HP); as the parting shot it is every
+    fight. The paladin's Divine Cross and Cross Guard are gone.
+  - [x] **Playtest (2026-10-29): the bar changes were too fast, and he vanished before his
+    last words** ("I'm talking to nothing"). Now a phase can *hold* (`BossPhase.hold`,
+    his three: 2.6, 2.6, 3 s): the bar breaks in silence, the old shape flickers while
+    the narration is read, then washes out to white and the new one comes back out of
+    it slowly, its name on the message line and its music starting there -- then he
+    speaks. His last bar plays to *Lament*. When it goes he isn't smoke
+    (`EnemyType.falls_as`): he falters, is the developer again, says his farewell
+    standing there, breaks into shards of light, and only then does Cardinal announce
+    the clear. No victory fanfare over any of it.
 
 #### Floor variety — "the floors play the same" *(raised 2026-10-05; shapes, modifiers, events, landmarks and room shapes built)*
 The user, after M5.5's set landed: floors are repetitive — *both* to look at and to play,
@@ -2906,7 +2954,9 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    in every village keeping the band's counter. **And M7's audio (2026-10-28)**:
    music by band and by place, fights and fanfares, sounds, volumes. **And the end
    (2026-10-28)**: HP bars and phases, Illfang's nodachi, Hisukurifu on floor 100 and
-   the ending. Next: Floor 40, or M7's name entry and key binding.
+   the ending. **And Hisukurifu redrawn as the user (2026-10-29)**: four shapes of him in his
+   own pixel art, each with its own moves, Explosion as the Game Master's last act. Next:
+   Floor 40, or M7's name entry and key binding.
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where

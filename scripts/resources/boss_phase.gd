@@ -46,28 +46,53 @@ extends Resource
 @export var buff: StatusEffect
 ## Swung the moment the bar starts, out of turn: the new phase announces itself.
 @export var opens_with: Skill
+## Swung by the shape it is leaving as the last bar empties, before this one
+## takes over -- a parting shot. What it costs the user ([member Skill.post_motion])
+## carries into this bar: a spell that takes everything leaves the next shape spent.
+@export var parting: Skill
 ## The fight's music from this bar on ([MusicLibrary]); empty keeps it.
 @export var music: StringName = &""
+## Seconds the change takes on the stage, for a bar that should land: above 0,
+## the old shape takes the blow and flickers in silence while [member narration]
+## is read, then washes out to white and the new one comes back out of it over
+## this long, its name and its music with it, before it says [member lines]. 0 is
+## the quick flare every other boss gets, the shape changing under it at once.
+@export_range(0.0, 10.0) var hold := 0.0
 
 
 ## What is shown as the bar breaks, as a conversation: [member narration], then
 ## [member lines] in [member speaker]'s voice. Null when there is nothing to show.
 func interlude() -> Dialogue:
-	if narration.is_empty() and lines.is_empty():
-		return null
+	return _conversation(true, true)
+
+
+## [member narration] alone, or null: what a held change ([member hold]) shows
+## before the new shape arrives.
+func told() -> Dialogue:
+	return _conversation(true, false)
+
+
+## [member lines] alone, or null: what the new shape says once it has arrived.
+func said() -> Dialogue:
+	return _conversation(false, true)
+
+
+func _conversation(with_narration: bool, with_lines: bool) -> Dialogue:
 	var dialogue := Dialogue.new()
 	dialogue.id = &"boss_phase"
-	for text in _filled(narration):
-		var told := DialogueLine.new()
-		told.text = text
-		dialogue.lines.append(told)
-	for text in _filled(lines):
-		var said := DialogueLine.new()
-		said.text = text
-		said.speaker = speaker
-		said.portrait = portrait
-		dialogue.lines.append(said)
-	return dialogue
+	if with_narration:
+		for text in _filled(narration):
+			var told_line := DialogueLine.new()
+			told_line.text = text
+			dialogue.lines.append(told_line)
+	if with_lines:
+		for text in _filled(lines):
+			var said_line := DialogueLine.new()
+			said_line.text = text
+			said_line.speaker = speaker
+			said_line.portrait = portrait
+			dialogue.lines.append(said_line)
+	return dialogue if not dialogue.lines.is_empty() else null
 
 
 ## [param texts] with the player's own numbers in them.

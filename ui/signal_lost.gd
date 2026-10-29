@@ -18,8 +18,6 @@ const DIM_MAX := 0.45
 const SHARDS := 30
 const SHARD_TIME := 1.5
 const FLARE_TIME := 0.35
-## The shards' light: SAO's blue-white.
-const SHARD_COLOURS: Array[Color] = [UiPalette.GLASS_SELECTED, UiPalette.MAP_EDGE, UiPalette.FIELD]
 
 var _dim: ColorRect = null
 var _notice: PanelContainer = null
@@ -125,33 +123,11 @@ func _on_logged_out() -> void:
 
 
 func _shatter(sprite: Sprite2D) -> void:
-	sprite.self_modulate.a = 0.0
 	var map := SceneRouter.current_map()
 	if map == null:
+		sprite.self_modulate.a = 0.0
 		return
-	var box := sprite.get_rect()
-	for i in SHARDS:
-		var shard := Polygon2D.new()
-		var size := randf_range(1.0, 2.5)
-		shard.polygon = PackedVector2Array([
-			Vector2(0, -size), Vector2(size * 0.9, size * 0.6), Vector2(-size * 0.9, size * 0.6)])
-		shard.color = SHARD_COLOURS[randi() % SHARD_COLOURS.size()]
-		shard.z_index = 20
-		var from := Vector2(randf_range(box.position.x, box.end.x), randf_range(box.position.y, box.end.y))
-		shard.position = map.to_local(sprite.to_global(from))
-		shard.rotation = randf() * TAU
-		map.add_child(shard)
-		var away := (from - box.get_center()).normalized()
-		if away.is_zero_approx():
-			away = Vector2.UP
-		var fly := shard.create_tween().set_parallel()
-		fly.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		fly.tween_property(shard, "position",
-				shard.position + away * randf_range(10.0, 28.0) + Vector2(0, -randf_range(4.0, 18.0)),
-				SHARD_TIME)
-		fly.tween_property(shard, "rotation", shard.rotation + randf_range(-6.0, 6.0), SHARD_TIME)
-		fly.tween_property(shard, "modulate:a", 0.0, SHARD_TIME * 0.6).set_delay(SHARD_TIME * 0.4)
-		fly.chain().tween_callback(shard.queue_free)
+	Shards.burst(sprite, map, SHARDS, SHARD_TIME)
 
 
 ## The player's sprite on the map that is up, or null.

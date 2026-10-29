@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/ice.tres" id="fx_res"]
+[ext_resource type="Resource" path="res://resources/statuses/slowed.tres" id="status"]
+
+[resource]
+script = ExtResource("skill")
+id = &"frost_nova"
+display_name = "Frost Nova"
+description = "The air round you freezes, and so do your legs."
+kind = 0
+target = 0
+power = 120
+accuracy = 95
+crit_chance = 4
+stagger = 20
+cooldown = 3
+post_motion = 0
+apply_chance = 60
+applies = ExtResource("status")
+ai_weight = 1.0
+announce = "%s breathes on the orb. The air round you freezes solid!"
+fx = ExtResource("fx_res")

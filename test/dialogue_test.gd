@@ -359,14 +359,18 @@ func _test_final_boss() -> void:
 
 	var unfilled := PackedStringArray()
 	var texts: Array = Array(FinalBoss.epilogue()) + Array(FinalBoss.defeat_lines())
-	for line in FinalBoss.farewell().lines:
+	for line in FinalBoss.farewell().lines + FinalBoss.announcement().lines:
 		texts.append(line.text)
 	for text: String in texts:
 		if text.contains("%") or text.contains("{"):
 			unfilled.append(text)
 	_check(unfilled.is_empty(), "nothing he says is left unfilled (%s)" % unfilled)
-	_check(FinalBoss.farewell().lines[-1].speaker == FinalBoss.SYSTEM,
-			"and the system has the last word")
+	_check(FinalBoss.farewell().lines.all(func(line: DialogueLine) -> bool:
+			return line.speaker != FinalBoss.SYSTEM),
+			"his last words are his own")
+	_check(FinalBoss.announcement().lines.all(func(line: DialogueLine) -> bool:
+			return line.speaker == FinalBoss.SYSTEM),
+			"and the system has the last word, once he is gone")
 
 
 # --- helpers ---------------------------------------------------------------

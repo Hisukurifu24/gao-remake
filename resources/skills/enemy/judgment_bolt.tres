@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/thunder.tres" id="fx_res"]
+[ext_resource type="Resource" path="res://resources/statuses/dazed.tres" id="status"]
+
+[resource]
+script = ExtResource("skill")
+id = &"judgment_bolt"
+display_name = "Judgment Bolt"
+description = "He points. The sky does the rest."
+kind = 0
+target = 0
+power = 140
+accuracy = 88
+crit_chance = 10
+stagger = 34
+cooldown = 3
+post_motion = 0
+apply_chance = 25
+applies = ExtResource("status")
+ai_weight = 1.0
+announce = "%s points at you, and lightning answers!"
+fx = ExtResource("fx_res")

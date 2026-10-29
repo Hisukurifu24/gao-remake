@@ -22,6 +22,12 @@ const DEFEAT_HP_RATIO := 0.35
 const STEP_OUT_TIME := 0.5
 ## What the door fades to while its boss is out of it.
 const ASIDE_ALPHA := 0.0
+## The last boss's end ([method _last_words]): the beat the fight's plates take
+## to go and between each step, how long he falters, how long he takes to be
+## himself again.
+const LAST_BEAT := 1.0
+const LAST_FALTER := 1.6
+const LAST_CHANGE := 2.6
 
 @export var floor_number := 1
 @export var boss_name := ""
@@ -138,7 +144,8 @@ func _fight() -> void:
 
 	await _step_out(encounter)
 	var result: CombatResult = await CombatManager.start(encounter)
-	_step_back(result)
+	var standing := _left_standing(result)
+	_step_back(result, standing)
 	if result == null:
 		return
 
@@ -146,7 +153,7 @@ func _fight() -> void:
 		# The game cleared. The ending takes the player off this map, and this
 		# gate with it, so it runs itself from here.
 		GameState.clear_floor(floor_number)
-		await DialogueRunner.start(FinalBoss.farewell())
+		await _last_words(standing)
 		Ending.begin(get_tree())
 	elif result.victory:
 		GameState.clear_floor(floor_number)
@@ -211,18 +218,61 @@ func _step_out(encounter: Encounter) -> void:
 
 ## The fight is over: the figures go -- a beaten boss has already gone up in
 ## smoke on the stage -- and the door comes back. A defeat reloads the floor, which
-## takes them with it, but they are freed here all the same.
-func _step_back(_result: CombatResult) -> void:
+## takes them with it, but they are freed here all the same. [param kept], a boss
+## left standing, stays for what is said over it, and the door with it.
+func _step_back(_result: CombatResult, kept: FoeFigure = null) -> void:
 	for figure in _figures:
-		if is_instance_valid(figure):
+		if is_instance_valid(figure) and figure != kept:
 			figure.queue_free()
 	_figures.clear()
-	if _sprite.modulate.a >= 1.0:
+	# A boss still standing is still in the doorway; the door waits for it.
+	if kept != null or _sprite.modulate.a >= 1.0:
 		return
 	if CombatManager.step_delay <= 0.0:
 		_sprite.modulate.a = 1.0
 		return
 	create_tween().tween_property(_sprite, "modulate:a", 1.0, STEP_OUT_TIME)
+
+
+## The beaten boss's figure, if it is one that is left standing
+## ([member EnemyType.falls_as]) rather than gone up in smoke; null otherwise.
+func _left_standing(result: CombatResult) -> FoeFigure:
+	if result == null or not result.victory or _figures.is_empty():
+		return null
+	var boss := _figures[0]
+	return boss if is_instance_valid(boss) and boss.enemy.falls_as != null else null
+
+
+## The last boss's end, on the map where he fell: the plates go, he falters and
+## is himself again ([member EnemyType.falls_as]), says his last words, breaks
+## into light -- and only then does the system announce what that means.
+func _last_words(standing: FoeFigure) -> void:
+	if standing == null or CombatManager.step_delay <= 0.0:
+		if standing != null:
+			standing.become(standing.enemy.falls_as)
+		await DialogueRunner.start(FinalBoss.farewell())
+		if standing != null:
+			standing.queue_free()
+		_sprite.modulate.a = 1.0
+		await DialogueRunner.start(FinalBoss.announcement())
+		return
+	GameState.push_input_lock()
+	await get_tree().create_timer(LAST_BEAT).timeout
+	Audio.play(&"bar_break")
+	await standing.falter(LAST_FALTER).finished
+	Audio.play(&"spirit")
+	await standing.transfigure(standing.enemy.falls_as, LAST_CHANGE).finished
+	await get_tree().create_timer(LAST_BEAT).timeout
+	GameState.pop_input_lock()
+	await DialogueRunner.start(FinalBoss.farewell())
+	GameState.push_input_lock()
+	Audio.play(&"shatter")
+	await standing.shatter().finished
+	standing.queue_free()
+	await create_tween().tween_property(_sprite, "modulate:a", 1.0, STEP_OUT_TIME * 2.0).finished
+	await get_tree().create_timer(LAST_BEAT).timeout
+	GameState.pop_input_lock()
+	await DialogueRunner.start(FinalBoss.announcement())
 
 
 ## A defeat drops the player at the floor entrance on their last legs. Rebuilding

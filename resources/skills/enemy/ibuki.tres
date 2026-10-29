@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/aura.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"ibuki"
+display_name = "Ibuki"
+description = "Karate's hard breathing, out from the belly: the body put back in order."
+kind = 1
+target = 2
+power = 120
+accuracy = 100
+crit_chance = 0
+stagger = 0
+cooldown = 5
+post_motion = 0
+ai_weight = 0.9
+announce = "%s breathes out hard from the belly. Ibuki."
+fx = ExtResource("fx_res")

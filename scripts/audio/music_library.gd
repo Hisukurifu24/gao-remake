@@ -34,6 +34,8 @@ const TRACKS := {
 	&"final_boss": "24 - Final Area.ogg",
 	# The last boss's own shape, from his third bar ([member BossPhase.music]).
 	&"revelation": "3 - Revelation.ogg",
+	# ...and his last, the one that doesn't want to die.
+	&"lament": "29 - Lament.ogg",
 	# The game cleared.
 	&"ending": "8 - End Theme.ogg",
 }
@@ -55,7 +57,7 @@ static func has(id: StringName) -> bool:
 ## Whether [param id] is a fight's: a fight starts its music from the top, where
 ## a place picks its own up where it was left.
 static func is_fight(id: StringName) -> bool:
-	return id in [&"fight", &"boss", &"final_boss", &"revelation"]
+	return id in [&"fight", &"boss", &"final_boss", &"revelation", &"lament"]
 
 
 static func path(id: StringName) -> String:

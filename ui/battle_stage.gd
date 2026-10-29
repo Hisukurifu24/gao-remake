@@ -62,6 +62,8 @@ const PIP_GAP := 1.0
 ## Anyone else in frame stands back to this, so a frozen boar at the edge of the
 ## fight doesn't read as a second enemy.
 const BYSTANDER_ALPHA := 0.25
+## A [member SkillFx.whiteout]: the screen white at once, then back over this long.
+const WHITEOUT_TIME := 1.1
 
 ## How far the camera closes in on a fight that fits, over the map's own zoom
 ## ([constant UiLayout.WORLD_ZOOM]): 2 frames 160x90 of world. A fight that doesn't
@@ -252,6 +254,9 @@ func _on_action_resolved(report: CombatReport) -> void:
 	if report.kind == CombatReport.Kind.PHASE:
 		_break_bar(report)
 		return
+	if report.kind == CombatReport.Kind.CHANGE:
+		_change(report)
+		return
 	if report.kind == CombatReport.Kind.OPENING \
 			or (report.kind == CombatReport.Kind.YIELD and not report.success):
 		_alarm(report.actor)
@@ -278,6 +283,8 @@ func _land(report: CombatReport) -> void:
 	var heavy := false
 	var fx := _fx_of(report)
 	var swing := Vector2(field.axis) * (1.0 if report.actor != null and report.actor.is_player else -1.0)
+	if fx != null and fx.whiteout and report.hits.any(func(hit: CombatReport.Hit) -> bool: return not hit.missed):
+		_whiteout()
 	for hit in report.hits:
 		if fx != null and not hit.missed:
 			_play_fx(fx, hit.target, swing)
@@ -437,14 +444,20 @@ func _break_bar(report: CombatReport) -> void:
 	_refresh_bar(boss)
 	_refresh_emotes()
 	var form := report.phase.form if report.phase != null else null
+	# A held change keeps the old shape until its own report ([method _change]).
+	var held := report.phase != null and report.phase.hold > 0.0
 	if CombatManager.step_delay <= 0.0:
-		if node != null and form != null and node.has_method(&"become"):
+		if not held and node != null and form != null and node.has_method(&"become"):
 			node.call(&"become", form)
 		return
 	Audio.play(&"bar_break")
 	_shake_camera()
 	var sprite := _sprite_of(boss)
 	if sprite == null:
+		return
+	if held:
+		if node is FoeFigure:
+			(node as FoeFigure).falter(report.phase.hold * CombatManager.HELD_BREAK)
 		return
 	var flare := sprite.create_tween()
 	flare.tween_property(sprite, "self_modulate", BREAK_FLARE, BREAK_TIME * 0.4)
@@ -455,12 +468,36 @@ func _break_bar(report: CombatReport) -> void:
 	flare.tween_property(sprite, "self_modulate", Color.WHITE, BREAK_TIME * 0.6)
 
 
+## A held change's new shape arriving ([member BossPhase.hold]): the old one
+## washes out to white, the new one is under the white, and it comes back out of
+## it slowly -- the whole of the hold the runner waits.
+func _change(report: CombatReport) -> void:
+	var node := _nodes.get(report.actor) as Node2D
+	var form := report.phase.form if report.phase != null else null
+	if CombatManager.step_delay <= 0.0:
+		if node != null and form != null and node.has_method(&"become"):
+			node.call(&"become", form)
+		return
+	Audio.play(&"spirit")
+	var hold := report.phase.hold
+	if node is FoeFigure:
+		(node as FoeFigure).transfigure(form, hold)
+	elif node != null and form != null and node.has_method(&"become"):
+		node.call(&"become", form)
+	get_tree().create_timer(hold * FoeFigure.WASH_IN).timeout.connect(_refresh_emotes)
+
+
 ## A felled monster goes out in the pack's puff of smoke where it stands; the
 ## node frees itself when the fight returns. The puff is the stage's, so it
-## outlives the monster.
+## outlives the monster. One that falls as something ([member EnemyType.falls_as])
+## doesn't go: it is left standing, and what stages the fight decides what it
+## becomes.
 func _fall(enemy: Combatant) -> void:
 	var sprite := _sprite_of(enemy)
 	if sprite == null:
+		return
+	if enemy.source != null and enemy.source.falls_as != null:
+		# Left standing for whoever staged it: [BossGate] takes it from here.
 		return
 	if CombatManager.step_delay <= 0.0:
 		sprite.modulate.a = 0.0
@@ -635,6 +672,23 @@ func _flash(who: Combatant) -> void:
 		return
 	sprite.self_modulate = FLASH
 	sprite.create_tween().tween_property(sprite, "self_modulate", Color.WHITE, FLASH_TIME)
+
+
+## The screen white, fading back to the fight. Off with the screen shake, since
+## a flash is the same kind of jolt.
+func _whiteout() -> void:
+	if CombatManager.step_delay <= 0.0 or not Settings.screen_shake:
+		return
+	var layer := CanvasLayer.new()
+	var white := ColorRect.new()
+	white.color = Color.WHITE
+	white.set_anchors_preset(Control.PRESET_FULL_RECT)
+	white.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(white)
+	add_child(layer)
+	var fade := white.create_tween()
+	fade.tween_property(white, "modulate:a", 0.0, WHITEOUT_TIME).set_ease(Tween.EASE_IN)
+	fade.tween_callback(layer.queue_free)
 
 
 ## Whole units, so the pixel grid never smears.

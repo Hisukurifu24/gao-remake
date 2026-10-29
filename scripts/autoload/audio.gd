@@ -37,6 +37,8 @@ const FADE := 1.0
 ## A fight cuts in quicker than a walk changes the music, and goes out slower.
 const FIGHT_IN := 0.35
 const FIGHT_OUT := 1.6
+## A held change's bar breaking: the music gone in this long.
+const HUSH := 0.8
 ## The music's level under a jingle.
 const DUCK := 0.25
 const DUCK_TIME := 0.15
@@ -262,8 +264,16 @@ func _on_combat_began(encounter: Encounter, _party: Array[Combatant],
 
 func _on_combat_finished(result: CombatResult) -> void:
 	var boss := _fight_encounter != null and _fight_encounter.is_boss
+	var last := boss and _fight_encounter.floor_number >= FloorTuning.TOP_FLOOR
 	_fight_encounter = null
 	_fight_track = &""
+	if result.victory and last:
+		# No fanfare over his last words: quiet, until the ending brings its own.
+		for held in _after_fight:
+			play(held)
+		_after_fight.clear()
+		play_music(&"", FIGHT_OUT)
+		return
 	if result.victory:
 		play(&"boss_victory" if boss else &"victory")
 	elif not result.fled:
@@ -274,13 +284,23 @@ func _on_combat_finished(result: CombatResult) -> void:
 	_refresh_music(FIGHT_OUT)
 
 
-## A boss's next bar may bring its own music ([member BossPhase.music]).
+## A boss's next bar may bring its own music ([member BossPhase.music]). A held
+## change ([member BossPhase.hold]) goes quiet as the bar breaks and brings the
+## music back -- its own, or the fight's from the top -- as the new shape arrives.
 func _on_action_resolved(report: CombatReport) -> void:
-	if report.kind != CombatReport.Kind.PHASE or report.phase == null \
-			or report.phase.music.is_empty() or not CombatManager.is_running():
+	if report.phase == null or not CombatManager.is_running():
 		return
-	_fight_track = report.phase.music
-	_refresh_music(FIGHT_IN)
+	var held := report.phase.hold > 0.0
+	if report.kind == CombatReport.Kind.PHASE and held:
+		play_music(&"", HUSH)
+		return
+	if report.kind != CombatReport.Kind.CHANGE and (report.kind != CombatReport.Kind.PHASE or held):
+		return
+	if not report.phase.music.is_empty():
+		_fight_track = report.phase.music
+	elif not held:
+		return
+	_refresh_music(FADE if held else FIGHT_IN)
 
 
 # --- what the bus announces --------------------------------------------------
