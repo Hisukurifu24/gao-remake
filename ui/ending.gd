@@ -127,10 +127,18 @@ func _run() -> void:
 	await _hold(LAST_HOLD * pace)
 
 	GameState.pop_input_lock()
-	var notice := "%s cleared the game. Continue to go back to Aincrad." % GameState.player_name
+	# Saved here rather than by quit_to_title(), so the notice can say whether it
+	# was: a run with no slot (a debug start) clears the game and keeps nothing,
+	# and promising Continue would send the player back to a save from before it.
+	var who := GameState.player_name
+	var notice := "%s cleared the game. Continue to go back to Aincrad." % who
 	if GameState.mode == GameState.Mode.MARATHON:
-		notice = "%s cleared the game in a single sitting. The marathon is over." % GameState.player_name
-	await SaveGame.quit_to_title(notice)
+		notice = "%s cleared the game in a single sitting. The marathon is over." % who
+	elif SaveGame.slot <= 0:
+		notice = "%s cleared the game -- in a run with no save slot, so none of it was kept." % who
+	elif not SaveGame.save_game(SaveGame.slot):
+		notice = "%s cleared the game, but it could not be saved." % who
+	await SaveGame.quit_to_title(notice, false)
 	var fade := create_tween().set_parallel()
 	fade.tween_property(_sheet, "color:a", 0.0, CLEAR_TIME * pace)
 	fade.tween_property(_line, "modulate:a", 0.0, CLEAR_TIME * pace)

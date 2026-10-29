@@ -147,6 +147,19 @@ const ROLES := {
 	"dungeon_veteran_found": [
 		"So you've seen the top. {boss}'s waiting there. Level {level}, and don't go in on half a health bar.",
 	],
+	# The top floor's: its boss has no name until you meet him ([constant FinalBoss.UNMET]),
+	# so nobody in camp says one. As many lines as the plain roles, so the camp's
+	# stream draws the same.
+	"final_scout_found": [
+		"You found the last door? Then that's the maze done with. Go back in rested -- whatever's behind it built the other ninety-nine floors' worth of trouble.",
+	],
+	"final_veteran": [
+		"Every floor, the front line had a name for the boss by now. Not this one. Nobody's come back from the last door to give it one. I wouldn't knock before level {level}.",
+		"No name for what's at the top. Argo doesn't sell it, and Argo sells everything. Level {level} at the least, and bring more potions than you think.",
+	],
+	"final_veteran_found": [
+		"So you've seen the last door. No name over it, no cursor behind it. Level {level}, and don't go in on half a health bar.",
+	],
 	"dungeon_local": [
 		"It's black as pitch past these lamps. You see what's in front of you and nothing else -- and neither does the {monster}, till it does.",
 		"Mind the chests down there. Some of the big red ones bite back.",
@@ -783,6 +796,8 @@ func _talk(index: int, role: String, handle: String, portrait: Texture2D,
 ## [param key]'s open-field lines on an open field, or a dungeon's in a dungeon,
 ## where it has them.
 func _role_key(key: String) -> String:
+	if FinalBoss.is_final(floor_number) and ROLES.has("final_" + key):
+		return "final_" + key
 	var shaped := "open_" + key if open_field else "dungeon_" + key if dungeon else key
 	return shaped if ROLES.has(shaped) else key
 

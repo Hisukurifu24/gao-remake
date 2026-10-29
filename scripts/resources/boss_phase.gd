@@ -36,7 +36,8 @@ extends Resource
 @export_multiline var narration: PackedStringArray = []
 ## Said as the bar breaks, in a box over the fight, one line a page. Both may use
 ## [code]{player}[/code], [code]{level}[/code], [code]{floor}[/code],
-## [code]{hours}[/code], [code]{minutes}[/code] and [code]{seed}[/code] ([method spoken]).
+## [code]{hours}[/code], [code]{minutes}[/code], [code]{time}[/code] (the two in words,
+## [method FinalBoss.time_played]) and [code]{seed}[/code] ([method spoken]).
 @export_multiline var lines: PackedStringArray = []
 ## Who says them.
 @export var speaker := ""
@@ -78,6 +79,7 @@ func _filled(texts: PackedStringArray) -> PackedStringArray:
 		"floor": GameState.current_floor,
 		"hours": minutes / 60,
 		"minutes": minutes % 60,
+		"time": FinalBoss.time_played(),
 		"seed": GameState.world_seed,
 	}
 	var out := PackedStringArray()

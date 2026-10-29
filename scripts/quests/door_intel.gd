@@ -95,8 +95,11 @@ static func conversation() -> Dialogue:
 		var effects: Array[DialogueEffect] = [charge, found]
 		choice.effects = effects
 		choices.append(choice)
-		sold.append(_line(choice.next, ("Floor %d. %s keeps the door at the heart of the maze. "
-				+ "It's on your map now -- getting through to it is your problem.") % [n, boss_of(n)]))
+		var keeper := "%s keeps the door at the heart of the maze." % boss_of(n)
+		if FinalBoss.is_final(n) and FinalBoss.known_name() == FinalBoss.UNMET:
+			keeper = "Who keeps the door, I can't tell you -- nobody's come back from it, and I've asked."
+		sold.append(_line(choice.next, ("Floor %d. %s "
+				+ "It's on your map now -- getting through to it is your problem.") % [n, keeper]))
 	var leave := DialogueChoice.new()
 	leave.text = "Not today."
 	leave.next = DialogueLine.END

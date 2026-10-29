@@ -632,7 +632,7 @@ const PACK_BIOMES := {
 			["Interior/TilesetInteriorFloor.png", Vector2i(1, 7)],  # path: the inlay's brick
 			["Interior/TilesetInteriorFloor.png", Vector2i(1, 7)],  # special: the same
 			["TilesetWater.png", Vector2i(1, 1)],    # liquid: open water
-			["TilesetDungeon.png", Vector2i(11, 3)],  # obstacle: a dressed stone block
+			["TilesetDungeon.png", Vector2i(8, 3)],   # obstacle: a dressed stone block
 			null,                                    # wall: the masonry blob's solid tile
 			null,                                    # wall-alt: invisible, a house's footprint
 		],

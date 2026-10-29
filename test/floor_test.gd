@@ -298,6 +298,11 @@ func _run() -> void:
 		var sample_biome := sample_floor.biome
 		var label := "floor %d (%s)" % [sample, sample_biome.id]
 		var trees: bool = styles[sample] == BiomeKit.WallStyle.TREES
+		# The obstacle is solid and drawn as itself, wherever the generator scatters
+		# one: a slot cut from an empty cell of its sheet is an invisible wall in the
+		# middle of a room, which no flood fill and no tile check can see.
+		var drawn := _opaque_pixels(sample_biome, sample_biome.obstacle_tile)
+		_check(drawn >= 64, "%s's obstacle draws something (%d px)" % [label, drawn])
 		_check(sample_biome.wall_style == styles[sample] and sample_biome.ground_terrain_set >= 0,
 				"%s is a pack biome walling with %s" % [label, "trees" if trees else "a blob"])
 		var dressed := FloorGenerator.generate(sample_floor, FloorRegistry.seed_for(sample))
@@ -3089,6 +3094,20 @@ func _check(condition: bool, description: String) -> void:
 func _crack_door(map: Node2D) -> Rect2i:
 	var crack := map.get_node_or_null("CrackedWall") as CrackedWall
 	return crack.door if crack != null and crack.is_available() else Rect2i()
+
+
+## How many pixels of [param biome]'s row-0 [param slot] are not see-through.
+func _opaque_pixels(biome: BiomeKit, slot: int) -> int:
+	var source := biome.tile_set.get_source(0) as TileSetAtlasSource
+	var region := source.get_tile_texture_region(Vector2i(slot, 0))
+	var image := source.texture.get_image().get_region(region)
+	image.convert(Image.FORMAT_RGBA8)
+	var opaque := 0
+	for y in image.get_height():
+		for x in image.get_width():
+			if image.get_pixel(x, y).a > 0.0:
+				opaque += 1
+	return opaque
 
 
 ## Wall-mass cells beside open ground that no tree or bush stands over. A bare one

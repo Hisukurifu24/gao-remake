@@ -17,17 +17,28 @@ const PORTRAIT := "res://assets/ninja_adventure/Actor/Character/Master/Faceset.p
 ## Who speaks for the system. In SAO the announcement after the last boss has no
 ## face and no name; here it is Cardinal's, as the idle logout is.
 const SYSTEM := "Cardinal"
+## What he is called until you have stood in front of him. SAO never named its last
+## boss in advance -- the name is the reveal -- so the door, the camp and Argo don't
+## either.
+const UNMET := "???"
+## Set as his opening words end: from then on he has a name.
+const MET_FLAG := &"final_boss_met"
 
 
 static func is_final(floor_number: int) -> bool:
 	return floor_number >= FloorTuning.TOP_FLOOR
 
 
+## His name if you have met him, [constant UNMET] if not.
+static func known_name() -> String:
+	return SPEAKER if GameState.has_flag(MET_FLAG) else UNMET
+
+
 ## Before the door: what he has to say about the run that got you here. Said every
 ## time you challenge him, shorter once you have heard it.
 static func prelude() -> Dialogue:
 	var lines: Array = []
-	if GameState.has_flag(&"final_boss_met"):
+	if GameState.has_flag(MET_FLAG):
 		lines.append_array([
 			["", "Hisukurifu is where you left him."],
 			[SPEAKER, "Back already? Level %d. Good -- the respawn works. I tested it." % GameState.level],
@@ -45,7 +56,7 @@ static func prelude() -> Dialogue:
 		[SPEAKER, "There's no flee button on this one. I took it out."],
 	])
 	var dialogue := _dialogue(&"final_boss", lines)
-	dialogue.lines[-1].effects.append(_flag(&"final_boss_met"))
+	dialogue.lines[-1].effects.append(_flag(MET_FLAG))
 	return dialogue
 
 
@@ -55,7 +66,7 @@ static func farewell() -> Dialogue:
 		["", "The placeholder that was Hisukurifu flickers, and for a moment it is a man in red and white again."],
 		[SPEAKER, "...Huh. You did it."],
 		[SPEAKER, "Good. A boss nobody beats is just a wall, and I didn't build a hundred floors to end on a wall."],
-		[SPEAKER, "%s of your life in a world I made. I don't really know how to thank you for that, %s. So: thank you." % [_hours(), GameState.player_name]],
+		[SPEAKER, "%s of your life in a world I made. I don't really know how to thank you for that, %s. So: thank you." % [_sentence(time_played()), GameState.player_name]],
 		[SPEAKER, "Go on. The castle's yours now."],
 		[SYSTEM, "%s: the game has been cleared." % Time.get_time_string_from_system().substr(0, 5)],
 		[SYSTEM, "All players will now be logged out, in sequence."],
@@ -72,7 +83,7 @@ static func defeat_lines() -> PackedStringArray:
 
 ## The epilogue, over white, before the credits roll.
 static func epilogue() -> PackedStringArray:
-	var how := "in %s" % _hours()
+	var how := "in %s" % time_played()
 	return PackedStringArray([
 		"Aincrad, floor 100. The game has been cleared.",
 		"%s reached the top of the castle %s, at level %d." % [GameState.player_name, how, GameState.level],
@@ -81,13 +92,22 @@ static func epilogue() -> PackedStringArray:
 	])
 
 
-## How long the run took, in words.
-static func _hours() -> String:
-	var minutes := int(GameState.play_time / 60.0)
+## How long the run took, in words: "a minute", "40 minutes", "3 hours and 5 minutes".
+## [BossPhase] fills [code]{time}[/code] with it.
+static func time_played() -> String:
+	var minutes := maxi(1, int(GameState.play_time / 60.0))
 	if minutes < 60:
-		return "%d minutes" % maxi(1, minutes)
-	return "%d hours and %d minutes" % [minutes / 60, minutes % 60] if minutes % 60 != 0 \
-			else "%d hours" % (minutes / 60)
+		return _count(minutes, "minute")
+	if minutes % 60 == 0:
+		return _count(minutes / 60, "hour")
+	return "%s and %s" % [_count(minutes / 60, "hour"), _count(minutes % 60, "minute")]
+
+
+## "a minute", "3 minutes".
+static func _count(n: int, unit: String) -> String:
+	if unit == "hour" and n == 1:
+		return "an hour"
+	return "a %s" % unit if n == 1 else "%d %ss" % [n, unit]
 
 
 ## His word on the way the run was played ([enum GameState.Mode]).
@@ -97,7 +117,12 @@ static func _how_you_played() -> String:
 			return "Hardcore, too. If you lose, I delete your save -- that isn't a threat, it's a few lines in save_game.gd. I'd rather not use them."
 		GameState.Mode.MARATHON:
 			return "And a marathon. No saves, all in one sitting. Don't go idle on me now; Cardinal is watching even here."
-	return "%s on the clock, and a save somewhere behind you. Good. You may want it." % _hours()
+	return "%s on the clock, and a save somewhere behind you. Good. You may want it." % _sentence(time_played())
+
+
+## [param text] with its first letter a capital, for a sentence it starts.
+static func _sentence(text: String) -> String:
+	return text.left(1).to_upper() + text.substr(1)
 
 
 static func _dialogue(id: StringName, lines: Array) -> Dialogue:

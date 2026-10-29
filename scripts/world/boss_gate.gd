@@ -259,6 +259,8 @@ func _ascend() -> void:
 
 
 func _boss_label() -> String:
+	if FinalBoss.is_final(floor_number):
+		return FinalBoss.known_name()
 	if boss_name.is_empty():
 		return FloorTuning.boss_name(floor_number)
 	return boss_name

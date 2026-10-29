@@ -678,8 +678,12 @@ func _test_game_cleared() -> void:
 	await _until_unlocked()
 	var gates := SceneRouter.current_map().find_children("*", "BossGate", true, false)
 	var gate := gates[0] as BossGate if not gates.is_empty() else null
-	_check(gate != null and gate.get_prompt() == "Challenge %s" % FloorTuning.FINAL_BOSS,
-			"floor 100's door is Hisukurifu's (%s)" % (gate.get_prompt() if gate != null else "no door"))
+	_check(gate != null and gate.get_prompt() == "Challenge %s" % FinalBoss.UNMET,
+			"floor 100's door doesn't name its boss before you meet him (%s)" % (
+				gate.get_prompt() if gate != null else "no door"))
+	GameState.set_flag(FinalBoss.MET_FLAG)
+	_check(gate.get_prompt() == "Challenge %s" % FloorTuning.FINAL_BOSS,
+			"and is Hisukurifu's once you have (%s)" % gate.get_prompt())
 	_check(SaveGame.save_game(3) and SaveGame.summary(3).get("cleared") == false,
 			"a save short of the top isn't cleared")
 
