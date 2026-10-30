@@ -24,7 +24,16 @@ enum Mode { STANDARD, HARDCORE, MARATHON }
 ## ([method SaveGame._migrate]).
 const MODE_NAMES: Array[String] = ["standard", "hardcore", "marathon"]
 
-var player_name := "Kirito"
+## Who a new game is until the player says otherwise, and how long a name may be:
+## it has to fit a vitals plate and a battle plate beside the numbers.
+const DEFAULT_NAME := "Kirito"
+const NAME_MAX := 12
+## What a name is made of: letters the UI font draws, digits and a little
+## punctuation. Everything else is dropped, and no bracket, brace or percent sign
+## gets through to the text a name is written into.
+const NAME_REFUSED := "[^A-Za-z0-9\\x{C0}-\\x{D6}\\x{D8}-\\x{F6}\\x{F8}-\\x{148}\\x{14A}-\\x{17E} _'.\\-]"
+
+var player_name := DEFAULT_NAME
 ## Seconds spent on a map in this run, counted by the main scene. Shown on the
 ## save slots and the status page; nothing plays differently for it.
 var play_time := 0.0
@@ -402,6 +411,24 @@ const SAVED: Array[StringName] = [
 const NOT_SAVED: Array[StringName] = [&"_input_locks"]
 
 
+## [param raw] with everything a name can't hold taken out, as it stands while it
+## is being typed: a trailing space may be the start of a second word.
+static func name_chars(raw: String) -> String:
+	return _name_letters(raw).left(NAME_MAX)
+
+
+## A finished name: what [method name_chars] keeps, with no space at either end or
+## two in a row. Empty if there is nothing left of it, which is the caller's to
+## refuse.
+static func clean_name(raw: String) -> String:
+	var runs := RegEx.create_from_string(" +")
+	return runs.sub(_name_letters(raw).strip_edges(), " ", true).left(NAME_MAX).strip_edges()
+
+
+static func _name_letters(raw: String) -> String:
+	return RegEx.create_from_string(NAME_REFUSED).sub(raw, "", true)
+
+
 func to_save() -> Dictionary:
 	var flags := {}
 	for flag in _flags:
@@ -433,7 +460,7 @@ func to_save() -> Dictionary:
 ## to be rebuilt round the rest. [SaveGame] decides the order the
 ## autoloads load in, and this goes first -- the quests and the bag read it.
 func from_save(data: Dictionary) -> void:
-	player_name = str(data.get("player_name", "Kirito"))
+	player_name = str(data.get("player_name", DEFAULT_NAME))
 	mode = mode_named(str(data.get("mode", "")))
 	play_time = maxf(0.0, float(data.get("play_time", 0.0)))
 	level = maxi(1, SaveCodec.whole(data.get("level"), 1))

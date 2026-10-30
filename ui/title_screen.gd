@@ -9,9 +9,10 @@ extends CanvasLayer
 ## while open, so nothing on the map underneath can open over it.
 ##
 ## A new game asks how to play first and where to save second, because a marathon
-## is never saved and has no slot to ask about. Esc goes back a page.
+## is never saved and has no slot to ask about, and who you are last, once nothing
+## else can send you back. Esc goes back a page.
 
-enum Page { MAIN, LOAD, NEW_MODE, NEW_SLOT, SETTINGS, CREDITS }
+enum Page { MAIN, LOAD, NEW_MODE, NEW_SLOT, SETTINGS, CREDITS, NEW_NAME }
 enum Main { CONTINUE, NEW, LOAD, SETTINGS, CREDITS, QUIT }
 
 ## [mode, name, what it means, what happens to the save].
@@ -45,6 +46,12 @@ var _handing_over := false
 var _page := Page.MAIN
 ## The way to play the NEW_SLOT page is starting.
 var _mode := GameState.Mode.STANDARD
+## The slot the NEW_NAME page is starting; 0 for a marathon, which has none.
+var _new_slot := 0
+## The NEW_NAME page has refused an empty name, and says so until it is typed in.
+var _no_name := false
+## The NEW_NAME page came up with a key down, and no key has come up since.
+var _key_held_over := false
 ## The card the confirm key was pressed on once -- delete, or overwrite -- and
 ## wants pressing again; -1 for none.
 var _confirming := -1
@@ -58,6 +65,7 @@ var _window: PanelContainer
 var _header: Label
 var _cards: CardList
 var _settings: SettingsList
+var _name_field: LineEdit
 var _credits: VBoxContainer
 var _detail: Label
 var _hints: KeyHints
@@ -97,6 +105,8 @@ func _hand_over() -> void:
 		return
 	_open = false
 	_handing_over = true
+	# The name box, typed into last: the game's keys are the game's from here.
+	_name_field.release_focus()
 	GameState.pop_input_lock()
 
 
@@ -122,9 +132,15 @@ func cards() -> CardList:
 	return _cards
 
 
+## The box the NEW_NAME page types into.
+func name_field() -> LineEdit:
+	return _name_field
+
+
 func _show_page(next: Page) -> void:
 	_page = next
 	_confirming = -1
+	_no_name = false
 	var main := next == Page.MAIN
 	_logo.visible = main
 	_menu.visible = main
@@ -133,6 +149,7 @@ func _show_page(next: Page) -> void:
 	_window.visible = not main
 	_cards.visible = next in [Page.LOAD, Page.NEW_MODE, Page.NEW_SLOT]
 	_settings.visible = next == Page.SETTINGS
+	_name_field.visible = next == Page.NEW_NAME
 	_credits.visible = next == Page.CREDITS
 	# The credits have a tune of their own; every other page plays the title's.
 	Audio.play_over(&"credits" if next == Page.CREDITS else &"")
@@ -140,32 +157,53 @@ func _show_page(next: Page) -> void:
 		Page.MAIN:
 			_menu.set_rows(_main_rows())
 			_menu.select(Main.CONTINUE if _menu.is_enabled(Main.CONTINUE) else Main.NEW)
-			_hints.show_hints([["E", "choose"]])
+			_hints.show_hints([[_confirm_key(), "choose"]])
 		Page.LOAD:
 			_header.text = "Load game"
 			_cards.set_cards(_slot_cards())
 			_cards.select(maxi(0, latest_slot() - 1))
-			_hints.show_hints([["E", "load"], [["Del", "X"], "delete"], ["Esc", "back"]])
+			_hints.show_hints([[_confirm_key(), "load"], [["Del", "X"], "delete"], ["Esc", "back"]])
 		Page.NEW_MODE:
 			_header.text = "New game -- how will you play?"
 			_cards.set_cards(_mode_cards())
-			_hints.show_hints([["E", "choose"], ["Esc", "back"]])
+			_hints.show_hints([[_confirm_key(), "choose"], ["Esc", "back"]])
 		Page.NEW_SLOT:
 			_header.text = "New game -- %s -- choose a slot" % _mode_name(_mode)
 			_cards.set_cards(_slot_cards())
 			_cards.select(maxi(0, first_empty_slot() - 1))
-			_hints.show_hints([["E", "start here"], ["Esc", "back"]])
+			_hints.show_hints([[_confirm_key(), "start here"], ["Esc", "back"]])
+		Page.NEW_NAME:
+			_header.text = "New game -- %s -- what is your name?" % _mode_name(_mode)
+			_key_held_over = true
+			_name_field.text = GameState.DEFAULT_NAME
+			_name_field.grab_focus()
+			_name_field.edit()
+			_name_field.select_all()
+			_hints.show_hints([["Enter", "log in"], ["Esc", "back"]])
 		Page.SETTINGS:
 			_header.text = "Settings"
+			_settings.leave_keys()
 			_settings.refresh()
 			_settings.select(0)
-			_hints.show_hints([[["Left", "Right"], "change"], ["E", "choose"], ["Esc", "back"]])
+			_paint_settings_hints()
 		Page.CREDITS:
 			_header.text = "Credits"
 			_hints.show_hints([["Esc", "back"]])
 	_paint_detail()
 	# The window fits its page: collapsed to its top edge, it grows to its rows.
 	_window.offset_bottom = _window.offset_top + 1.0
+
+
+## The key the pages confirm on, as the keycap shows it.
+func _confirm_key() -> String:
+	return Settings.key_name(&"interact")
+
+
+func _paint_settings_hints() -> void:
+	var hints := _settings.hints(_confirm_key())
+	if not _settings.is_waiting():
+		hints.append(["Esc", "back"])
+	_hints.show_hints(hints)
 
 
 func _main_rows() -> Array[Dictionary]:
@@ -273,17 +311,20 @@ func _paint_detail() -> void:
 		Page.NEW_SLOT:
 			var n := _cards.index + 1
 			if _confirming == _cards.index:
-				text = "Press E again: slot %d's save will be overwritten." % n
+				text = "Press %s again: slot %d's save will be overwritten." % [_confirm_key(), n]
 			elif SaveGame.exists(n):
 				text = "This slot has a save in it."
 			else:
 				text = "An empty slot."
+		Page.NEW_NAME:
+			text = "You can't log in with no name." if _no_name \
+					else "What the castle will call you, up to %d letters." % GameState.NAME_MAX
 		Page.SETTINGS:
 			text = _settings.describe(_settings.index)
 	_detail.text = text
 	_menu_detail.text = text
 	_detail.add_theme_color_override(&"font_color",
-			UiPalette.BAD if _confirming >= 0 else UiPalette.DIM)
+			UiPalette.BAD if _confirming >= 0 or _no_name else UiPalette.DIM)
 
 
 func _repaint_cards() -> void:
@@ -329,16 +370,39 @@ func _on_card_chosen(at: int) -> void:
 				continue_slot(at + 1)
 		Page.NEW_MODE:
 			_mode = MODES[at][0]
-			if _mode == GameState.Mode.MARATHON:
-				begin(0, _mode)
-			else:
-				_show_page(Page.NEW_SLOT)
+			_new_slot = 0
+			_show_page(Page.NEW_NAME if _mode == GameState.Mode.MARATHON else Page.NEW_SLOT)
 		Page.NEW_SLOT:
 			if SaveGame.exists(at + 1) and _confirming != at:
 				_confirming = at
 				_repaint_cards()
 				return
-			begin(at + 1, _mode)
+			_new_slot = at + 1
+			_show_page(Page.NEW_NAME)
+
+
+## Keeps the box to what a name can hold, as it is typed.
+func _on_name_typed(typed: String) -> void:
+	var kept := GameState.name_chars(typed)
+	if kept != typed:
+		var caret := _name_field.caret_column - (typed.length() - kept.length())
+		_name_field.text = kept
+		_name_field.caret_column = maxi(0, caret)
+	if _no_name:
+		_no_name = false
+		_paint_detail()
+
+
+## The last page of a new game: the name in the box starts it, or nothing there
+## says so.
+func confirm_name() -> void:
+	if GameState.clean_name(_name_field.text).is_empty():
+		_no_name = true
+		_paint_detail()
+		Audio.play(&"refuse")
+		return
+	Audio.play(&"accept")
+	begin(_new_slot, _mode, _name_field.text)
 
 
 ## Moving off a card takes back a first press on it.
@@ -373,15 +437,27 @@ func _back() -> void:
 		Audio.play(&"cancel")
 	match _page:
 		Page.NEW_SLOT:
-			_show_page(Page.NEW_MODE)
-			_cards.select(MODES.map(func(m: Array) -> int: return m[0]).find(_mode))
+			_back_to_mode()
+		Page.NEW_NAME:
+			if _new_slot == 0:
+				_back_to_mode()
+			else:
+				_show_page(Page.NEW_SLOT)
+				_cards.select(_new_slot - 1)
 		Page.MAIN:
+			pass
+		Page.SETTINGS when _settings.leave_keys():
 			pass
 		_:
 			var from := _page
 			_show_page(Page.MAIN)
 			_menu.select({Page.LOAD: Main.LOAD, Page.NEW_MODE: Main.NEW,
 					Page.SETTINGS: Main.SETTINGS, Page.CREDITS: Main.CREDITS}.get(from, Main.NEW))
+
+
+func _back_to_mode() -> void:
+	_show_page(Page.NEW_MODE)
+	_cards.select(MODES.map(func(m: Array) -> int: return m[0]).find(_mode))
 
 
 ## Loads [param n] and hands over to it. A save that won't load brings the title
@@ -393,13 +469,30 @@ func continue_slot(n: int) -> void:
 		open("Slot %d could not be loaded." % n)
 
 
-## Starts a new game in [param n], played as [param mode].
-func begin(n: int, mode: GameState.Mode) -> void:
+## Starts a new game in [param n], played as [param mode] by [param avatar].
+func begin(n: int, mode: GameState.Mode, avatar := "") -> void:
 	_hand_over()
-	await SaveGame.new_game(n, mode)
+	await SaveGame.new_game(n, mode, avatar)
 
 
 # --- input -----------------------------------------------------------------
+
+## The name box is typed into, so it sees every key first and would take Esc for
+## stopping typing: going back a page is read ahead of it. So is the key that
+## chose the slot, still down as the box comes up: its repeat is not a name, nor
+## an Enter on the name in the box.
+func _input(event: InputEvent) -> void:
+	if not _open or _page != Page.NEW_NAME or SceneRouter.is_busy():
+		return
+	var key := event as InputEventKey
+	if key != null and not key.pressed:
+		_key_held_over = false
+	elif key != null and key.echo and _key_held_over:
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(&"ui_cancel") or event.is_action_pressed(&"pause"):
+		get_viewport().set_input_as_handled()
+		_back()
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not _open:
@@ -428,6 +521,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		Page.CREDITS:
 			if confirm:
 				_back()
+		Page.NEW_NAME:
+			# Only with the box not being typed into: a click elsewhere leaves it.
+			if confirm:
+				confirm_name()
 		_:
 			if up or down:
 				_cards.move(-1 if up else 1)
@@ -529,7 +626,16 @@ func _build() -> void:
 	_settings = SettingsList.new()
 	_settings.back.connect(_back)
 	_settings.moved.connect(func(_at: int) -> void: _paint_detail())
+	_settings.view_changed.connect(_on_settings_view_changed)
 	column.add_child(_settings)
+
+	_name_field = LineEdit.new()
+	_name_field.max_length = GameState.NAME_MAX
+	_name_field.keep_editing_on_text_submit = true
+	_name_field.context_menu_enabled = false
+	_name_field.text_changed.connect(_on_name_typed)
+	_name_field.text_submitted.connect(func(_text: String) -> void: confirm_name())
+	column.add_child(_name_field)
 
 	_credits = VBoxContainer.new()
 	_credits.add_theme_constant_override(&"separation", 3)
@@ -555,6 +661,14 @@ func _build() -> void:
 	_hints.offset_top = -24.0
 	_hints.offset_bottom = -4.0
 	add_child(_hints)
+
+
+func _on_settings_view_changed() -> void:
+	if _page == Page.SETTINGS:
+		_header.text = "Keys" if _settings.is_on_keys() else "Settings"
+		_paint_settings_hints()
+		_paint_detail()
+		_window.offset_bottom = _window.offset_top + 1.0
 
 
 func _field_label() -> Label:

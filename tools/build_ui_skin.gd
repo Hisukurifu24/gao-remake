@@ -62,6 +62,9 @@ const BUTTON_PAD := [8, 2, 8, 2]
 const ROW_PAD := [8, 2, 8, 2]
 const TAB_PAD := [9, 4, 9, 2]
 const BADGE_PAD := [4, 0, 4, 1]
+## The slider's groove, drawn this far either side of its middle.
+const GROOVE_PAD := [0, 3, 0, 3]
+const GRABBER_SIZE := Vector2i(5, 11)
 
 var _font: Font
 var _strong: Font
@@ -164,6 +167,26 @@ func _light_theme() -> Theme:
 	theme.set_color(&"font_hover_pressed_color", &"Button", UiPalette.ON_ACCENT)
 	theme.set_color(&"font_disabled_color", &"Button", UiPalette.LOCKED)
 
+	# The one box anything is typed into: the inset, its frame lit while it is.
+	theme.set_stylebox(&"normal", &"LineEdit",
+			_frame(PLAIN, UiPalette.INSET_LINE, UiPalette.INSET_FILL, ROW_PAD))
+	theme.set_stylebox(&"focus", &"LineEdit",
+			_frame(PLAIN, UiPalette.ACCENT_LINE, UiPalette.INSET_FILL, ROW_PAD))
+	theme.set_color(&"font_color", &"LineEdit", UiPalette.TEXT)
+	theme.set_color(&"font_selected_color", &"LineEdit", UiPalette.ON_ACCENT)
+	theme.set_color(&"selection_color", &"LineEdit", UiPalette.ACCENT_FILL)
+	theme.set_color(&"caret_color", &"LineEdit", UiPalette.ACCENT_LINE)
+
+	# A slider sits on a white plate or the lit orange one, so its groove is dark on
+	# both, and what is filled in is the orange inside that dark.
+	theme.set_stylebox(&"slider", &"HSlider", _groove(UiPalette.BAR_TROUGH))
+	theme.set_stylebox(&"grabber_area", &"HSlider", _groove(UiPalette.ACCENT_FILL))
+	theme.set_stylebox(&"grabber_area_highlight", &"HSlider", _groove(UiPalette.ACCENT_FILL))
+	var grabber := _grabber()
+	for icon: StringName in [&"grabber", &"grabber_highlight", &"grabber_disabled"]:
+		theme.set_icon(icon, &"HSlider", grabber)
+	theme.set_constant(&"center_grabber", &"HSlider", 1)
+
 	# The map is a dark sheet inside the white window, written in its own light.
 	_label(theme, &"MapLabel", UiPalette.MAP_LABEL)
 	# What sits over the map in a menu's corner is glass, as it is in play.
@@ -240,6 +263,24 @@ func _base(text: Color, dim: Color, header: Color) -> Theme:
 	return theme
 
 
+func _groove(fill: Color) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = fill
+	box.set_border_width_all(1)
+	box.border_color = UiPalette.SHADOW
+	box.anti_aliasing = false
+	_pad(box, GROOVE_PAD)
+	return box
+
+
+## The handle: the inset's white with a line round it, which shows on any plate.
+func _grabber() -> Texture2D:
+	var drawn := Image.create_empty(GRABBER_SIZE.x, GRABBER_SIZE.y, false, Image.FORMAT_RGBA8)
+	drawn.fill(UiPalette.SHADOW)
+	drawn.fill_rect(Rect2i(Vector2i.ONE, GRABBER_SIZE - Vector2i(2, 2)), UiPalette.INSET_FILL)
+	return _embedded(drawn)
+
+
 func _variant(theme: Theme, name: StringName, base: StringName, box: StyleBox) -> void:
 	theme.set_type_variation(name, base)
 	theme.set_stylebox(&"panel", name, box)
@@ -259,11 +300,7 @@ func _frame(number: int, line: Color, fill: Color, pad: Array, thick := false) -
 	var key := "%d/%s/%s/%s" % [number, line.to_html(), fill.to_html(), thick]
 	if not _textures.has(key):
 		var parts := _parts(number)
-		var drawn := _paint(parts[0], parts[1], line, fill, thick)
-		var texture := PortableCompressedTexture2D.new()
-		texture.keep_compressed_buffer = true
-		texture.create_from_image(drawn, PortableCompressedTexture2D.COMPRESSION_MODE_LOSSLESS)
-		_textures[key] = texture
+		_textures[key] = _embedded(_paint(parts[0], parts[1], line, fill, thick))
 	var box := StyleBoxTexture.new()
 	box.texture = _textures[key]
 	var margin := _margins(number)
@@ -273,6 +310,13 @@ func _frame(number: int, line: Color, fill: Color, pad: Array, thick := false) -
 	box.texture_margin_bottom = margin.y
 	_pad(box, pad)
 	return box
+
+
+func _embedded(image: Image) -> Texture2D:
+	var texture := PortableCompressedTexture2D.new()
+	texture.keep_compressed_buffer = true
+	texture.create_from_image(image, PortableCompressedTexture2D.COMPRESSION_MODE_LOSSLESS)
+	return texture
 
 
 func _pad(box: StyleBox, pad: Array) -> void:

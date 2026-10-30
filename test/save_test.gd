@@ -28,6 +28,8 @@ var _main: Node = null
 func _ready() -> void:
 	SaveGame.directory = TEST_DIR
 	_wipe()
+	# Whatever this machine's settings have moved, the suite presses the shipped keys.
+	Settings.reset()
 	await _run()
 	_wipe()
 	print("")
@@ -46,6 +48,7 @@ func _run() -> void:
 	_test_every_field_is_listed()
 	_test_old_and_broken_saves_in_memory()
 	_test_modes_in_memory()
+	_test_names()
 
 	_main = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	add_child(_main)
@@ -67,6 +70,7 @@ func _run() -> void:
 	await _test_resume_fallback()
 	await _test_autosave()
 	await _test_game_menu()
+	await _test_keys()
 	await _test_new_game()
 	await _test_marathon()
 	await _test_idle_logout()
@@ -399,6 +403,28 @@ func _test_autosave() -> void:
 	await _until_unlocked()
 	await _idle(3)
 	_check(not SaveGame.exists(1), "a run with no slot never autosaves")
+
+
+# --- names -------------------------------------------------------------------
+
+func _test_names() -> void:
+	_check(GameState.clean_name("  Asuna   Yuuki  ") == "Asuna Yuuki",
+			"a name loses its outer spaces and any doubled ones")
+	_check(GameState.clean_name("[b]Kl{ei}n%s") == "bKleins",
+			"and anything a line it is written into could trip over")
+	_check(GameState.clean_name("Nicolò-d'Asti") == "Nicolò-d'Ast"
+			and GameState.clean_name("x".repeat(40)).length() == GameState.NAME_MAX,
+			"it keeps accents and stops at %d letters" % GameState.NAME_MAX)
+	_check(GameState.clean_name(" \t[]{}%  ").is_empty(), "and may come to nothing, for the caller to refuse")
+	_check(GameState.name_chars("Asuna ") == "Asuna ", "while typing, a space at the end stays")
+
+	var font := load("res://ui/theme/ui_font.tres") as Font
+	var missing: PackedStringArray = []
+	for code in range(0x20, 0x180):
+		var letter := String.chr(code)
+		if GameState.name_chars(letter) == letter and not font.has_char(code):
+			missing.append("U+%04X" % code)
+	_check(missing.is_empty(), "the font draws everything a name can hold (%s)" % ", ".join(missing))
 
 
 # --- modes -------------------------------------------------------------------
@@ -818,11 +844,34 @@ func _test_title_screen() -> void:
 			"a slot with a save in it asks before it is overwritten")
 	cards.select(2)
 	cards.choose()
+	var field: LineEdit = title.call(&"name_field")
+	_check(title.call(&"page") == 6 and SceneRouter.current_map() == null and field.is_visible_in_tree()
+			and field.has_focus() and field.text == GameState.DEFAULT_NAME,
+			"and last who you are, with a name ready in the box")
+	await _tap_key(KEY_E, false, true)
+	_check(title.call(&"page") == 6 and field.text == GameState.DEFAULT_NAME,
+			"the key that chose the slot, held down, types nothing into the box")
+	await _tap_key(KEY_ENTER, false, true)
+	_check(title.call(&"page") == 6 and SceneRouter.current_map() == null, "nor logs in with what is there")
+	await _tap_key(KEY_ESCAPE)
+	_check(title.call(&"page") == 3 and cards.index == 2, "Esc goes back a page, not only out of the box")
+	cards.choose()
+	field.clear()
+	await _tap_key(KEY_ENTER)
+	_check(title.call(&"page") == 6 and SceneRouter.current_map() == null
+			and String(title.get("_detail").text).contains("no name"),
+			"an empty box logs nobody in, and says why")
+	await _type("Eve[ E}%")
+	_check(field.text == "Eve E", "letters go into the box, E among them, and nothing a name can't hold (%s)" % field.text)
+	await _tap_key(KEY_ENTER)
 	await _until_unlocked()
 	await _idle(3)
 	_check(GameState.mode == GameState.Mode.HARDCORE and SaveGame.slot == 3 and SaveGame.exists(3)
 			and not title.call(&"is_open"),
 			"Hardcore, then an empty slot, starts one there")
+	_check(GameState.player_name == "Eve E" and SaveGame.summary(3).get("name") == "Eve E",
+			"as whoever the box said, in the game and on the save (%s)" % GameState.player_name)
+	_check(not field.has_focus(), "and the box lets go of the keyboard")
 	menu.call(&"open", 4)
 	system = menu.call(&"page", 4).call(&"list")
 	_check(system.is_enabled(1) and not system.is_enabled(2),
@@ -835,11 +884,17 @@ func _test_title_screen() -> void:
 	rows.choose()
 	cards.select(2)
 	cards.choose()
+	_check(title.call(&"page") == 6, "Marathon goes straight to the name: it has no slot to ask about")
+	title.call(&"_back")
+	_check(title.call(&"page") == 2 and cards.index == 2, "and back from there is the ways to play")
+	cards.choose()
+	title.call(&"confirm_name")
 	await _until_unlocked()
 	await _idle(3)
 	_check(GameState.mode == GameState.Mode.MARATHON and SaveGame.slot == 0
-			and SceneRouter.current_map() != null and not title.call(&"is_open"),
-			"Marathon starts at once: it has no slot to ask about")
+			and SceneRouter.current_map() != null and not title.call(&"is_open")
+			and GameState.player_name == GameState.DEFAULT_NAME,
+			"and leaving the box as it stands starts as that")
 	await SaveGame.quit_to_title()
 	await _until_true(func() -> bool: return title.call(&"is_open") and not SceneRouter.is_busy())
 
@@ -858,8 +913,8 @@ func _test_title_screen() -> void:
 	rows.select(3)
 	rows.choose()
 	var settings := title.call(&"list") as MenuList
-	_check(title.call(&"page") == 4 and settings is SettingsList and settings.row_count() == 7,
-			"Settings lists the window, the text, the camera, the two volumes, and Back")
+	_check(title.call(&"page") == 4 and settings is SettingsList and settings.row_count() == 8,
+			"Settings lists the window, the text, the camera, the two volumes, the keys, and Back")
 	settings.select(2)
 	settings.step(1)
 	var file := ConfigFile.new()
@@ -874,6 +929,25 @@ func _test_title_screen() -> void:
 	_check(Settings.load_settings() and Settings.text_speed == 2 and not Settings.screen_shake,
 			"and the file reads back as written")
 	Settings.reset()
+
+	var keys_row := SettingsList.ROWS.find(&"keys")
+	settings.select(keys_row)
+	settings.choose()
+	await _idle(2)
+	var window := settings.get_parent().get_parent() as Control
+	_check(settings.is_on_keys() and window.get_global_rect().end.y <= 336.0,
+			"the keys fit the title's window, above its key line (to %d)" % window.get_global_rect().end.y)
+	Settings.bind(&"interact", KEY_F)
+	title.call(&"_back")
+	_check(title.call(&"page") == 4 and not settings.is_on_keys() and settings.index == keys_row,
+			"Esc steps out of the keys first, onto their row")
+	title.call(&"_back")
+	_check(String(title.get("_hints").call(&"text")).contains("[F] choose"),
+			"and the title's key line names the key as it is now")
+	Settings.reset()
+	rows.select(3)
+	rows.choose()
+
 	DirAccess.remove_absolute(Settings.path)
 	Settings.path = Settings.PATH
 	title.call(&"_back")
@@ -890,9 +964,13 @@ func _test_game_menu() -> void:
 	_check(menu.call(&"is_open") and menu.call(&"tab") == 1 and GameState.is_input_locked(),
 			"I opens the game menu on Items, holding the lock")
 	await _tap_key(KEY_TAB)
-	_check(menu.call(&"tab") == 2, "Tab moves on to Quests")
-	await _tap_key(KEY_TAB, true)
-	_check(menu.call(&"tab") == 1, "and Shift+Tab back to Items")
+	_check(not menu.call(&"is_open") and not GameState.is_input_locked(), "Tab closes Items, as I does")
+	await _tap_key(KEY_TAB)
+	_check(menu.call(&"is_open") and menu.call(&"tab") == 1, "and opens it from the map")
+	menu.call(&"show_tab", 3)
+	await _tap_key(KEY_TAB)
+	_check(menu.call(&"is_open") and menu.call(&"tab") == 1,
+			"and from any other tab goes to Items, not on to the next tab")
 	var bag_before := Inventory.stacks().size()
 	await _tap_key(KEY_E)
 	_check(menu.call(&"tab") == 2 and Inventory.stacks().size() == bag_before,
@@ -982,14 +1060,181 @@ func _test_game_menu() -> void:
 	_check(not menu.call(&"is_open") and not GameState.is_input_locked(), "(cleanup) the menu is closed")
 
 
-func _tap_key(key: Key, shift := false) -> void:
+## Moving keys: the rule, the file, the input map, the page in System and what
+## names a key on screen.
+func _test_keys() -> void:
+	var menu := _main.get_node("GameMenu")
+	Settings.path = TEST_DIR.path_join("settings.cfg")
+	Settings.reset()
+
+	var loose: PackedStringArray = []
+	for binding: Array in Settings.BINDINGS:
+		var key := Settings.key_of(binding[0])
+		if key == KEY_NONE or not Settings.refusal(key).is_empty():
+			loose.append("%s can't have the key it ships with" % binding[0])
+		for event in InputMap.action_get_events(binding[0]).slice(1):
+			if not Settings.FIXED_KEYS.has((event as InputEventKey).physical_keycode):
+				loose.append("%s has a second key that isn't fixed" % binding[0])
+	_check(loose.is_empty(), "every action's first key can move, and only that one can (%s)" % ", ".join(loose))
+
+	_check(Settings.bind(&"journal", KEY_K) == &"" and _is_on(KEY_K, &"journal") and not _is_on(KEY_J, &"journal"),
+			"moving an action takes it off the old key and puts it on the new one")
+	await _tap_key(KEY_K)
+	_check(menu.call(&"is_open") and menu.call(&"tab") == 2, "so K opens Quests now")
+	await _tap_key(KEY_K)
+	_check(not menu.call(&"is_open"), "and closes it")
+	await _tap_key(KEY_J)
+	_check(not menu.call(&"is_open"), "and J does nothing")
+
+	_check(Settings.bind(&"map", KEY_K) == &"journal" and Settings.key_of(&"map") == KEY_K
+			and Settings.key_of(&"journal") == KEY_M,
+			"a key another action has swaps the two, so neither is left with nothing")
+	_check(Settings.bind(&"map", KEY_ESCAPE) == &"" and Settings.key_of(&"map") == KEY_K
+			and not Settings.refusal(KEY_TAB).is_empty(), "Esc and the other fixed keys can't be given away")
+	_check(not Settings.refusal(KEY_SEMICOLON).is_empty() and Settings.refusal(KEY_F12).is_empty(),
+			"and nor can a key the pack draws no cap for, which nothing could show")
+
+	Settings.bind(&"move_up", KEY_Y)
+	Settings.bind(&"interact", KEY_F)
+	_check(_is_on(KEY_UP, &"move_up") and _is_on(KEY_SPACE, &"interact") and _is_on(KEY_ENTER, &"interact")
+			and _is_on(KEY_TAB, &"inventory"), "an action's other keys stay on it")
+	var prompt := _main.get_node("Hud/InteractPrompt/Row/Key") as TextureRect
+	_check(prompt.texture == KeyHints.texture_for("F"), "the prompt's keycap follows the key")
+	var gate := _main.get_node("GateMenu")
+	gate.call(&"open", 1)
+	_check(String(gate.get_node("Hints").text).begins_with("[F] travel"), "and the gate's key line names it")
+	gate.call(&"close")
+	var shop := _main.get_node("ShopScreen")
+	shop.call(&"open", ShopLibrary.all()[0])
+	_check(String(shop.get_node("Hints").text).begins_with("[F] trade"), "and the shop's")
+	shop.call(&"close")
+
+	var file := ConfigFile.new()
+	_check(file.load(Settings.path) == OK and file.get_value("keys", "map") == KEY_K
+			and not file.has_section_key("keys", "inventory"), "only moved keys are written")
+	Settings.reset()
+	_check(Settings.keys_are_default() and _is_on(KEY_E, &"interact") and not _is_on(KEY_F, &"interact"),
+			"(setup) a reset puts them all back")
+	_check(Settings.load_settings() and Settings.key_of(&"map") == KEY_K and _is_on(KEY_F, &"interact"),
+			"and the file reads back into the input map")
+	file.set_value("keys", "map", KEY_F)
+	file.save(Settings.path)
+	_check(Settings.load_settings() and Settings.keys_are_default(),
+			"a file giving one key to two actions is ignored whole")
+	file.set_value("keys", "map", KEY_ESCAPE)
+	file.set_value("keys", "interact", KEY_G)
+	file.save(Settings.path)
+	_check(Settings.load_settings() and Settings.keys_are_default(), "and so is one taking a fixed key")
+
+	# Q and E are the menu's tab keys, so a key can only be picked up ahead of them.
+	menu.call(&"open", 4)
+	var system: Node = menu.call(&"page", 4)
+	var rows: MenuList = system.call(&"list")
+	rows.select(3)
+	rows.choose()
+	var list: SettingsList = system.call(&"list")
+	list.select(SettingsList.ROWS.find(&"keys"))
+	list.choose()
+	await _idle(2)
+	_check(list.is_on_keys() and list.row_count() == Settings.BINDINGS.size() + 2
+			and list.text_of(4) == "Interact [E]", "Keys lists every action with its key, and Reset and Back")
+	var column := list.get_parent() as Control
+	_check(column.get_combined_minimum_size().y <= system.size.y,
+			"and fits the System page (%d of %d)" % [column.get_combined_minimum_size().y, system.size.y])
+	_check(not list.is_enabled(Settings.BINDINGS.size()), "with nothing to reset yet")
+	list.select(4)
+	list.choose()
+	_check(list.is_waiting() and list.text_of(4).contains("press a key")
+			and menu.call(&"hint_text") == "[Esc] leave it", "choosing a row waits for a key, and says only how out")
+	await _tap_key(KEY_ESCAPE)
+	_check(not list.is_waiting() and list.is_on_keys() and menu.call(&"is_open") and Settings.keys_are_default(),
+			"Esc leaves the key as it was, and nothing else")
+	list.choose()
+	await _tap_key(KEY_TAB)
+	_check(list.is_waiting() and menu.call(&"tab") == 4 and list.describe(4).contains("keep"),
+			"a fixed key is refused, still waiting, and doesn't change tab")
+	await _tap_key(KEY_Q)
+	_check(not list.is_waiting() and Settings.key_of(&"interact") == KEY_Q and menu.call(&"tab") == 4
+			and list.text_of(4) == "Interact [Q]", "Q is taken for the key, not for the tab")
+	list.select(5)
+	list.choose()
+	await _tap_key(KEY_Q)
+	_check(Settings.key_of(&"inventory") == KEY_Q and Settings.key_of(&"interact") == KEY_I
+			and list.describe(5).contains("Swapped with Interact"), "a swap says what it swapped with")
+	list.select(Settings.BINDINGS.size())
+	list.choose()
+	_check(Settings.keys_are_default() and list.text_of(4) == "Interact [E]", "Reset keys puts them all back")
+	list.select(4)
+	list.choose()
+	menu.call(&"close")
+	await _tap_key(KEY_P)
+	_check(Settings.keys_are_default(), "a menu closed under a waiting row takes no key")
+
+	menu.call(&"open", 4)
+	rows.select(3)
+	rows.choose()
+	list.select(SettingsList.ROWS.find(&"keys"))
+	list.choose()
+	list.select(Settings.BINDINGS.size() + 1)
+	list.choose()
+	_check(not list.is_on_keys() and system.call(&"list") == list, "Back goes back to the settings")
+	list.choose()
+	await _tap(&"pause")
+	_check(not list.is_on_keys() and system.call(&"list") == list and menu.call(&"is_open"),
+			"as Esc does, one step at a time")
+	await _tap(&"pause")
+	await _tap(&"pause")
+	_check(not menu.call(&"is_open"), "(cleanup) the menu is closed")
+
+	Settings.bind(&"map", KEY_E)
+	await _tap_key(KEY_E)
+	_check(menu.call(&"tab") == 3 and menu.call(&"is_open"), "a tab may be given E")
+	menu.call(&"show_tab", 0)
+	await _tap_key(KEY_E)
+	_check(menu.call(&"tab") == 3, "and in the menu E goes to that tab rather than the next one")
+	await _tap_key(KEY_E)
+	_check(not menu.call(&"is_open"), "and closes it as its own key should")
+
+	Settings.reset()
+	DirAccess.remove_absolute(Settings.path)
+	Settings.path = Settings.PATH
+
+
+## Whether pressing the physical [param key] now counts as [param action].
+func _is_on(key: Key, action: StringName) -> bool:
+	var press := InputEventKey.new()
+	press.physical_keycode = key
+	press.pressed = true
+	return press.is_action_pressed(action)
+
+
+## Types [param text] a key at a time, into whatever has focus.
+func _type(text: String) -> void:
+	for i in text.length():
+		var press := InputEventKey.new()
+		press.physical_keycode = text.unicode_at(i) as Key
+		press.keycode = press.physical_keycode
+		press.unicode = text.unicode_at(i)
+		press.pressed = true
+		Input.parse_input_event(press)
+		await _idle(1)
+		var release := press.duplicate() as InputEventKey
+		release.pressed = false
+		Input.parse_input_event(release)
+		await _idle(1)
+
+
+func _tap_key(key: Key, shift := false, echo := false) -> void:
 	var press := InputEventKey.new()
 	press.physical_keycode = key
 	press.keycode = key
 	press.shift_pressed = shift
+	press.echo = echo
 	press.pressed = true
 	Input.parse_input_event(press)
 	await _idle(2)
+	if echo:
+		return
 	var release := press.duplicate() as InputEventKey
 	release.pressed = false
 	Input.parse_input_event(release)

@@ -70,6 +70,8 @@ func _run() -> void:
 	var start_y := player.global_position.y
 	await _hold(&"move_up", 20)
 	_check(player.global_position.y < start_y - 10.0, "walking north moves the player")
+	_check(player.is_processing() and not player.is_physics_processing(),
+			"the player moves on drawn frames, in step with the camera, not on physics ticks")
 
 	player.global_position = Vector2(392, 40)  # just under the tree border
 	await _hold(&"move_up", 60)
@@ -103,6 +105,8 @@ func _run() -> void:
 	_check(not box.get_node("Box").visible, "the box closes when the conversation ends")
 	_check(not GameState.is_input_locked(), "closing the dialogue unlocks input")
 	_check(GameState.has_flag(&"met_argo"), "finishing a conversation sets the NPC's flag")
+	await _test_choice_width(box)
+	await _test_leaving_by_key(main, box)
 
 	# --- quests, in the real booted game ---
 	# quest_test.gd owns the rules. What matters here is that the autoload is wired
@@ -1545,6 +1549,49 @@ func _test_roaming(map: Node2D, player: Player) -> void:
 
 ## Tomas's counter on the plaza, through the real screen: talking to him opens
 ## it, E buys the top of the shelf, left/right turns it to selling, Esc closes it.
+## A choice menu is as wide as its longest row wherever the cursor is: the cursor
+## keeps its room on every row, or the panel jumps as it lands on that one.
+func _test_choice_width(box: CanvasLayer) -> void:
+	var line := DialogueLine.new()
+	line.text = "Which one?"
+	var choices: Array[DialogueChoice] = []
+	for label: String in ["Yes", "A much longer way of saying no", "Maybe"]:
+		var choice := DialogueChoice.new()
+		choice.text = label
+		choices.append(choice)
+	line.choices = choices
+	var dialogue := Dialogue.new()
+	var lines: Array[DialogueLine] = [line]
+	dialogue.lines = lines
+	DialogueRunner.start(dialogue)
+	await _idle()
+	if box.call(&"_is_typing"):
+		box.call(&"_finish_typing")
+	var panel: Control = box.get_node("Choices")
+	await _idle(2)
+	_check(panel.visible, "a line with choices shows the choice menu")
+
+	var widths := {}
+	for i in choices.size():
+		widths[panel.size.x] = true
+		box.call(&"_move_selection", 1)
+		await _idle(2)
+	_check(widths.size() == 1, "the choice menu keeps its width as the cursor moves (got %s)" % widths.keys())
+	DialogueRunner.choose(box.get(&"_selected"))
+	await _close_dialogue()
+
+
+## Esc through the real box, with the game menu it also opens listening for it.
+func _test_leaving_by_key(main: Node, box: CanvasLayer) -> void:
+	DialogueRunner.say("", PackedStringArray(["One.", "Two."]))
+	await _idle()
+	_check(box.get_node("Box").visible, "a conversation is up for Esc to leave")
+	await _tap(&"pause")
+	_check(not DialogueRunner.is_running() and not box.get_node("Box").visible,
+			"Esc leaves a conversation")
+	_check(not main.get_node("GameMenu").is_open(), "and doesn't open the game menu behind it")
+
+
 func _test_shop(main: Node, town: Node2D, player: Node2D) -> void:
 	var screen := main.get_node("ShopScreen")
 	var tomas := town.get_node_or_null("Tomas") as Npc

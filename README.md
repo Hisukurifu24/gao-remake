@@ -48,11 +48,13 @@ There is no build step — Godot imports assets and runs scenes directly. `.godo
 | **WASD** / arrows | Move |
 | **E** | Interact — talk, open chests, take exits, start a boss fight |
 | **E** / arrows | Advance dialogue, pick a choice |
-| **I** / Tab | Open the bag |
+| **I** / Tab | Open and close the bag |
 | **E** / **Q** / **R** | In the bag: use or equip, drop, sort |
 | Mouse | In the bag: hover to inspect, right-click or double-click to use or equip, drag to move, equip, unequip or discard |
 | **J** | Open the quest journal |
 | **E** | In the journal: track the selected quest |
+
+Settings → Keys moves any of these but Esc, Enter, Space, Tab and the arrows, which always do what they do here.
 
 ---
 

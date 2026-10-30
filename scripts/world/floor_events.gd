@@ -278,6 +278,8 @@ static func ambush_dialogue(number: int) -> Dialogue:
 	var cost := toll(number)
 	var talk := Dialogue.new()
 	talk.id = flag(number, "ambush_talk")
+	# Walking off would be drawing your sword, and that should never be an accident.
+	talk.must_answer = true
 	talk.default_speaker = player_killer(number)
 	talk.default_portrait = load(CHARACTERS % [PK_SHEET, "Faceset"])
 	var hello := _line("Well, well. A solo player, all on their own, this far out.", [])

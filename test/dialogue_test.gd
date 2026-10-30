@@ -53,6 +53,7 @@ func _run() -> void:
 	_test_effects()
 	_test_jumps()
 	_test_queue_and_cancel()
+	_test_leaving()
 	_test_progression_gated_content()
 	_test_final_boss()
 
@@ -303,6 +304,87 @@ func _test_queue_and_cancel() -> void:
 	DialogueRunner.cancel()
 	_check(not DialogueRunner.is_running(), "cancel() closes a conversation mid-choice")
 	_check(not GameState.is_input_locked(), "cancel() at a choice releases the input lock")
+
+
+# --- leaving ---------------------------------------------------------------
+
+## Esc walks off a conversation, which must cost nothing pressing through wouldn't
+## have: a reward on a later line is gone for good once the NPC's met flag is set.
+func _test_leaving() -> void:
+	var talk := Dialogue.from_lines("A", PackedStringArray(["One.", "Two.", "Three."]))
+	talk.id = &"walked_off"
+	talk.lines[2].effects.append(_set_flag(&"left_reward"))
+	_finished.clear()
+	_lines_seen.clear()
+	DialogueRunner.start(talk)
+	_check(DialogueRunner.leave(), "a conversation can be left")
+	_check(not DialogueRunner.is_running(), "and closes at once")
+	_check(_lines_seen.size() == 1, "showing none of the lines it skipped")
+	_check(GameState.has_flag(&"left_reward"), "whose effects still happen")
+	_check(_finished == [&"walked_off"], "and is announced as finished, once")
+	_check(not GameState.is_input_locked(), "leaving releases the input lock")
+
+	var menu := Dialogue.from_lines("A", PackedStringArray(["Well?", "Pick.", "After."]))
+	menu.lines[0].effects.append(_set_flag(&"left_before_menu"))
+	var pick := DialogueChoice.new()
+	pick.text = "That one."
+	pick.next = &"after"
+	pick.effects.append(_set_flag(&"left_chose"))
+	menu.lines[1].choices = [pick] as Array[DialogueChoice]
+	menu.lines[2].id = &"after"
+	menu.lines[2].effects.append(_set_flag(&"left_past_menu"))
+	DialogueRunner.start(menu)
+	DialogueRunner.leave()
+	_check(not DialogueRunner.is_running() and GameState.has_flag(&"left_before_menu"),
+			"left before a menu, it runs up to the menu and ends there")
+	_check(not GameState.has_flag(&"left_past_menu"), "with nothing behind the menu happening")
+
+	DialogueRunner.start(menu)
+	DialogueRunner.advance()
+	_check(DialogueRunner.is_choosing(), "the menu is up")
+	_check(DialogueRunner.leave() and not DialogueRunner.is_running(), "and can be left too")
+	_check(not GameState.has_flag(&"left_chose") and not GameState.has_flag(&"left_past_menu"),
+			"answering nothing")
+
+	var first := Dialogue.from_lines("A", PackedStringArray(["First."]))
+	var second := Dialogue.from_lines("B", PackedStringArray(["Second."]))
+	second.id = &"left_second"
+	DialogueRunner.start(first)
+	DialogueRunner.start(second)
+	DialogueRunner.leave()
+	_check(DialogueRunner.current_dialogue_id() == &"left_second",
+			"what was queued behind it still gets its say")
+	DialogueRunner.leave()
+	_check(not DialogueRunner.is_running(), "and can be left in its turn")
+
+	var circle := Dialogue.from_lines("A", PackedStringArray(["Round.", "And round."]))
+	circle.lines[0].id = &"round"
+	circle.lines[1].next = &"round"
+	DialogueRunner.start(circle)
+	DialogueRunner.leave()
+	_check(not DialogueRunner.is_running(), "a loop with no menu in it doesn't hang the walk off it")
+
+	_check(not DialogueRunner.leave(), "with nothing open there is nothing to leave")
+
+	var ambush := FloorEvents.ambush_dialogue(5)
+	DialogueRunner.start(ambush)
+	_check(not DialogueRunner.leave() and DialogueRunner.is_running(),
+			"an ambush can't be walked off: that would be answering")
+	DialogueRunner.cancel()
+	_check(not DialogueRunner.is_running(), "though a hard interruption still closes it")
+
+	GameState.set_flag(FinalBoss.MET_FLAG, false)
+	DialogueRunner.start(FinalBoss.prelude())
+	DialogueRunner.leave()
+	_check(GameState.has_flag(FinalBoss.MET_FLAG), "leaving his opening words still learns his name")
+	GameState.set_flag(FinalBoss.MET_FLAG, false)
+
+
+func _set_flag(flag: StringName) -> DialogueEffect:
+	var effect := DialogueEffect.new()
+	effect.kind = DialogueEffect.Kind.SET_FLAG
+	effect.id = flag
+	return effect
 
 
 # --- progression-gated content ---------------------------------------------

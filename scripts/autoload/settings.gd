@@ -9,11 +9,30 @@ extends Node
 ## at once: there is no "apply" button to forget. A run with no settings file
 ## changes nothing about the window, so the project's own settings stand; the
 ## volumes are set from their defaults either way.
+##
+## The keys work the same way through [method bind], on top of the project's
+## input map. Each action in [constant BINDINGS] has one key the player can move;
+## the actions' other keys (the arrows, Space, Enter, Tab) never move, and neither
+## does Esc, so no choice here can leave a player unable to walk or get out of a
+## menu. Giving an action a key another one has swaps the two, so no action is ever
+## left with nothing. Everything else in the game reads actions, and whatever names
+## a key on screen asks [method key_name].
 
 signal changed
 
 const PATH := "user://settings.cfg"
 const SECTION := "settings"
+const KEYS_SECTION := "keys"
+## [action, what the settings page calls it], in the order it lists them.
+const BINDINGS := [
+	[&"move_up", "Move up"], [&"move_down", "Move down"],
+	[&"move_left", "Move left"], [&"move_right", "Move right"],
+	[&"interact", "Interact"], [&"inventory", "Items"], [&"journal", "Quests"],
+	[&"map", "Map"], [&"quick_save", "Quick save"], [&"quick_load", "Back to the save"],
+]
+## Keys that keep the one job they have, whatever the page says.
+const FIXED_KEYS: Array[Key] = [KEY_ESCAPE, KEY_ENTER, KEY_SPACE, KEY_TAB,
+		KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]
 ## [label, characters a second]; 0 is instant.
 const TEXT_SPEEDS := [["Slow", 25.0], ["Normal", 45.0], ["Fast", 90.0], ["Instant", 0.0]]
 ## How many screen pixels to a world pixel, windowed. The camera shows 320x180 of
@@ -23,8 +42,12 @@ const SCALES: Array[int] = [2, 3, 4, 5, 6]
 const BASE := Vector2i(320, 180)
 ## Volumes are steps of a tenth, 0 (off) to [constant VOLUME_STEPS] (full).
 const VOLUME_STEPS := 10
-const MUSIC_VOLUME := 7
+const MUSIC_VOLUME := 5
 const SOUND_VOLUME := 8
+## The Music bus at full. The pack masters its tracks 10 dB over its sounds (median
+## RMS -19 against -29, measured off the files), which is music on top of the game
+## rather than under it: at this ceiling, a full slider is level with the sounds.
+const MUSIC_CEILING_DB := -14.0
 
 ## Where the file is. Tests point this elsewhere so they never touch the player's.
 var path := PATH
@@ -34,9 +57,15 @@ var text_speed := 1
 var screen_shake := true
 var music_volume := MUSIC_VOLUME
 var sound_volume := SOUND_VOLUME
+## Action -> the physical key it is on now, and what the project ships.
+var _keys := {}
+var _default_keys := {}
 
 
 func _ready() -> void:
+	for binding: Array in BINDINGS:
+		_default_keys[binding[0]] = _shipped_key(binding[0])
+	_keys = _default_keys.duplicate()
 	if load_settings():
 		apply_window()
 	apply_audio()
@@ -99,16 +128,104 @@ func apply_window() -> void:
 	DisplayServer.window_set_position(screen.position + (screen.size - size) / 2)
 
 
-## Sets the Music and Sounds buses to the volumes. A volume of 0 mutes its bus
-## rather than turning it down to nearly nothing. Works headless as anywhere.
+## Sets the Music and Sounds buses to the volumes. A slider's share is squared on
+## the way to the bus, since an ear hears ratios: taken straight, its top two thirds
+## are the last 10 dB and it only turns anything down near the bottom. A volume of 0
+## mutes its bus rather than turning it down to nearly nothing. Works headless as
+## anywhere.
 func apply_audio() -> void:
-	for pair in [[&"Music", music_volume], [&"Sounds", sound_volume]]:
-		var bus := AudioServer.get_bus_index(pair[0])
+	for level in [[&"Music", music_volume, MUSIC_CEILING_DB], [&"Sounds", sound_volume, 0.0]]:
+		var bus := AudioServer.get_bus_index(level[0])
 		if bus < 0:
 			continue
-		var share := float(pair[1]) / VOLUME_STEPS
+		var share := float(level[1]) / VOLUME_STEPS
 		AudioServer.set_bus_mute(bus, share <= 0.0)
-		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(share, 0.0001)))
+		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(share * share, 0.0001)) + level[2])
+
+
+# --- the keys --------------------------------------------------------------
+
+## The physical key [param action] is on now.
+func key_of(action: StringName) -> Key:
+	return _keys.get(action, KEY_NONE)
+
+
+## [param action]'s key as [KeyHints] spells it. A key stays where it is on the
+## board whatever the layout, so what it is called comes from the layout.
+func key_name(action: StringName) -> String:
+	return label_of(key_of(action))
+
+
+static func label_of(key: Key) -> String:
+	if DisplayServer.get_name() != "headless":
+		key = DisplayServer.keyboard_get_keycode_from_physical(key)
+	return OS.get_keycode_string(key)
+
+
+## Why [param key] can't be given to an action, or empty if it can. Only a key the
+## pack draws a keycap for will do: every key on screen is shown as one.
+func refusal(key: Key) -> String:
+	if FIXED_KEYS.has(key):
+		return "Esc, Enter, Space, Tab and the arrows keep the jobs they have."
+	if not KeyHints.has_cap(label_of(key)):
+		return "That key can't be used."
+	return ""
+
+
+## Puts [param action] on [param key] and saves it. Returns the action that had the
+## key, which now has [param action]'s old one, or empty if none did -- or if the
+## key was refused, which changes nothing.
+func bind(action: StringName, key: Key) -> StringName:
+	if not _keys.has(action) or not refusal(key).is_empty() or _keys[action] == key:
+		return &""
+	var swapped: StringName = _keys.find_key(key) if _keys.values().has(key) else &""
+	if not swapped.is_empty():
+		_keys[swapped] = _keys[action]
+	_keys[action] = key
+	apply_keys()
+	save_settings()
+	changed.emit()
+	return swapped
+
+
+func keys_are_default() -> bool:
+	return _keys == _default_keys
+
+
+func reset_keys() -> void:
+	_keys = _default_keys.duplicate()
+	apply_keys()
+	save_settings()
+	changed.emit()
+
+
+## Writes the keys into the input map. Only each action's first key moves.
+func apply_keys() -> void:
+	for action: StringName in _keys:
+		var events := InputMap.action_get_events(action)
+		var first := events.find_custom(func(e: InputEvent) -> bool: return e is InputEventKey)
+		var moved := InputEventKey.new()
+		moved.physical_keycode = _keys[action]
+		events[first] = moved
+		InputMap.action_erase_events(action)
+		for event in events:
+			InputMap.action_add_event(action, event)
+
+
+func _shipped_key(action: StringName) -> Key:
+	for event in InputMap.action_get_events(action):
+		if event is InputEventKey:
+			return (event as InputEventKey).physical_keycode
+	return KEY_NONE
+
+
+## A file's keys, usable as they are: all of them keys an action may have, and
+## none of them twice. Anything else, from a hand-edited file, is ignored whole.
+func _keys_hold(keys: Dictionary) -> bool:
+	for key: int in keys.values():
+		if not refusal(key as Key).is_empty() or keys.values().count(key) > 1:
+			return false
+	return true
 
 
 ## Back to how a new install has them, without writing anything.
@@ -119,6 +236,8 @@ func reset() -> void:
 	screen_shake = true
 	music_volume = MUSIC_VOLUME
 	sound_volume = SOUND_VOLUME
+	_keys = _default_keys.duplicate()
+	apply_keys()
 	apply_audio()
 	changed.emit()
 
@@ -131,6 +250,10 @@ func save_settings() -> bool:
 	file.set_value(SECTION, "screen_shake", screen_shake)
 	file.set_value(SECTION, "music_volume", music_volume)
 	file.set_value(SECTION, "sound_volume", sound_volume)
+	# Only what was moved, so a key the game changes reaches whoever left it alone.
+	for action: StringName in _keys:
+		if _keys[action] != _default_keys[action]:
+			file.set_value(KEYS_SECTION, action, int(_keys[action]))
 	return file.save(path) == OK
 
 
@@ -147,5 +270,10 @@ func load_settings() -> bool:
 	screen_shake = bool(file.get_value(SECTION, "screen_shake", true))
 	music_volume = clampi(int(file.get_value(SECTION, "music_volume", MUSIC_VOLUME)), 0, VOLUME_STEPS)
 	sound_volume = clampi(int(file.get_value(SECTION, "sound_volume", SOUND_VOLUME)), 0, VOLUME_STEPS)
+	var keys := _default_keys.duplicate()
+	for action: StringName in keys:
+		keys[action] = int(file.get_value(KEYS_SECTION, action, keys[action]))
+	_keys = keys if _keys_hold(keys) else _default_keys.duplicate()
+	apply_keys()
 	changed.emit()
 	return true

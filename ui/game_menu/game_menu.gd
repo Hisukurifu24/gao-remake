@@ -3,10 +3,10 @@ extends CanvasLayer
 ## player stops to look at -- Status, Items, Quests, Map, System.
 ##
 ## [kbd]Esc[/kbd] opens it on Status, [kbd]I[/kbd] on Items, [kbd]J[/kbd] on Quests,
-## [kbd]M[/kbd] on the Map; inside, [kbd]Q[/kbd] / [kbd]E[/kbd] (or [kbd]Shift+Tab[/kbd] /
-## [kbd]Tab[/kbd], or a click) change tab, the tab's own key closes it again, and
-## [kbd]Esc[/kbd] closes it. E is the interact key on the map, so in here the pages
-## confirm on [kbd]Space[/kbd] / [kbd]Enter[/kbd] instead.
+## [kbd]M[/kbd] on the Map; inside, [kbd]Q[/kbd] / [kbd]E[/kbd] (or a click) change tab,
+## the tab's own key closes it again -- [kbd]Tab[/kbd] is Items' as much as [kbd]I[/kbd]
+## is -- and [kbd]Esc[/kbd] closes it. E is the interact key on the map, so in here the
+## pages confirm on [kbd]Space[/kbd] / [kbd]Enter[/kbd] instead.
 ##
 ## The menu owns everything the pages share: when it may open (from the overworld
 ## and nowhere else -- not over a conversation, a fight, a fade or the title), the
@@ -138,28 +138,28 @@ func _unhandled_input(event: InputEvent) -> void:
 			Audio.play(&"close")
 			close()
 		return
+	_pages[_tab].handle(event)
+
+
+## The keys that change tab are read before anything else sees them: left to
+## [code]_unhandled_input[/code], Godot may spend Tab on moving keyboard focus
+## ([code]ui_focus_next[/code]), and E would reach a page as [code]interact[/code],
+## which every page takes for confirm. A tab's own key comes first, since a player
+## may have moved one onto Q or E.
+func _input(event: InputEvent) -> void:
+	if not _open:
+		return
 	for action: StringName in HOTKEYS:
 		if action != &"pause" and event.is_action_pressed(action):
+			get_viewport().set_input_as_handled()
 			if HOTKEYS[action] == _tab:
 				Audio.play(&"close")
 				close()
 			else:
 				show_tab(HOTKEYS[action])
 			return
-	_pages[_tab].handle(event)
-
-
-## The tab keys are read before anything else sees them: left to
-## [code]_unhandled_input[/code], Godot spends Tab on moving keyboard focus
-## ([code]ui_focus_next[/code]), and E would reach a page as [code]interact[/code],
-## which every page takes for confirm.
-func _input(event: InputEvent) -> void:
-	if not _open:
-		return
 	var by := 0
-	if MenuPage.is_key(event, KEY_TAB):
-		by = -1 if (event as InputEventKey).shift_pressed else 1
-	elif MenuPage.is_key(event, KEY_Q):
+	if MenuPage.is_key(event, KEY_Q):
 		by = -1
 	elif MenuPage.is_key(event, KEY_E):
 		by = 1
@@ -182,8 +182,9 @@ func _paint_tabs() -> void:
 
 func _paint_hints() -> void:
 	var hints := _pages[_tab].hints()
-	hints.append([["Q", "E"], "tab"])
-	hints.append(["Esc", "close"])
+	if not _pages[_tab].hints_only():
+		hints.append([["Q", "E"], "tab"])
+		hints.append(["Esc", "close"])
 	_hints.show_hints(hints)
 
 

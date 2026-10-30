@@ -14,6 +14,7 @@ extends CanvasLayer
 
 @onready var _prompt: Control = $InteractPrompt
 @onready var _prompt_label: Label = $InteractPrompt/Row/Label
+@onready var _prompt_key: TextureRect = $InteractPrompt/Row/Key
 @onready var _vitals: Control = $Vitals
 @onready var _vitals_label: Label = $Vitals/Rows/Label
 @onready var _hp_bar: ProgressBar = $Vitals/Rows/Bar/Gauges/Hp
@@ -43,6 +44,8 @@ var _fighter: Combatant = null
 
 func _ready() -> void:
 	_prompt.hide()
+	Settings.changed.connect(_paint_key)
+	_paint_key()
 	EventBus.interact_target_changed.connect(_on_interact_target_changed)
 	EventBus.dialogue_started.connect(_on_dialogue_started)
 	EventBus.dialogue_finished.connect(_on_dialogue_finished)
@@ -194,6 +197,10 @@ func _refresh() -> void:
 	# Shrink-wrap round the new label. It grows both ways from the anchor, so it
 	# stays centred.
 	UiLayout.shrink_wrap(_prompt)
+
+
+func _paint_key() -> void:
+	_prompt_key.texture = KeyHints.texture_for(Settings.key_name(&"interact"))
 
 
 func _refresh_vitals() -> void:

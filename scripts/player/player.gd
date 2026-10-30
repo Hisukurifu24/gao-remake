@@ -49,7 +49,10 @@ func _ready() -> void:
 	EventBus.dialogue_finished.connect(_on_dialogue_finished)
 
 
-func _physics_process(delta: float) -> void:
+## Every drawn frame, not every physics tick, because the camera eases every drawn
+## frame: on a screen faster than the 60 ticks, a tick-stepped player stands still
+## while the camera catches up and then jumps ahead of it, and vibrates on screen.
+func _process(delta: float) -> void:
 	var input := Vector2.ZERO
 	if not GameState.is_input_locked():
 		input = Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")

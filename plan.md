@@ -2496,7 +2496,7 @@ the first slice is **the save/load core and its tests** -- no menus yet.
   no slot**, rather than a slot that refuses to save, so the slot it was started from
   stays empty. **Quit saves first** in a game with a slot. The title says **"GAO"** and
   "A hundred floors of Aincrad" -- placeholder words. No name entry yet (everyone is
-  Kirito), no play time, no save-on-window-close.
+  Kirito -- *built 2026-10-30*), no play time, no save-on-window-close.
 - [x] **The menus redone classic** (2026-10-22). The user didn't like the look of the
   title, the pause menu or the bag, and chose (asked): a **classic title** -- a main
   menu over the Town of Beginnings, a page per entry; **one game menu with tabs** on
@@ -2575,9 +2575,11 @@ the first slice is **the save/load core and its tests** -- no menus yet.
     a page of conversation.
   - [x] **A storm is heard**: rain, a blizzard's wind, a sandstorm's, ash falling
     in a near-silent wind -- looping, on the map's `Weather`.
-  - [x] **Volume settings**: Music and Sounds, in tenths (0 mutes), on the title and
-    in System, written to `settings.cfg` like the rest; two buses
-    (`default_bus_layout.tres`).
+  - [x] **Volume settings**: Music and Sounds, sliders in tenths (0 mutes), on the
+    title and in System, written to `settings.cfg` like the rest; two buses
+    (`default_bus_layout.tres`). The music was too loud (2026-10-30): the tracks are
+    levelled to each other (`MusicLibrary.LEVELS`), the Music bus has a ceiling, and
+    a slider's share is squared.
   - [x] **Tests**: `test/audio_test.tscn`, the eighth suite. The tables (every file
     loads, tracks loop and sounds don't, jingles short); **an id sweep** reading every
     script and scene for the sounds and tracks they ask for -- a missing one is
@@ -2594,7 +2596,52 @@ the first slice is **the save/load core and its tests** -- no menus yet.
     rather than stopping it; mouse hover making the cursor sound like a key does; no
     footsteps (the pack has none) and no typewriter blips; music 7/10 and sounds 8/10
     by default.
-- [ ] Settings still to come: key bindings.
+- [x] **Name entry** *(asked: name entry and key bindings next, over Floor 40 and M7's
+  polish; built 2026-10-30)*. A new game's last page: how to play, where (a marathon
+  skips that), then who you are, in a box holding "Kirito", selected, so **Enter** takes
+  it and typing replaces it. Esc goes back a page; an empty name is refused and says so.
+  The name reaches everything that already read `GameState.player_name` -- the plates,
+  the save card, Hisukurifu, the epilogue, the credits -- with no change to any of them.
+  - **What a name holds** (`GameState.clean_name()`, `NAME_MAX` 12): the Latin letters
+    the font draws, digits, spaces, `-`, `_`, `'`, `.`. No bracket, brace or `%`. The
+    save test checks the font against the rule: it turned up two letters Exo 2 doesn't
+    have (`ŉ`, `ſ`), now refused.
+  - **The key held over**: a slot chosen with **E** or **Enter** and held a moment too
+    long used to be about to repeat straight into the box, typing over the name or
+    logging in with it. The repeat is dropped until a key comes up.
+- [x] **Key bindings** *(built 2026-10-30)*. Settings → Keys, on the title and in System,
+  one row per action with its keycap: choose a row, press a key. `Settings.bind()`,
+  written to `[keys]` in `settings.cfg`, applied to the `InputMap`.
+  - **Rules**: each action has one key that moves, and its others (the arrows, Space,
+    Enter, Tab) stay on it; Esc, Enter, Space, Tab and the arrows can't be given away; a
+    key another action has swaps the two; only keys the pack draws a cap for. So no
+    choice can leave a player unable to walk, confirm or back out, and nothing ever
+    has to be drawn without a keycap.
+  - **Everything that names a key asks**: the HUD's prompt, the title's hints and its
+    "Press E again", the shop, gate and forge lines.
+  - **Tests**: the save test grew from 159 to 212 checks -- the name rule and the font,
+    the name page driven by real keys (the held-over repeat, Esc, an empty box, typing
+    E into it, the name on the save), keys moved, swapped and refused, a real keypress
+    opening the moved tab, the file read back, bad files ignored whole, the page driven
+    through its rows (Q taken for a key rather than a tab, a closed menu taking none),
+    and the keys fitting both windows. `tools/screenshot.gd -- --title` shoots the name
+    page and the keys; `-- --menu` the keys in System.
+  - *Calls of mine, flag if wrong:* the name is asked **last**, and only the avatar's
+    name, once -- it can't be changed later; 12 letters; Latin letters only, since the
+    font has nothing else and system fallback is off; **"Kirito" stays the default** in
+    the box; Esc is not movable; **Q, E, X, R and Del stay menu keys**, read straight off
+    the keyboard -- put a field action on one and in a menu the menu's job wins, except a
+    tab's own key, which goes to its tab; one key per action; no mouse buttons, and no
+    punctuation keys since the pack draws no caps for them; keys apply to every slot.
+- [x] **Playtest fixes (2026-10-30)**: the select sound (`accept`) was 2 seconds of
+  `Accept.wav`, and is `Accept5.wav` now, 0.23 s at the same peak. **Tab is Items' key
+  and only that**: it opens and closes Items from the map and from any tab; it no
+  longer steps through the tabs, nor Shift+Tab back. Q and E do that.
+- [ ] **The smoke test's chase section fails about one run in three, on untouched code
+  too** (measured 2026-10-30, Godot 4.7: 5 of 12 on the commit before name entry, 2 of 12
+  after it). Mostly the monster gives chase and hasn't reached the player 240 physics
+  frames later, sometimes it never notices. Not yet known whether that is the test's
+  random floor 2 and wandering monster, or a monster that really can't reach you.
 - [ ] Screen shake beyond the fight's, hit-stop, transitions; controller support.
 
 ---
@@ -2879,16 +2926,20 @@ he talks to you, by name, about your run, your seed, your hours and the tests th
 said you could win. Beat him and the game is cleared: the world goes white, the
 credits roll, and your save comes back in the Town of Beginnings with the castle yours.
 
+And it is your name on the plate now. A new game asks who you are before it lets you
+in, and Hisukurifu greets you by it a hundred floors up. Any key but the few that hold
+the menus together can be moved in the settings, and the game's prompts follow it.
+
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
 "$GODOT" --headless --path . res://test/smoke_test.tscn     # 229-check game loop test
-"$GODOT" --headless --path . res://test/floor_test.tscn     # 160-check floor system test
-"$GODOT" --headless --path . res://test/dialogue_test.tscn  # 68-check dialogue test
+"$GODOT" --headless --path . res://test/floor_test.tscn     # 170-check floor system test
+"$GODOT" --headless --path . res://test/dialogue_test.tscn  # 69-check dialogue test
 "$GODOT" --headless --path . res://test/inventory_test.tscn # 219-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 131-check combat test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 133-check combat test
 "$GODOT" --headless --path . res://test/quest_test.tscn     # 211-check quest test
-"$GODOT" --headless --path . res://test/save_test.tscn      # 158-check save test
+"$GODOT" --headless --path . res://test/save_test.tscn      # 212-check save test
 "$GODOT" --headless --path . res://test/audio_test.tscn     # 49-check audio test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
@@ -2955,8 +3006,9 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    music by band and by place, fights and fanfares, sounds, volumes. **And the end
    (2026-10-28)**: HP bars and phases, Illfang's nodachi, Hisukurifu on floor 100 and
    the ending. **And Hisukurifu redrawn as the user (2026-10-29)**: four shapes of him in his
-   own pixel art, each with its own moves, Explosion as the Game Master's last act. Next:
-   Floor 40, or M7's name entry and key binding.
+   own pixel art, each with its own moves, Explosion as the Game Master's last act. **And
+   name entry and key bindings (2026-10-30)**. Next: Floor 40, or M7's polish (hit-stop,
+   transitions, a controller).
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where
@@ -2974,8 +3026,8 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    it, so it no longer gets more expensive by itself. **The title screen, the pause
    menu and the three modes (standard, Hardcore, Marathon -- named so 2026-10-23) built 2026-10-21; the
    menus redone classic (a tabbed game menu, a paged title) and settings built
-   2026-10-22; audio and the volume settings 2026-10-28.** Left on M7: name entry,
-   key settings, and the rest of the polish (transitions, hit-stop, controller). *The old note, for the record:*
+   2026-10-22; audio and the volume settings 2026-10-28; name entry and key settings
+   2026-10-30.** Left on M7: the rest of the polish (transitions, hit-stop, controller). *The old note, for the record:*
    **M7 save/load is the one thing getting more expensive with every milestone.**
    M5.6 added the purse (`GameState._col`), the dropped pile (`_dropped_col`) and
    every gear stack's `plus` -- worn ones too, since a slot now holds the stack.

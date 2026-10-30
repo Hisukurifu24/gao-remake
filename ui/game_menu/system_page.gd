@@ -49,6 +49,7 @@ func _init() -> void:
 	_settings.visible = false
 	_settings.back.connect(_leave_settings)
 	_settings.moved.connect(func(_at: int) -> void: _paint_detail())
+	_settings.view_changed.connect(_on_settings_view_changed)
 	left.add_child(_settings)
 	_detail = label(" ", &"", left)
 	_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -69,6 +70,7 @@ func shown() -> void:
 	_in_settings = false
 	_list.visible = true
 	_settings.visible = false
+	_settings.leave_keys()
 	_list.set_rows(_rows())
 	_paint_run()
 	_paint_detail()
@@ -93,15 +95,20 @@ func handle(event: InputEvent) -> bool:
 
 func back() -> bool:
 	if _in_settings:
-		_leave_settings()
+		if not _settings.leave_keys():
+			_leave_settings()
 		return true
 	return false
 
 
 func hints() -> Array:
 	if _in_settings:
-		return [[["Left", "Right"], "change"], ["Space", "choose"]]
+		return _settings.hints("Space")
 	return [["Space", "choose"]]
+
+
+func hints_only() -> bool:
+	return _in_settings and _settings.is_waiting()
 
 
 ## The list the page is showing -- the system rows, or the settings -- for tests.
@@ -161,6 +168,11 @@ func _paint_detail() -> void:
 					text = "Saves into slot %d first." % SaveGame.slot
 	_detail.text = text
 	_detail.add_theme_color_override(&"font_color", UiPalette.BAD if _confirm_quit else UiPalette.DIM)
+
+
+func _on_settings_view_changed() -> void:
+	_paint_detail()
+	hints_changed.emit()
 
 
 func _on_moved(at: int) -> void:

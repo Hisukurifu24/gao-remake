@@ -20,7 +20,7 @@ const ROOT := "res://assets/ninja_adventure/Audio/"
 const SOUNDS := {
 	# --- menus ---------------------------------------------------------------
 	&"move": {"files": ["Sounds/Menu/Move1.wav"], "db": -10.0},
-	&"accept": {"files": ["Sounds/Menu/Accept.wav"], "db": -6.0},
+	&"accept": {"files": ["Sounds/Menu/Accept5.wav"], "db": -8.0},
 	&"cancel": {"files": ["Sounds/Menu/Cancel.wav"], "db": -6.0},
 	## Asked for something the screen won't do: a greyed row, a full bag.
 	&"refuse": {"files": ["Sounds/Menu/Cancel2.wav"], "db": -6.0},

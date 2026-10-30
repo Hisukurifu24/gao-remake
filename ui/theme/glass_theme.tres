@@ -57,7 +57,7 @@ texture_margin_top = 2.0
 texture_margin_right = 2.0
 texture_margin_bottom = 2.0
 
-[sub_resource type="PortableCompressedTexture2D" id="PortableCompressedTexture2D_qe4jk"]
+[sub_resource type="PortableCompressedTexture2D" id="PortableCompressedTexture2D_dsi6x"]
 _data = PackedByteArray("AAADAAUAAAABAAAAGAAAABgAAABYAAAAUklGRlAAAABXRUJQVlA4TEQAAAAvF8AFEBcgkE0OEXb+EwgkGewPuIdYMMUD6U8gkKSzv8s8AdV/UNy2bSRkxGufo+0ymTPf/iP6PwGzCkBqRMT7kQDkrA==")
 size_override = Vector2(24, 24)
 keep_compressed_buffer = true
@@ -67,7 +67,7 @@ content_margin_left = 7.0
 content_margin_top = 1.0
 content_margin_right = 7.0
 content_margin_bottom = 2.0
-texture = SubResource("PortableCompressedTexture2D_qe4jk")
+texture = SubResource("PortableCompressedTexture2D_dsi6x")
 texture_margin_left = 2.0
 texture_margin_top = 2.0
 texture_margin_right = 2.0

@@ -31,6 +31,9 @@ var _queue: Array[Dialogue] = []
 var _offered: Array[DialogueChoice] = []
 var _wait := _Wait.NONE
 var _cancelled := false
+## The player has walked off ([method leave]): the conversation runs on to the next
+## menu or its end with nobody reading it.
+var _leaving := false
 
 ## Signals the coroutine parks on. Private because input arrives through
 ## [method advance] and [method choose], which validate what is actually being
@@ -79,15 +82,18 @@ func start(dialogue: Dialogue) -> void:
 
 	_active = dialogue
 	_cancelled = false
+	_leaving = false
 	GameState.push_input_lock()
 	EventBus.dialogue_started.emit(dialogue.id)
 
+	var walked := 0
 	while index >= 0 and index < dialogue.lines.size():
 		var line := dialogue.lines[index]
 		if line == null:
 			break
 		DialogueEffect.apply_all(line.effects)
-		line_shown.emit(dialogue.speaker_for(line), line.text, dialogue.portrait_for(line))
+		if not _leaving:
+			line_shown.emit(dialogue.speaker_for(line), line.text, dialogue.portrait_for(line))
 
 		var choices := line.listed_choices()
 		if not choices.is_empty() and not _any_unlocked(choices):
@@ -98,17 +104,26 @@ func start(dialogue: Dialogue) -> void:
 			choices = []
 
 		if choices.is_empty():
-			_wait = _Wait.LINE
-			await _advance_requested
-			if _cancelled:
-				break
+			if _leaving:
+				# Walking further than the array is long is a loop with no menu in it,
+				# and nobody is pressing anything to end it.
+				walked += 1
+				if walked > dialogue.lines.size():
+					break
+			else:
+				_wait = _Wait.LINE
+				await _advance_requested
+				if _cancelled:
+					break
 			index = _next_index(dialogue, line, index)
 		else:
+			if _leaving:
+				break
 			_offered = choices
 			choices_shown.emit(choices)
 			_wait = _Wait.CHOICE
 			var picked: int = await _choice_made
-			if _cancelled:
+			if _cancelled or _leaving:
 				break
 			var choice := _offered[picked]
 			EventBus.choice_selected.emit(dialogue.id, picked)
@@ -156,6 +171,26 @@ func choose(index: int) -> void:
 		return
 	_wait = _Wait.NONE
 	_choice_made.emit(index)
+
+
+## The player walks off: the box closes at once, as if they had pressed through
+## it, and false if a [member Dialogue.must_answer] won't let them. The lines up to
+## the next menu still happen with nobody reading them, since their effects are a
+## reward, a quest or a flag that pressing through would have given; a menu is
+## answered by nobody, so nothing behind it does. What is queued still gets its
+## say, unlike [method cancel].
+func leave() -> bool:
+	if _wait == _Wait.NONE or _active.must_answer:
+		return false
+	_leaving = true
+	match _wait:
+		_Wait.LINE:
+			_wait = _Wait.NONE
+			_advance_requested.emit()
+		_Wait.CHOICE:
+			_wait = _Wait.NONE
+			_choice_made.emit(0)
+	return true
 
 
 ## Closes the conversation wherever it is. For hard interruptions -- a map

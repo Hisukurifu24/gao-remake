@@ -97,7 +97,8 @@ The tables: every file loads, every track loops and no sound does. **The id swee
 reads every script and scene for `Audio.play(&"...")` (and the music calls, and
 `sound = &"..."` in scenes and skill effects) and fails on an id that isn't in
 `SoundLibrary` / `MusicLibrary` -- a missing sound is silence, which nobody
-reports. Then the buses and volumes, jingles taking turns, a storm heard once its
+reports. Then the buses and volumes, the settings' sliders stepped and dragged,
+jingles taking turns, a storm heard once its
 map is up, and a booted game walked from the town into a floor 2's labyrinth and
 safe zone and back out, with a fight won there.
 

@@ -48,6 +48,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not _box.visible:
 		return
 
+	if event.is_action_pressed(&"pause") or event.is_action_pressed(&"ui_cancel"):
+		get_viewport().set_input_as_handled()
+		Audio.play(&"cancel" if DialogueRunner.leave() else &"refuse")
+		return
+
 	if _menu.visible:
 		if event.is_action_pressed(&"move_up") or event.is_action_pressed(&"ui_up"):
 			get_viewport().set_input_as_handled()
@@ -138,8 +143,18 @@ func _show_menu() -> void:
 
 	_selected = -1
 	for i in _choices.size():
-		var row := Label.new()
-		row.theme_type_variation = &"InkLabel"
+		# Cursor, text: the cursor is its own label with its room kept on every row,
+		# so the menu is as wide on its longest row as off it.
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override(&"separation", 2)
+		var cursor := Label.new()
+		cursor.theme_type_variation = &"InkLabel"
+		cursor.custom_minimum_size = Vector2(8, 0)
+		row.add_child(cursor)
+		var text := Label.new()
+		text.theme_type_variation = &"InkLabel"
+		text.text = _choices[i].label()
+		row.add_child(text)
 		_list.add_child(row)
 		if _selected < 0 and _choices[i].is_unlocked():
 			_selected = i
@@ -174,16 +189,16 @@ func _move_selection(step: int) -> void:
 
 func _paint_selection() -> void:
 	for i in _list.get_child_count():
-		var row := _list.get_child(i) as Label
-		var choice := _choices[i]
+		var row := _list.get_child(i)
 		var color := UiPalette.GLASS_TEXT
-		if not choice.is_unlocked():
+		if not _choices[i].is_unlocked():
 			color = UiPalette.GLASS_LOCKED
 		elif i == _selected:
 			color = UiPalette.GLASS_SELECTED
-		row.add_theme_color_override(&"font_color", color)
-		var cursor := "> " if i == _selected else "  "
-		row.text = cursor + choice.label()
+		var cursor := row.get_child(0) as Label
+		for label in [cursor, row.get_child(1)]:
+			label.add_theme_color_override(&"font_color", color)
+		cursor.text = ">" if i == _selected else ""
 
 
 static func _face_size(texture: Texture2D) -> Vector2:

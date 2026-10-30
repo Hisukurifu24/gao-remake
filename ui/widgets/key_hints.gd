@@ -65,6 +65,12 @@ func _cap(key: String) -> TextureRect:
 	return cap
 
 
+## Whether the pack draws [param key]. The bindings hold to this, so a key name
+## from [method Settings.key_name] always has a cap.
+static func has_cap(key: String) -> bool:
+	return ResourceLoader.exists(KEYBOARD % SPELLED.get(key, key))
+
+
 static func texture_for(key: String) -> Texture2D:
 	if MOUSE.has(key):
 		return load(MOUSE[key]) as Texture2D

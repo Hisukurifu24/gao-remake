@@ -31,6 +31,7 @@ var _row_nodes: Array[Label] = []
 @onready var _rows: VBoxContainer = $Panel/Column/Rows
 @onready var _more: Label = $Panel/Column/More
 @onready var _detail: Label = $Panel/Column/Detail
+@onready var _hints: Label = $Hints
 
 
 func _ready() -> void:
@@ -62,6 +63,7 @@ func open(here: int) -> void:
 	_open = true
 	visible = true
 	_here = here
+	_hints.text = "[%s] travel   [Esc] close   [<] [>] ten floors" % Settings.key_name(&"interact")
 	_entries = GameState.visited_floors()
 	_index = _entries.size() - 1
 	if _index > 0 and _entries[_index] == _here:

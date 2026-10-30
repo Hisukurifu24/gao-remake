@@ -45,6 +45,11 @@ func hints() -> Array:
 	return []
 
 
+## The next key is the page's whatever it is, so the menu's own don't apply.
+func hints_only() -> bool:
+	return false
+
+
 static func is_up(event: InputEvent) -> bool:
 	return event.is_action_pressed(&"move_up") or event.is_action_pressed(&"ui_up")
 

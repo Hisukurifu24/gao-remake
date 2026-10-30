@@ -289,11 +289,14 @@ func _migrate(data: Dictionary, from_version: int) -> Dictionary:
 ## game has it -- which is what loading an empty save gives, so a new game and a
 ## save with nothing in it can never disagree -- on a fresh seed, in the Town of
 ## Beginnings. It saves into [param to_slot], whose old save the first autosave
-## writes over; a marathon takes no slot. Awaitable.
-func new_game(to_slot: int, mode := GameState.Mode.STANDARD) -> void:
+## writes over; a marathon takes no slot. [param avatar] is who the player is,
+## [constant GameState.DEFAULT_NAME] if it holds no name. Awaitable.
+func new_game(to_slot: int, mode := GameState.Mode.STANDARD, avatar := "") -> void:
 	_autosave_pending = false
 	GameState.from_save({})
 	GameState.mode = mode
+	if not GameState.clean_name(avatar).is_empty():
+		GameState.player_name = GameState.clean_name(avatar)
 	QuestLog.from_save({})
 	Inventory.from_save({})
 	slot = 0 if mode == GameState.Mode.MARATHON else clampi(to_slot, 0, SLOTS)

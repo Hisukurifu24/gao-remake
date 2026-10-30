@@ -34,6 +34,7 @@ var _news := ""
 @onready var _rows: VBoxContainer = $Panel/Column/Rows
 @onready var _more: Label = $Panel/Column/More
 @onready var _detail: Label = $Panel/Column/Detail
+@onready var _hints: Label = $Hints
 
 
 func _ready() -> void:
@@ -75,6 +76,7 @@ func open(shop: Shop) -> void:
 	_open = true
 	visible = true
 	_shop = shop
+	_hints.text = "[%s] trade   [<] [>] buy / sell   [Esc] close" % Settings.key_name(&"interact")
 	_title.text = shop.label()
 	_greeting.text = "%s: \"%s\"" % [shop.keeper, shop.greeting] if not shop.keeper.is_empty() \
 			else shop.greeting

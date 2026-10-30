@@ -42,7 +42,7 @@ func _run() -> void:
 	_test_music_table()
 	_test_every_id_asked_for()
 	_test_places_and_fights()
-	_test_buses_and_volumes()
+	await _test_buses_and_volumes()
 	await _test_sounds_and_jingles()
 	await _test_weather()
 	await _test_in_a_game()
@@ -200,9 +200,9 @@ func _test_buses_and_volumes() -> void:
 	Settings.reset()
 	Settings.set_value(&"music_volume", 5)
 	Settings.set_value(&"sound_volume", 0)
-	_check(is_equal_approx(AudioServer.get_bus_volume_db(music), linear_to_db(0.5))
-			and not AudioServer.is_bus_mute(music),
-			"a volume sets its bus: half is half")
+	_check(is_equal_approx(AudioServer.get_bus_volume_db(music),
+			linear_to_db(0.25) + Settings.MUSIC_CEILING_DB) and not AudioServer.is_bus_mute(music),
+			"a volume sets its bus: half a slider is a quarter of the way up to the music's ceiling")
 	_check(AudioServer.is_bus_mute(sounds), "and 0 mutes it")
 	Settings.reset()
 	_check(not AudioServer.is_bus_mute(sounds) and Settings.music_volume == Settings.MUSIC_VOLUME,
@@ -212,9 +212,9 @@ func _test_buses_and_volumes() -> void:
 	Settings.set_value(&"music_volume", 99)
 	_check(Settings.music_volume == Settings.VOLUME_STEPS, "a volume past full is full")
 	Settings.reset()
-	DirAccess.remove_absolute(Settings.path)
-	Settings.path = Settings.PATH
 
+	# Still on the test's file: every step below writes it, and on the real one a
+	# run of this suite would leave the player's music at full.
 	var list := SettingsList.new()
 	add_child(list)
 	var music_row := SettingsList.ROWS.find(&"music_volume")
@@ -224,11 +224,53 @@ func _test_buses_and_volumes() -> void:
 	_check(Settings.music_volume == 0 and list.text_of(music_row).contains("Off"),
 			"the settings page steps a volume down to off")
 	list.step(-1)
-	_check(Settings.music_volume == Settings.VOLUME_STEPS, "and from off round to full")
+	_check(Settings.music_volume == 0, "and a slider stops there")
+	Settings.music_volume = Settings.VOLUME_STEPS
+	list.step(1)
+	_check(Settings.music_volume == Settings.VOLUME_STEPS, "and stops at full")
+
+	await get_tree().process_frame
+	var row := list.get_child(music_row) as Control
+	var bar := row.get_node("Plate/Line/Slider") as Control
+	var left := bar.global_position.x - row.global_position.x
+	_press(list, music_row, left + bar.size.x * 0.3, true)
+	_check(Settings.music_volume == 3, "pressing on a slider sets it (%d)" % Settings.music_volume)
+	var drag := InputEventMouseMotion.new()
+	drag.position = Vector2(left + bar.size.x * 0.8, 5)
+	drag.button_mask = MOUSE_BUTTON_MASK_LEFT
+	list.call(&"_on_row_input", drag, music_row)
+	_check(Settings.music_volume == 8, "and dragging moves it (%d)" % Settings.music_volume)
+	drag.position.x = left + bar.size.x * 5.0
+	list.call(&"_on_row_input", drag, music_row)
+	_check(Settings.music_volume == Settings.VOLUME_STEPS, "past its end, as far as it goes")
+	_press(list, music_row, left, false)
+	drag.position.x = left
+	list.call(&"_on_row_input", drag, music_row)
+	_check(Settings.music_volume == Settings.VOLUME_STEPS, "and letting go lets go of it")
+	var bad := ConfigFile.new()
+	_check(bad.load(Settings.path) == OK and int(bad.get_value("settings", "music_volume")) == 10,
+			"what a slider sets is written at once")
 	list.queue_free()
 	Settings.reset()
-	DirAccess.remove_absolute(TEST_DIR.path_join("settings.cfg"))
+	DirAccess.remove_absolute(Settings.path)
 	Settings.path = Settings.PATH
+
+	for id: StringName in MusicLibrary.LEVELS:
+		_check(MusicLibrary.has(id), "a track's level is a track: %s" % id)
+	Audio.play_music(&"sky", 0.0)
+	await get_tree().process_frame
+	var deck: AudioStreamPlayer = Audio.get(&"_decks")[Audio.get(&"_deck")]
+	_check(is_equal_approx(deck.volume_db, MusicLibrary.volume_db(&"sky")),
+			"a track plays at its level (%.1f)" % deck.volume_db)
+	Audio.play_music(&"", 0.0)
+
+
+func _press(list: MenuList, row: int, x: float, pressed: bool) -> void:
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = pressed
+	click.position = Vector2(x, 5)
+	list.call(&"_on_row_input", click, row)
 
 
 # --- sounds and jingles --------------------------------------------------------

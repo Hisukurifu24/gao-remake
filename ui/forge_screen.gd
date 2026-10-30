@@ -35,6 +35,7 @@ var _deaf_until := 0.0
 @onready var _more: Label = $Panel/Column/More
 @onready var _need: Label = $Panel/Column/Need
 @onready var _detail: Label = $Panel/Column/Detail
+@onready var _hints: Label = $Hints
 
 
 func _ready() -> void:
@@ -77,6 +78,7 @@ func open(smith: Smith) -> void:
 	_open = true
 	visible = true
 	_smith = smith
+	_hints.text = "[%s] work it   [<] [>] fewer / more materials   [Esc] leave" % Settings.key_name(&"interact")
 	_title.text = smith.label()
 	_greeting.text = "%s: \"%s\"" % [smith.keeper, smith.greeting] if not smith.keeper.is_empty() \
 			else smith.greeting

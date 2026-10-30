@@ -24,6 +24,9 @@ extends Resource
 @export var lines: Array[DialogueLine] = []
 ## Entry point. Empty means "first line whose conditions pass".
 @export var start: StringName = &""
+## The player can't walk off this one ([method DialogueRunner.leave]): a demand
+## where backing out would be answering, like an ambush's toll or fight.
+@export var must_answer := false
 
 
 func index_of(line_id: StringName) -> int:

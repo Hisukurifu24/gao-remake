@@ -54,6 +54,8 @@ var _decks: Array[AudioStreamPlayer] = []
 var _deck := 0
 ## Each deck's level, 0-1, before the duck.
 var _levels: Array[float] = [0.0, 0.0]
+## What each deck's track needs to sit level with the others ([constant MusicLibrary.LEVELS]).
+var _trims: Array[float] = [0.0, 0.0]
 var _duck := 1.0
 var _fade: Tween = null
 var _duck_tween: Tween = null
@@ -112,7 +114,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	for i in _decks.size():
-		_decks[i].volume_db = linear_to_db(maxf(_levels[i] * _duck, 0.0001))
+		_decks[i].volume_db = linear_to_db(maxf(_levels[i] * _duck, 0.0001)) + _trims[i]
 
 
 # --- sounds ------------------------------------------------------------------
@@ -209,6 +211,7 @@ func play_music(id: StringName, seconds := FADE) -> void:
 	_deck = 1 - _deck
 	var new := _decks[_deck]
 	new.stop()
+	_trims[_deck] = MusicLibrary.volume_db(id)
 	if not id.is_empty():
 		new.stream = MusicLibrary.stream(id)
 		var from := _left_at.get(id, 0.0) as float
