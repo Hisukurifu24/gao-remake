@@ -36,6 +36,8 @@ const SLIDER_WIDTH := 110.0
 const SLIDER_VALUE_WIDTH := 24.0
 ## How far past a slider's ends a press still lands on it.
 const SLIDER_REACH := 4.0
+## What a row's line can carry after its words, in the order it draws them.
+const PARTS: Array[StringName] = [&"Slider", &"Value", &"Cap"]
 
 ## Centre each row's text on its plate (the title's menu) rather than start it at
 ## the left edge.
@@ -187,31 +189,44 @@ func _rebuild() -> void:
 				label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			words.add_child(label)
 
-		var bar := HSlider.new()
-		bar.name = "Slider"
-		bar.max_value = 1.0
-		bar.step = 0.01
-		bar.scrollable = false
-		bar.focus_mode = Control.FOCUS_NONE
-		bar.custom_minimum_size.x = SLIDER_WIDTH
-		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		line.add_child(bar)
-
-		var value := Label.new()
-		value.name = "Value"
-		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		line.add_child(value)
-
-		var cap := TextureRect.new()
-		cap.name = "Cap"
-		cap.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
-		cap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		line.add_child(cap)
-
 		add_child(row)
 		_nodes.append(row)
+
+
+## The slider, value or keycap on [param line], made the first time [param wanted]
+## says a row needs it: most rows never do, and a row can change what it shows
+## without being rebuilt. Null if it doesn't exist and isn't wanted.
+func _part(line: Control, part: StringName, wanted: bool) -> Control:
+	var made := line.get_node_or_null(String(part)) as Control
+	if made != null or not wanted:
+		return made
+	match part:
+		&"Slider":
+			var bar := HSlider.new()
+			bar.max_value = 1.0
+			bar.step = 0.01
+			bar.scrollable = false
+			bar.focus_mode = Control.FOCUS_NONE
+			bar.custom_minimum_size.x = SLIDER_WIDTH
+			bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			made = bar
+		&"Value":
+			made = Label.new()
+		&"Cap":
+			var cap := TextureRect.new()
+			cap.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+			cap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			made = cap
+	made.name = part
+	made.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.add_child(made)
+	# In PARTS' order along the line, whichever was wanted first.
+	var at := 1
+	for earlier: StringName in PARTS.slice(0, PARTS.find(part)):
+		if line.has_node(String(earlier)):
+			at += 1
+	line.move_child(made, at)
+	return made
 
 
 func _paint() -> void:
@@ -242,22 +257,31 @@ func _paint() -> void:
 		sub.visible = not below.is_empty()
 		sub.text = below
 		sub.add_theme_color_override(&"font_color", Color(ink, 0.7))
-		var bar := node.get_node("Plate/Line/Slider") as HSlider
-		bar.visible = row.has("slider")
-		bar.value = float(row.get("slider", 0.0))
-		var value := node.get_node("Plate/Line/Value") as Label
-		value.visible = row.has("value") or row.has("note")
-		value.text = str(row["note"]) if row.has("note") else "< %s >" % row.get("value", "")
-		if bar.visible:
-			value.text = str(row.get("value", ""))
-		value.custom_minimum_size.x = SLIDER_VALUE_WIDTH if bar.visible else 0.0
-		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if bar.visible \
-				else HORIZONTAL_ALIGNMENT_LEFT
-		value.add_theme_color_override(&"font_color", ink)
-		var cap := node.get_node("Plate/Line/Cap") as TextureRect
-		cap.visible = row.has("cap")
-		if cap.visible:
-			cap.texture = KeyHints.texture_for(row["cap"])
+		var line := node.get_node("Plate/Line") as Control
+		var slides := row.has("slider")
+		var bar := _part(line, &"Slider", slides) as HSlider
+		if bar != null:
+			bar.visible = slides
+			bar.value = float(row.get("slider", 0.0))
+		var value := _part(line, &"Value", row.has("value") or row.has("note")) as Label
+		if value != null:
+			value.visible = row.has("value") or row.has("note")
+			if slides:
+				value.text = str(row.get("value", ""))
+			elif row.has("note"):
+				value.text = str(row["note"])
+			else:
+				value.text = "< %s >" % row.get("value", "")
+			value.custom_minimum_size.x = SLIDER_VALUE_WIDTH if slides else 0.0
+			value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if slides \
+					else HORIZONTAL_ALIGNMENT_LEFT
+			value.add_theme_color_override(&"font_color", ink)
+		var cap := _part(line, &"Cap", row.has("cap")) as TextureRect
+		if cap != null:
+			cap.visible = row.has("cap")
+			if cap.visible and cap.get_meta(&"key", "") != row["cap"]:
+				cap.set_meta(&"key", row["cap"])
+				cap.texture = KeyHints.texture_for(row["cap"])
 
 
 ## Clicking a row is the confirm key -- or, on a row with a value, steps it

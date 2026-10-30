@@ -67,6 +67,10 @@ func _process(delta: float) -> void:
 
 	move_and_slide()
 	_update_sprite()
+
+
+## The sensor's overlaps only change on a tick, so that is when they are worth reading.
+func _physics_process(_delta: float) -> void:
 	_update_sensor()
 	_refresh_target()
 

@@ -848,10 +848,10 @@ func _test_title_screen() -> void:
 	_check(title.call(&"page") == 6 and SceneRouter.current_map() == null and field.is_visible_in_tree()
 			and field.has_focus() and field.text == GameState.DEFAULT_NAME,
 			"and last who you are, with a name ready in the box")
-	await _tap_key(KEY_E, false, true)
+	await _tap_key(KEY_E, true)
 	_check(title.call(&"page") == 6 and field.text == GameState.DEFAULT_NAME,
 			"the key that chose the slot, held down, types nothing into the box")
-	await _tap_key(KEY_ENTER, false, true)
+	await _tap_key(KEY_ENTER, true)
 	_check(title.call(&"page") == 6 and SceneRouter.current_map() == null, "nor logs in with what is there")
 	await _tap_key(KEY_ESCAPE)
 	_check(title.call(&"page") == 3 and cards.index == 2, "Esc goes back a page, not only out of the box")
@@ -1091,8 +1091,9 @@ func _test_keys() -> void:
 			"a key another action has swaps the two, so neither is left with nothing")
 	_check(Settings.bind(&"map", KEY_ESCAPE) == &"" and Settings.key_of(&"map") == KEY_K
 			and not Settings.refusal(KEY_TAB).is_empty(), "Esc and the other fixed keys can't be given away")
-	_check(not Settings.refusal(KEY_SEMICOLON).is_empty() and Settings.refusal(KEY_F12).is_empty(),
-			"and nor can a key the pack draws no cap for, which nothing could show")
+	_check(not Settings.refusal(KEY_INSERT).is_empty() and Settings.refusal(KEY_F12).is_empty()
+			and Settings.refusal(KEY_SEMICOLON).is_empty(),
+			"and nor can a key no cap could show, though a character on a blank cap will do")
 
 	Settings.bind(&"move_up", KEY_Y)
 	Settings.bind(&"interact", KEY_F)
@@ -1126,6 +1127,9 @@ func _test_keys() -> void:
 	file.save(Settings.path)
 	_check(Settings.load_settings() and Settings.keys_are_default(), "and so is one taking a fixed key")
 
+	await _test_keys_on_a_layout(prompt)
+	await _test_keys_in_the_bag()
+
 	# Q and E are the menu's tab keys, so a key can only be picked up ahead of them.
 	menu.call(&"open", 4)
 	var system: Node = menu.call(&"page", 4)
@@ -1146,6 +1150,9 @@ func _test_keys() -> void:
 	list.choose()
 	_check(list.is_waiting() and list.text_of(4).contains("press a key")
 			and menu.call(&"hint_text") == "[Esc] leave it", "choosing a row waits for a key, and says only how out")
+	var line := list.get_child(4).get_node("Plate/Line")
+	_check(line.get_child(1).name == &"Value" and line.get_child(2).name == &"Cap",
+			"and what a row grows later still takes its place along the row")
 	await _tap_key(KEY_ESCAPE)
 	_check(not list.is_waiting() and list.is_on_keys() and menu.call(&"is_open") and Settings.keys_are_default(),
 			"Esc leaves the key as it was, and nothing else")
@@ -1161,12 +1168,22 @@ func _test_keys() -> void:
 	await _tap_key(KEY_Q)
 	_check(Settings.key_of(&"inventory") == KEY_Q and Settings.key_of(&"interact") == KEY_I
 			and list.describe(5).contains("Swapped with Interact"), "a swap says what it swapped with")
+	list.select(6)
+	_check(not (system.get(&"_detail") as Label).text.contains("Swapped"),
+			"and the line under the list lets go of that as the cursor moves")
 	list.select(Settings.BINDINGS.size())
 	list.choose()
 	_check(Settings.keys_are_default() and list.text_of(4) == "Interact [E]", "Reset keys puts them all back")
 	list.select(4)
 	list.choose()
+	list.select(Settings.BINDINGS.size())
+	list.choose()
+	_check(not list.is_waiting() and not list.text_of(4).contains("press a key"),
+			"the greyed Reset row, clicked, leaves a waiting row and says so")
+	list.select(4)
+	list.choose()
 	menu.call(&"close")
+	_check(not list.is_waiting() and not list.is_on_keys(), "closing the menu leaves the keys")
 	await _tap_key(KEY_P)
 	_check(Settings.keys_are_default(), "a menu closed under a waiting row takes no key")
 
@@ -1200,6 +1217,68 @@ func _test_keys() -> void:
 	Settings.path = Settings.PATH
 
 
+## A layout can put anything on a key, and what it does must not reach the keys
+## themselves. Headless there is no layout, so one is lent: Dvorak's punctuation, an
+## accent, and a key that types nothing a cap can show.
+func _test_keys_on_a_layout(prompt: TextureRect) -> void:
+	var board: Callable = Settings.layout
+	Settings.layout = func(key: Key) -> int:
+		return {KEY_E: KEY_PERIOD, KEY_W: KEY_COMMA, KEY_J: 0xC8, KEY_I: KEY_CAPSLOCK}.get(key, key)
+	Settings.changed.emit()
+	_check(Settings.key_name(&"interact") == "Period" and Settings.key_name(&"journal") == "È",
+			"a key is called what the layout calls it")
+	_check(Settings.key_name(&"inventory") == "I", "or its own name, where no cap can show that")
+	var blank: PackedStringArray = []
+	for binding: Array in Settings.BINDINGS:
+		if KeyHints.texture_for(Settings.key_name(binding[0])) == null or not Settings.refusal(Settings.key_of(binding[0])).is_empty():
+			blank.append(binding[0])
+	_check(blank.is_empty(), "so every key the game ships has a cap on it, and is allowed (%s)" % ", ".join(blank))
+	var cap := KeyHints.texture_for("Period")
+	_check(cap is GlyphCap and cap.get_size() == KeyHints.texture_for("E").get_size()
+			and cap == KeyHints.texture_for("Period"), "the pack's blank, a pack cap's size, the one texture")
+	_check(prompt.texture == cap, "the prompt draws it rather than nothing")
+	Settings.bind(&"journal", KEY_K)
+	_check(Settings.load_settings() and Settings.key_of(&"journal") == KEY_K,
+			"and a key moved on that layout is still there on the next boot")
+	Settings.reset()
+	Settings.layout = board
+	Settings.changed.emit()
+
+
+## In the bag, X and R do what the key line says, whatever else is on them -- and
+## where a tab's own key beats them, the key line stops saying it.
+func _test_keys_in_the_bag() -> void:
+	var menu := _main.get_node("GameMenu")
+	var title := _main.get_node("TitleScreen")
+	_check(title.call(&"_delete_keys") == ["Del", "X"], "the title deletes a slot on Del or X")
+	Settings.bind(&"interact", KEY_X)
+	_check(title.call(&"_delete_keys") == ["Del"], "and says only Del once X is interact, which it reads first")
+	var hp := GameState.hp
+	GameState.hp = 1
+	Inventory.clear()
+	Inventory.add_id(&"small_potion", 1)
+	menu.call(&"open", 1)
+	(menu.call(&"page", 1) as Node).call(&"set_category", 0)
+	await _idle(2)
+	await _tap_key(KEY_X)
+	_check(Inventory.count(&"small_potion") == 0 and GameState.hp == 1,
+			"with interact on X, X in the bag drops the potion rather than drinking it")
+	Settings.reset()
+	Inventory.add_id(&"small_potion", 1)
+	Settings.bind(&"journal", KEY_R)
+	Settings.bind(&"inventory", KEY_X)
+	Inventory.add_id(&"small_potion", 1)
+	await _idle(2)
+	var said: String = menu.call(&"hint_text")
+	_check(not said.contains("[X]") and not said.contains("[R]"), "a tab's key on X or R takes it off the key line (%s)" % said)
+	await _tap_key(KEY_X)
+	_check(not menu.call(&"is_open") and Inventory.count(&"small_potion") == 2,
+			"and X closes the bag as its own key, and throws nothing away")
+	Settings.reset()
+	Inventory.clear()
+	GameState.hp = hp
+
+
 ## Whether pressing the physical [param key] now counts as [param action].
 func _is_on(key: Key, action: StringName) -> bool:
 	var press := InputEventKey.new()
@@ -1224,11 +1303,10 @@ func _type(text: String) -> void:
 		await _idle(1)
 
 
-func _tap_key(key: Key, shift := false, echo := false) -> void:
+func _tap_key(key: Key, echo := false) -> void:
 	var press := InputEventKey.new()
 	press.physical_keycode = key
 	press.keycode = key
-	press.shift_pressed = shift
 	press.echo = echo
 	press.pressed = true
 	Input.parse_input_event(press)

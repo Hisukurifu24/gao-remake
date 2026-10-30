@@ -33,6 +33,10 @@ const NAME_MAX := 12
 ## gets through to the text a name is written into.
 const NAME_REFUSED := "[^A-Za-z0-9\\x{C0}-\\x{D6}\\x{D8}-\\x{F6}\\x{F8}-\\x{148}\\x{14A}-\\x{17E} _'.\\-]"
 
+## Compiled the first time a name is cleaned; the title's box cleans one per key.
+static var _refused_letters: RegEx
+static var _space_runs: RegEx
+
 var player_name := DEFAULT_NAME
 ## Seconds spent on a map in this run, counted by the main scene. Shown on the
 ## save slots and the status page; nothing plays differently for it.
@@ -421,12 +425,15 @@ static func name_chars(raw: String) -> String:
 ## two in a row. Empty if there is nothing left of it, which is the caller's to
 ## refuse.
 static func clean_name(raw: String) -> String:
-	var runs := RegEx.create_from_string(" +")
-	return runs.sub(_name_letters(raw).strip_edges(), " ", true).left(NAME_MAX).strip_edges()
+	if _space_runs == null:
+		_space_runs = RegEx.create_from_string(" +")
+	return _space_runs.sub(_name_letters(raw).strip_edges(), " ", true).left(NAME_MAX).strip_edges()
 
 
 static func _name_letters(raw: String) -> String:
-	return RegEx.create_from_string(NAME_REFUSED).sub(raw, "", true)
+	if _refused_letters == null:
+		_refused_letters = RegEx.create_from_string(NAME_REFUSED)
+	return _refused_letters.sub(raw, "", true)
 
 
 func to_save() -> Dictionary:

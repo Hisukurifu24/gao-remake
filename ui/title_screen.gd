@@ -162,7 +162,7 @@ func _show_page(next: Page) -> void:
 			_header.text = "Load game"
 			_cards.set_cards(_slot_cards())
 			_cards.select(maxi(0, latest_slot() - 1))
-			_hints.show_hints([[_confirm_key(), "load"], [["Del", "X"], "delete"], ["Esc", "back"]])
+			_hints.show_hints([[_confirm_key(), "load"], [_delete_keys(), "delete"], ["Esc", "back"]])
 		Page.NEW_MODE:
 			_header.text = "New game -- how will you play?"
 			_cards.set_cards(_mode_cards())
@@ -197,6 +197,17 @@ func _show_page(next: Page) -> void:
 ## The key the pages confirm on, as the keycap shows it.
 func _confirm_key() -> String:
 	return Settings.key_name(&"interact")
+
+
+## Del and X, less either a player has moved one of the keys this page reads first
+## onto, which [method _unhandled_input] would answer instead.
+func _delete_keys() -> Array:
+	var taken := [&"move_up", &"move_down", &"interact"].map(Settings.key_of)
+	var keys := []
+	for key: Array in [["Del", KEY_DELETE], ["X", KEY_X]]:
+		if not taken.has(key[1]):
+			keys.append(key[0])
+	return keys
 
 
 func _paint_settings_hints() -> void:
@@ -299,7 +310,7 @@ func _paint_detail() -> void:
 				Main.NEW:
 					text = "Start the climb from the Town of Beginnings."
 				Main.SETTINGS:
-					text = "The window, the text, the camera."
+					text = "The window, the text, the sound, the keys."
 		Page.LOAD:
 			var n := _cards.index + 1
 			if _confirming == _cards.index:

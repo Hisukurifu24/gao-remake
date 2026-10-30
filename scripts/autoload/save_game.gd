@@ -295,8 +295,9 @@ func new_game(to_slot: int, mode := GameState.Mode.STANDARD, avatar := "") -> vo
 	_autosave_pending = false
 	GameState.from_save({})
 	GameState.mode = mode
-	if not GameState.clean_name(avatar).is_empty():
-		GameState.player_name = GameState.clean_name(avatar)
+	var cleaned := GameState.clean_name(avatar)
+	if not cleaned.is_empty():
+		GameState.player_name = cleaned
 	QuestLog.from_save({})
 	Inventory.from_save({})
 	slot = 0 if mode == GameState.Mode.MARATHON else clampi(to_slot, 0, SLOTS)

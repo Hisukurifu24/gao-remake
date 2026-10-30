@@ -44,6 +44,8 @@ func _ready() -> void:
 	super._ready()
 	add_to_group(GROUP)
 	_spot = position
+	# They step on ticks under a camera that moves every drawn frame.
+	physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_ON
 	# Never solid: see the class note.
 	for shape in $Solid.get_children():
 		(shape as CollisionShape2D).disabled = true
@@ -86,6 +88,7 @@ func _physics_process(delta: float) -> void:
 	if position.distance_to(target) > SNAP_DISTANCE:
 		_trail.clear()
 		position = target
+		reset_physics_interpolation()
 	elif _trail.is_empty() or (_trail.back() as Vector2).distance_to(target) >= 4.0:
 		_trail.append(target)
 	# Walk the trail, keeping the gap: the points nearer than it to you wait.

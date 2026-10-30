@@ -132,8 +132,15 @@ func _process(_delta: float) -> void:
 
 # --- the keys --------------------------------------------------------------
 
+## X and R first: a player may have moved an action onto either, and in the bag they
+## still do what the key line says.
 func handle(event: InputEvent) -> bool:
-	if is_up(event):
+	if is_key(event, KEY_X):
+		_drop()
+	elif is_key(event, KEY_R):
+		Audio.play(&"tab")
+		Inventory.sort()
+	elif is_up(event):
 		_move(0, -1)
 	elif is_down(event):
 		_move(0, 1)
@@ -143,11 +150,6 @@ func handle(event: InputEvent) -> bool:
 		_move(1, 0)
 	elif is_confirm(event):
 		_confirm()
-	elif is_key(event, KEY_X):
-		_drop()
-	elif is_key(event, KEY_R):
-		Audio.play(&"tab")
-		Inventory.sort()
 	else:
 		return false
 	return true
@@ -167,9 +169,10 @@ func hints() -> Array:
 				said.append(["Space", "equip"])
 			elif stack != null and stack.item.is_consumable() and stack.item.usable_in_field:
 				said.append(["Space", "use"])
-			if stack != null and stack.item.kind != Item.Kind.KEY:
+			if stack != null and stack.item.kind != Item.Kind.KEY and not menu.call(&"is_tab_key", KEY_X):
 				said.append(["X", "drop"])
-	said.append(["R", "sort"])
+	if not menu.call(&"is_tab_key", KEY_R):
+		said.append(["R", "sort"])
 	return said
 
 

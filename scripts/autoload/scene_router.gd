@@ -26,6 +26,11 @@ var _busy := false
 
 
 func _ready() -> void:
+	# Physics interpolation is on for what walks on ticks (monsters, a wisp, whoever
+	# you are escorting) and off for everything else: the player and every camera
+	# move on drawn frames, and an interpolated Camera2D is forced onto ticks. Here,
+	# because the first camera (the title's backdrop) is up before the main scene is.
+	get_tree().root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	var layer := CanvasLayer.new()
 	layer.name = "TransitionLayer"
 	layer.layer = 128

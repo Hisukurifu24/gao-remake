@@ -7,7 +7,8 @@ extends HBoxContainer
 ## [code][["Left", "Right"], "change"][/code] for two keys that share a verb.
 ## A key is a name from the pack's keyboard set ([code]Key<name>.png[/code]),
 ## with the few the pack spells differently in [constant SPELLED], and the
-## mouse's buttons in [constant MOUSE].
+## mouse's buttons in [constant MOUSE]. A key the pack doesn't draw but which types
+## a character is that character on a blank cap ([GlyphCap]).
 
 const KEYBOARD := "res://assets/ninja_adventure/Ui/Input/Keyboard/Key%s.png"
 const MOUSE := {
@@ -16,6 +17,9 @@ const MOUSE := {
 	"Wheel": "res://assets/ninja_adventure/Ui/Input/Mouse/MouseWheelUp.png",
 }
 const SPELLED := {"Esc": "Escape", "Del": "Delete"}
+
+## Character -> its [GlyphCap], so a repaint gets back the same texture.
+static var _glyph_caps := {}
 
 var _text := ""
 
@@ -65,17 +69,35 @@ func _cap(key: String) -> TextureRect:
 	return cap
 
 
-## Whether the pack draws [param key]. The bindings hold to this, so a key name
-## from [method Settings.key_name] always has a cap.
+## Whether [param key] can be drawn: the pack has it, or it types a character the
+## font has. The bindings hold to this and [method Settings.key_name] falls back on
+## it, so a key name from there always has a cap.
 static func has_cap(key: String) -> bool:
-	return ResourceLoader.exists(KEYBOARD % SPELLED.get(key, key))
+	return ResourceLoader.exists(_path(key)) or _glyph(key) != 0
 
 
 static func texture_for(key: String) -> Texture2D:
 	if MOUSE.has(key):
 		return load(MOUSE[key]) as Texture2D
-	var path := KEYBOARD % SPELLED.get(key, key)
-	if not ResourceLoader.exists(path):
-		push_warning("KeyHints: the pack draws no key '%s'" % key)
+	if ResourceLoader.exists(_path(key)):
+		return load(_path(key)) as Texture2D
+	var glyph := _glyph(key)
+	if glyph == 0:
+		push_warning("KeyHints: no cap can show key '%s'" % key)
 		return null
-	return load(path) as Texture2D
+	if not _glyph_caps.has(glyph):
+		_glyph_caps[glyph] = GlyphCap.new(char(glyph))
+	return _glyph_caps[glyph]
+
+
+static func _path(key: String) -> String:
+	return KEYBOARD % SPELLED.get(key, key)
+
+
+## The character [param key] types, or 0. A key name is the character itself for an
+## accented letter and a word for punctuation ("Period").
+static func _glyph(key: String) -> int:
+	var code := key.unicode_at(0) if key.length() == 1 else int(OS.find_keycode_from_string(key))
+	if code <= KEY_SPACE or code >= KEY_SPECIAL:
+		return 0
+	return code if GlyphCap.FONT.has_char(code) else 0

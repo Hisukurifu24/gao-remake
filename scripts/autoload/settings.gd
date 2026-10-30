@@ -57,6 +57,12 @@ var text_speed := 1
 var screen_shake := true
 var music_volume := MUSIC_VOLUME
 var sound_volume := SOUND_VOLUME
+## What a physical key types on the layout in use. Tests swap this: headless, there
+## is no layout to ask.
+var layout := func(key: Key) -> Key:
+	if DisplayServer.get_name() == "headless":
+		return key
+	return DisplayServer.keyboard_get_keycode_from_physical(key)
 ## Action -> the physical key it is on now, and what the project ships.
 var _keys := {}
 var _default_keys := {}
@@ -78,7 +84,7 @@ func keys() -> Array[StringName]:
 
 
 ## Sets one preference, applies it and writes the file. Out-of-range values are
-## clamped rather than refused: the page steps through them and wraps.
+## clamped rather than refused, which is what stops a volume at its ends.
 func set_value(key: StringName, value: Variant) -> void:
 	match key:
 		&"fullscreen":
@@ -156,14 +162,16 @@ func key_name(action: StringName) -> String:
 	return label_of(key_of(action))
 
 
-static func label_of(key: Key) -> String:
-	if DisplayServer.get_name() != "headless":
-		key = DisplayServer.keyboard_get_keycode_from_physical(key)
-	return OS.get_keycode_string(key)
+## What the layout calls [param key], or the key's own name where the layout puts
+## something on it no cap can show, so a key the game ships never comes up blank
+## and [method refusal] gives one answer for a key on every layout.
+func label_of(key: Key) -> String:
+	var local := OS.get_keycode_string(layout.call(key))
+	return local if KeyHints.has_cap(local) else OS.get_keycode_string(key)
 
 
-## Why [param key] can't be given to an action, or empty if it can. Only a key the
-## pack draws a keycap for will do: every key on screen is shown as one.
+## Why [param key] can't be given to an action, or empty if it can. Only a key that
+## can be drawn as a keycap will do: every key on screen is shown as one.
 func refusal(key: Key) -> String:
 	if FIXED_KEYS.has(key):
 		return "Esc, Enter, Space, Tab and the arrows keep the jobs they have."

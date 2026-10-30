@@ -106,6 +106,8 @@ func _ready() -> void:
 	_show_sprite()
 	if display_name.is_empty():
 		display_name = enemy.label()
+	# It steps on ticks under a camera that moves every drawn frame.
+	physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_ON
 	_probe.radius = BODY_RADIUS
 	home = global_position
 	_goal = home

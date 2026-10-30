@@ -42,9 +42,16 @@ func _ready() -> void:
 	stepped.connect(_on_stepped)
 	slid.connect(_on_slid)
 	chosen.connect(_on_chosen)
-	moved.connect(func(_at: int) -> void: _said = "")
 	Settings.changed.connect(refresh)
 	refresh()
+
+
+## What the last key did goes here and not on [signal moved]: a screen repaints the
+## detail on that signal, and has to read it gone.
+func select(at: int) -> void:
+	if clampi(at, 0, row_count() - 1) != index:
+		_said = ""
+	super(at)
 
 
 func refresh() -> void:
@@ -196,24 +203,20 @@ func _on_chosen(at: int) -> void:
 func _on_key_chosen(at: int) -> void:
 	_said = ""
 	_waiting = -1
-	if at < Settings.BINDINGS.size():
-		_waiting = at
-		refresh()
-	elif at > Settings.BINDINGS.size():
+	if at > Settings.BINDINGS.size():
 		leave_keys()
 		return
+	if at < Settings.BINDINGS.size():
+		_waiting = at
 	elif is_enabled(at):
 		Settings.reset_keys()
 		_said = "The keys are back as they were."
+	refresh()
 	view_changed.emit()
 
 
 func _input(event: InputEvent) -> void:
 	if _waiting < 0:
-		return
-	# Closed under it -- an idle marathon logs out through any screen.
-	if not is_visible_in_tree():
-		_waiting = -1
 		return
 	var pressed := event as InputEventKey
 	if pressed == null or not pressed.pressed or pressed.echo:

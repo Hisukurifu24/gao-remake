@@ -49,6 +49,8 @@ func _ready() -> void:
 		return
 	# Over props and monsters, under the labyrinth's dark.
 	z_index = 5
+	# It steps on ticks under a camera that moves every drawn frame.
+	physics_interpolation_mode = PHYSICS_INTERPOLATION_MODE_ON
 
 
 func _process(delta: float) -> void:

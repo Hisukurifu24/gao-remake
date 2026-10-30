@@ -70,10 +70,15 @@ func shown() -> void:
 	_in_settings = false
 	_list.visible = true
 	_settings.visible = false
-	_settings.leave_keys()
 	_list.set_rows(_rows())
 	_paint_run()
 	_paint_detail()
+
+
+## Out of the keys as the page goes, or a row left waiting would take the next key
+## pressed on the map.
+func hidden() -> void:
+	_settings.leave_keys()
 
 
 func handle(event: InputEvent) -> bool:
@@ -160,7 +165,7 @@ func _paint_detail() -> void:
 				else:
 					text = "Anything since the last save is lost."
 			Choice.SETTINGS:
-				text = "The window, the text, the camera."
+				text = "The window, the text, the sound, the keys."
 			Choice.QUIT:
 				if not SaveGame.why_unsaved().is_empty():
 					text = "This run is never saved: quitting ends it."

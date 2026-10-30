@@ -145,7 +145,8 @@ func _unhandled_input(event: InputEvent) -> void:
 ## [code]_unhandled_input[/code], Godot may spend Tab on moving keyboard focus
 ## ([code]ui_focus_next[/code]), and E would reach a page as [code]interact[/code],
 ## which every page takes for confirm. A tab's own key comes first, since a player
-## may have moved one onto Q or E.
+## may have moved one onto Q or E. Any other action on Q or E loses to the tab keys:
+## they are menu keys, and the key line says so.
 func _input(event: InputEvent) -> void:
 	if not _open:
 		return
@@ -166,6 +167,12 @@ func _input(event: InputEvent) -> void:
 	if by != 0:
 		get_viewport().set_input_as_handled()
 		show_tab(wrapi(_tab + by, 0, _pages.size()) as Tab)
+
+
+## Whether a tab's own key is on [param key], so a page's key there never arrives:
+## [method _input] spends it first, and closing the menu beats throwing a stack away.
+func is_tab_key(key: Key) -> bool:
+	return HOTKEYS.keys().any(func(action: StringName) -> bool: return Settings.key_of(action) == key)
 
 
 # --- drawing ---------------------------------------------------------------

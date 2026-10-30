@@ -70,8 +70,17 @@ func _run() -> void:
 	var start_y := player.global_position.y
 	await _hold(&"move_up", 20)
 	_check(player.global_position.y < start_y - 10.0, "walking north moves the player")
-	_check(player.is_processing() and not player.is_physics_processing(),
-			"the player moves on drawn frames, in step with the camera, not on physics ticks")
+	# Headless draws far more often than it ticks, so a step with no tick either side
+	# of it was taken on a drawn frame.
+	var between_ticks := false
+	Input.action_press(&"move_up")
+	for _i in 60:
+		var tick := Engine.get_physics_frames()
+		var was := player.global_position
+		await get_tree().process_frame
+		between_ticks = between_ticks or (tick == Engine.get_physics_frames() and was != player.global_position)
+	Input.action_release(&"move_up")
+	_check(between_ticks, "the player moves on drawn frames, in step with the camera, not on physics ticks")
 
 	player.global_position = Vector2(392, 40)  # just under the tree border
 	await _hold(&"move_up", 60)
@@ -1244,7 +1253,8 @@ func _test_events(world_root: Node2D) -> void:
 				and GameState.hp <= GameState.total_max_hp() / 2 + 1
 				and GameState.dropped_col() == dropped
 				and not GameState.has_flag(FloorEvents.flag(2, "duel")),
-				"losing a duel costs the stake and half your HP, and nothing else")
+				"losing a duel costs the stake and half your HP, and nothing else (col %d, wanted %d; hp %d of %d)"
+				% [GameState.col(), purse - stake, GameState.hp, GameState.total_max_hp()])
 
 		# Won: the wager, and the stake back.
 		GameState.defense = guard
@@ -1527,6 +1537,11 @@ func _test_roaming(map: Node2D, player: Player) -> void:
 	monster.queue_free()
 
 	var sleeper := _spawn_monster(map, player.global_position + Vector2(20, 0))
+	var eye := player.get_node("Camera2D") as Camera2D
+	_check(sleeper.is_physics_interpolated_and_enabled() and not player.is_physics_interpolated()
+			and not eye.is_physics_interpolated() and eye.is_processing_internal()
+			and not eye.is_physics_processing_internal(),
+			"what steps on ticks is drawn between them; the player and the camera, moving every frame, aren't")
 	sleeper.interact(player)
 	_check(CombatManager.is_running() \
 			and CombatManager.current_encounter().opening == Encounter.Opening.PARTY_FIRST,
@@ -1547,8 +1562,6 @@ func _test_roaming(map: Node2D, player: Player) -> void:
 	await _auto_battle()
 
 
-## Tomas's counter on the plaza, through the real screen: talking to him opens
-## it, E buys the top of the shelf, left/right turns it to selling, Esc closes it.
 ## A choice menu is as wide as its longest row wherever the cursor is: the cursor
 ## keeps its room on every row, or the panel jumps as it lands on that one.
 func _test_choice_width(box: CanvasLayer) -> void:
@@ -1592,6 +1605,8 @@ func _test_leaving_by_key(main: Node, box: CanvasLayer) -> void:
 	_check(not main.get_node("GameMenu").is_open(), "and doesn't open the game menu behind it")
 
 
+## Tomas's counter on the plaza, through the real screen: talking to him opens
+## it, E buys the top of the shelf, left/right turns it to selling, Esc closes it.
 func _test_shop(main: Node, town: Node2D, player: Node2D) -> void:
 	var screen := main.get_node("ShopScreen")
 	var tomas := town.get_node_or_null("Tomas") as Npc
@@ -1817,9 +1832,14 @@ func _tap(action: StringName) -> void:
 	await _idle(2)
 
 
+## The player reads input in [code]_process[/code], and a hitch can run every one of
+## those ticks in a single frame, so the key stays down for a frame as well. The
+## signal comes before that frame's [code]_process[/code], hence two.
 func _hold(action: StringName, frames: int) -> void:
 	Input.action_press(action)
 	await _physics(frames)
+	await get_tree().process_frame
+	await get_tree().process_frame
 	Input.action_release(action)
 	await _physics(1)
 

@@ -34,6 +34,7 @@ monitorable = false
 shape = SubResource("CircleShape2D_sensor")
 
 [node name="Camera2D" type="Camera2D" parent="."]
+physics_interpolation_mode = 2
 position = Vector2(0, -8)
 zoom = Vector2(2, 2)
 position_smoothing_enabled = true
