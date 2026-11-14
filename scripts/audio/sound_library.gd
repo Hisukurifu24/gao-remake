@@ -82,6 +82,9 @@ const SOUNDS := {
 	&"sparkle": {"files": ["Sounds/Magic & Skill/Heal3.wav"], "db": -6.0},
 	&"frost": {"files": ["Sounds/Magic & Skill/Magic5.wav"], "db": -6.0},
 	&"thunder": {"files": ["Sounds/Elemental/Explosion5.wav"], "db": -6.0},
+	## Gulmaw's bog water (Floor 40), thrown or brought up under you.
+	&"splash": {"files": ["Sounds/Elemental/Water9.wav", "Sounds/Elemental/Water10.wav"],
+			"db": -6.0, "spread": 0.06},
 	## Hisukurifu's Explosion, under the screen going white.
 	&"explosion_spell": {"files": ["Sounds/Elemental/Explosion6.wav"], "db": -2.0},
 	&"punch": {"files": ["Sounds/Hit & Impact/Hit3.wav", "Sounds/Hit & Impact/Hit8.wav"],

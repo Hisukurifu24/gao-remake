@@ -129,8 +129,9 @@ func _draw_cells(ground: TileMapLayer, walls: TileMapLayer, seen: Dictionary,
 ## ends first it goes just inside the place's top edge instead: below would put it
 ## on whatever is next door. Light with a dark halo, for when it crosses floor.
 ## A name that would land on one already written -- two places side by side on a
-## map drawn small -- slides along the line clear of it, or goes inside its place's
-## top edge instead, then a line lower at a time until it is clear.
+## map drawn small -- slides along the line clear of it, to whichever side is
+## nearer, or goes inside its place's top edge instead, then a line lower at a time
+## until it is clear.
 func _draw_landmarks(seen: Dictionary) -> void:
 	var font := get_theme_font(&"font", &"Label")
 	var font_size := get_theme_font_size(&"font_size", &"Label")
@@ -165,6 +166,11 @@ func _draw_landmarks(seen: Dictionary) -> void:
 					right = maxf(right, other.end.x)
 					leftmost = minf(leftmost, other.position.x)
 				options.append_array([right + 3.0, leftmost - width - 3.0])
+				# The nearer side first: a name that clips its neighbour by a pixel
+				# moves a pixel, not past the neighbour onto the next place over.
+				var wanted := left
+				options.sort_custom(func(a: float, b: float) -> bool:
+					return absf(a - wanted) < absf(b - wanted))
 			for x in options:
 				if x < 1.0 or x + width > size.x - 1.0:
 					continue

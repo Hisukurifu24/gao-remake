@@ -1,0 +1,168 @@
+[gd_resource type="Resource" script_class="Dialogue" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Character/OldMan2/Faceset.png" id="portrait"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue.gd" id="dialogue"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_line.gd" id="line"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_choice.gd" id="choice"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="taken"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_brackwater_mire_started"
+
+[sub_resource type="Resource" id="not_taken"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_brackwater_mire_started"
+
+[sub_resource type="Resource" id="ready"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_brackwater_mire_ready"
+
+[sub_resource type="Resource" id="not_ready"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_brackwater_mire_ready"
+
+[sub_resource type="Resource" id="done"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_brackwater_mire_done"
+
+[sub_resource type="Resource" id="not_done"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_brackwater_mire_done"
+
+[sub_resource type="Resource" id="floor"]
+script = ExtResource("condition")
+test = 1
+number = 39
+
+[sub_resource type="Resource" id="eff_start"]
+script = ExtResource("effect")
+kind = 4
+id = &"brackwater_mire"
+
+[sub_resource type="Resource" id="eff_turn_in"]
+script = ExtResource("effect")
+kind = 5
+id = &"brackwater_mire"
+
+[sub_resource type="Resource" id="choice_report"]
+script = ExtResource("choice")
+text = "The causeways are clear. It's asleep for good."
+next = &"report"
+conditions = Array[ExtResource("condition")]([SubResource("ready")])
+
+[sub_resource type="Resource" id="choice_take"]
+script = ExtResource("choice")
+text = "What's raising the water?"
+next = &"take"
+conditions = Array[ExtResource("condition")]([SubResource("not_taken"), SubResource("floor")])
+
+[sub_resource type="Resource" id="choice_wip"]
+script = ExtResource("choice")
+text = "Still on it."
+next = &"wip"
+conditions = Array[ExtResource("condition")]([SubResource("taken"), SubResource("not_ready"), SubResource("not_done")])
+
+[sub_resource type="Resource" id="choice_about"]
+script = ExtResource("choice")
+text = "Who's Gulmaw?"
+next = &"about"
+
+[sub_resource type="Resource" id="choice_leave"]
+script = ExtResource("choice")
+text = "Later."
+next = &""
+
+[sub_resource type="Resource" id="line_0"]
+script = ExtResource("line")
+id = &"done"
+text = "Water's going down. A finger's width a day. I've marked it on the post."
+conditions = Array[ExtResource("condition")]([SubResource("done")])
+
+[sub_resource type="Resource" id="line_1"]
+script = ExtResource("line")
+text = "Thirty years I've raised this village every spring. This spring I'll lower it. Never done that. Don't know if the stilts will like it."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_2"]
+script = ExtResource("line")
+id = &"brief"
+text = "Lizardmen first. They took the outer causeways when the water came up, and they spear anybody who goes out to mend them."
+conditions = Array[ExtResource("condition")]([SubResource("taken"), SubResource("not_done")])
+
+[sub_resource type="Resource" id="line_3"]
+script = ExtResource("line")
+text = "Then the labyrinth, past the Sinkmouth on the south shore. Whatever's at the bottom of it is breathing, and the fen breathes with it."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_4"]
+script = ExtResource("line")
+id = &"first"
+text = "Oskar, reeve of Brackwater. Reeve means I count the stilts and get blamed for the water."
+
+[sub_resource type="Resource" id="line_5"]
+script = ExtResource("line")
+text = "Thirty years I've raised this village a hand's width every spring. This spring the fen wanted a forearm."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_6"]
+script = ExtResource("line")
+id = &"menu"
+text = "Well? I've stilts to count."
+choices = Array[ExtResource("choice")]([SubResource("choice_report"), SubResource("choice_take"), SubResource("choice_wip"), SubResource("choice_about"), SubResource("choice_leave")])
+
+[sub_resource type="Resource" id="line_7"]
+script = ExtResource("line")
+id = &"take"
+text = "Something at the bottom of the labyrinth. The old peat-cutters had a name for it, and put a stone frog on the landing to keep it dozing. It dozed. For a while."
+effects = Array[ExtResource("effect")]([SubResource("eff_start")])
+
+[sub_resource type="Resource" id="line_8"]
+script = ExtResource("line")
+text = "Take four of those lizardmen off my causeways. Then go down past the Sinkmouth and see it doesn't wake. If it already has -- see it doesn't again."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_9"]
+script = ExtResource("line")
+id = &"wip"
+text = "Water's on the post where it was this morning. That's your answer."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_10"]
+script = ExtResource("line")
+id = &"report"
+text = "Asleep for good. I'll believe it when the post does, but I'll believe it."
+effects = Array[ExtResource("effect")]([SubResource("eff_turn_in")])
+
+[sub_resource type="Resource" id="line_11"]
+script = ExtResource("line")
+text = "Take the oilskin. Thirty years waxed and the fen's never once got through it. You're going higher than I'll ever need it to."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_12"]
+script = ExtResource("line")
+id = &"about"
+text = "Gulmaw. A frog the size of a boathouse, if you believe peat-cutters, and you shouldn't."
+
+[sub_resource type="Resource" id="line_13"]
+script = ExtResource("line")
+text = "They say it sleeps with one eye open and fights with both shut, and that you don't want to see it open the other. I say anything at the bottom of a labyrinth can sleep how it likes."
+next = &"menu"
+
+[resource]
+script = ExtResource("dialogue")
+id = &"oskar"
+default_speaker = "Oskar"
+default_portrait = ExtResource("portrait")
+lines = Array[ExtResource("line")]([SubResource("line_0"), SubResource("line_1"), SubResource("line_2"), SubResource("line_3"), SubResource("line_4"), SubResource("line_5"), SubResource("line_6"), SubResource("line_7"), SubResource("line_8"), SubResource("line_9"), SubResource("line_10"), SubResource("line_11"), SubResource("line_12"), SubResource("line_13")])
+start = &""

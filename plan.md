@@ -1523,8 +1523,12 @@ takes. Now that combat exists, the answer is ~8-14 rounds for a boss and 3-6 for
   the pattern for the other eight. See below.
 - [x] **Floor 25 — Lanternfall.** A chain of caverns under a mining camp, and the first
   floor built on the shared `tools/authored_floor.gd`. See below.
-- [ ] The other 7 milestone floors (each is a layout script on `tools/authored_floor.gd`,
-  a `.tres`, and its NPCs, quests and boss). 40 next.
+- [x] **Floor 40 — Brackwater** *(asked 2026-11-12: Floor 40 next, over M7's polish,
+  controller support and the flaky chase test; built the same day)*. A stilt village on
+  the one island in a fen, causeways out to four islands -- the third shape, a hub. See
+  below.
+- [ ] The other 6 milestone floors (each is a layout script on `tools/authored_floor.gd`,
+  a `.tres`, and its NPCs, quests and boss). 50 next.
 - [x] **Floor 100: the final boss** *(decided and built 2026-10-28)*. Asked, the user
   chose: the boss is **the developer -- "Hisukurifu"** (Heathcliff's name read out in
   Japanese, the avatar of the man who made the world), and **his lines break the fourth
@@ -2413,6 +2417,71 @@ And what the tests learned from it:
 - The generated-floor check said "all 99" and had been counting fewer since Floor 10. It
   counts now: 97.
 
+#### Floor 40 — Brackwater ✅
+
+A fen, and in the middle of it the one island that doesn't move: **Brackwater**, stilt
+huts round a landing with a stone frog on it. Earth causeways run out over the open bog
+to the peat cuttings, the reedbeds, a drowned chapel and a heronry, and a fifth runs
+south to the Sinkmouth, where the fen drains into the labyrinth -- the Undermire -- and
+**Gulmaw the Mire Sovereign** dozes at the bottom of it. Built by
+`tools/build_floor_40.gd`, defined by `resources/floors/floor_40.tres`, registered in
+`FloorRegistry.AUTHORED` and `Bestiary.AUTHORED_BOSSES`. Isolde the net-mender's brother
+went down the castle to join the Army; Oskar the reeve wants the causeways back from the
+lizardmen and the water down.
+
+As built:
+
+- **A hub, where Ashlow is a loop and Lanternfall a chain.** Every causeway starts in the
+  village and ends at its island; none joins another, so every trip out is a trip back
+  through Brackwater, past the chandler and the reeve.
+- **The bog is open water, and you can see across it.** Every rock cell inside the fen's
+  ellipse that nothing carved is flooded (`_flood_fen`), but for four wooded hummocks
+  left standing in it. Fog of war sees over water, so the islands are in view from the
+  village long before they're in reach, and the causeways jog so the way to what you see
+  is never the line to it. Causeways are three wide: dark earth with a grass bank each
+  side, then the shore.
+- **Islands against the treeline.** The fen is an ellipse inside the map, and the two
+  islands a puzzle carves into stand at its edge, half in the bog and half in the wood:
+  the cracked boulder is in the peat cuttings' west treeline, the sealed vault behind the
+  chapel's east wall. A wisp in the reedbeds knows the way through the fen to a shrine on
+  the heronry -- the long way, through the village -- and four statues stand on the
+  chapel's flagstones.
+- **Gulmaw** is the pack's giant frog, dozing (eyes shut) for two bars and awake for
+  the last, in the pack's red frog: *Tongue Lash*, *Bog Belch* (poison, at everyone) and,
+  awake, *Deluge* -- the pack's water splash and water pillar, with the pack's own water
+  sounds (`splash`). Measured against the Wraith archetype the floor would otherwise
+  get: 8/16 at level 47, 14/16 at 50, 15/16 at 54 (the level the balance check fights
+  him at), where the Wraith is 14/16 already at 44 -- about where Karvos sits on his
+  floor (9/16 at 28, 12/16 at 30). Drops the **Drowned Blade** (+27 attack).
+- **"A Name on the Wall"** (Isolde) is the first job that sends you off the floor it
+  is given on: down the gates to Lanternfall, where Dorran -- whose conversation gains
+  a first block gated on the job's own flags -- writes the letter he should have written
+  a month ago. A COLLECT on a key item, so carrying the letter is the job and handing it
+  over spends it. **"The Fen Rising"** (Oskar): four lizardmen off the causeways and
+  Gulmaw down; pays his oilskin (armour, +10 defence, +40 HP).
+- **Pell's chandlery** keeps the hub's counter (staples, no band specialities -- those
+  stay the villages').
+- **The swamp has houses now** (`build_biomes.gd`): its three village houses, the reeve's
+  hall and the frog idol. The village shares the first three, cut once, so its tiles
+  stayed where they were; the tileset only gained two.
+- **Save version 5.** A generated floor 40 was another map under `floor_40`: what was
+  explored of it is forgotten, a purse dropped on it comes back, and the flags it set
+  for itself (its door found, puzzles solved, chests opened) are dropped -- not that it
+  was visited or cleared, and no quest's. And since no floor picks the shape, event or
+  landmark the floor below it did, floor 40 picking nothing now lets the floors above it
+  pick again: `FloorRegistry.layout_picks(world, authored)` answers for the old world
+  and the new, and any floor that came out a different map forgets its own.
+- **A fix the layout turned up**: on the map screen a name that clipped its neighbour's
+  by a pixel slid right past it onto the next place over (the peat cuttings' name landed
+  on the chapel). It now tries the nearer side first.
+
+*Calls of mine, flag if wrong:* the name Brackwater and everyone in it; the hub shape;
+the boss a frog (and its name, Gulmaw); Isolde's job sending you down to Floor 25
+rather than staying on the floor; Oskar's not gated on level (Maren's was); the
+Undermire at 13x8 cells, under the curve's 15x9; the chandlery's shelf; the gilded
+chests holding a lizardhide vest (the band's own speciality, a few floors before any
+village sells it) and a kingdom signet.
+
 ### M7 — Save/load, polish, audio *(the save decided and built 2026-10-15; title, pause and the three modes built 2026-10-21; the menus redone classic and settings built 2026-10-22; audio built 2026-10-28)*
 Asked, the user chose: **save anywhere plus autosave** (a hardcore mode with no saving
 at all comes later), **three slots**, a loaded game resumes on **the exact spot**, and
@@ -2926,6 +2995,16 @@ he talks to you, by name, about your run, your seed, your hours and the tests th
 said you could win. Beat him and the game is cleared: the world goes white, the
 credits roll, and your save comes back in the Town of Beginnings with the castle yours.
 
+And forty floors up there is a fourth place to stop. **Floor 40 is Brackwater**, stilt
+huts on the one island in a fen that doesn't move, with a stone frog on the landing to
+keep something dozing. Causeways run out over the open bog to the peat cuttings, the
+reedbeds, a drowned chapel and a heronry -- you can see every island from the village,
+and the way there is never the straight line -- and a fifth runs south to the Sinkmouth,
+where the fen drains into the labyrinth. Oskar the reeve wants the lizardmen off his
+causeways and the water down; Isolde the net-mender wants to know if her brother was one
+of the seven the Army lost on Floor 25, and the gate goes all the way down. Gulmaw the
+Mire Sovereign fights you with its eyes shut. Make it open them.
+
 And it is your name on the plate now. A new game asks who you are before it lets you
 in, and Hisukurifu greets you by it a hundred floors up. Any key but the few that hold
 the menus together can be moved in the settings, and the game's prompts follow it.
@@ -2933,14 +3012,14 @@ the menus together can be moved in the settings, and the game's prompts follow i
 ```sh
 GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
 "$GODOT" --path .                                           # play
-"$GODOT" --headless --path . res://test/smoke_test.tscn     # 229-check game loop test
+"$GODOT" --headless --path . res://test/smoke_test.tscn     # 236-check game loop test
 "$GODOT" --headless --path . res://test/floor_test.tscn     # 170-check floor system test
-"$GODOT" --headless --path . res://test/dialogue_test.tscn  # 69-check dialogue test
-"$GODOT" --headless --path . res://test/inventory_test.tscn # 219-check inventory test
-"$GODOT" --headless --path . res://test/combat_test.tscn    # 133-check combat test
-"$GODOT" --headless --path . res://test/quest_test.tscn     # 211-check quest test
-"$GODOT" --headless --path . res://test/save_test.tscn      # 212-check save test
-"$GODOT" --headless --path . res://test/audio_test.tscn     # 49-check audio test
+"$GODOT" --headless --path . res://test/dialogue_test.tscn  # 87-check dialogue test
+"$GODOT" --headless --path . res://test/inventory_test.tscn # 222-check inventory test
+"$GODOT" --headless --path . res://test/combat_test.tscn    # 134-check combat test
+"$GODOT" --headless --path . res://test/quest_test.tscn     # 233-check quest test
+"$GODOT" --headless --path . res://test/save_test.tscn      # 230-check save test
+"$GODOT" --headless --path . res://test/audio_test.tscn     # 72-check audio test
 "$GODOT" --path . res://tools/screenshot.tscn               # capture frames to user://
 
 # Regenerating content (in order)
@@ -2952,6 +3031,7 @@ python3 tools/gen_placeholder_art.py
 "$GODOT" --headless --path . --script res://tools/build_floor_01.gd             # the field
 "$GODOT" --headless --path . --script res://tools/build_floor_10.gd
 "$GODOT" --headless --path . --script res://tools/build_floor_25.gd
+"$GODOT" --headless --path . --script res://tools/build_floor_40.gd
 # any build_floor_NN tool with `-- --preview` prints the layout instead of writing it
 ```
 
@@ -3007,8 +3087,9 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    (2026-10-28)**: HP bars and phases, Illfang's nodachi, Hisukurifu on floor 100 and
    the ending. **And Hisukurifu redrawn as the user (2026-10-29)**: four shapes of him in his
    own pixel art, each with its own moves, Explosion as the Game Master's last act. **And
-   name entry and key bindings (2026-10-30)**. Next: Floor 40, or M7's polish (hit-stop,
-   transitions, a controller).
+   name entry and key bindings (2026-10-30)**. **And Floor 40, Brackwater (2026-11-12)**:
+   the swamp's milestone, a hub of causeways over open bog. Next: Floor 50, or M7's
+   polish (hit-stop, transitions, a controller).
 3. **M5.6 — Col.** Decided 2026-10-04; **first slice built 2026-10-07**: Col from
    monsters, chests (the most in sealed ones), quests and selling; shops in the town,
    Ashlow and Lanternfall; fixed prices, stock unlocked by floor; your Col drops where
@@ -3016,7 +3097,8 @@ the editor, stop running the tool that writes it (`-- --preview` is still safe).
    materials, can fail), Argo selling boss doors, a peddler in some safe zones. **And
    villages' stock, 2026-10-28**: each band's specialities at its villages' counter. (Death Game mode landed with M7's
    title screen, 2026-10-21.)
-4. **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
+4. ~~Floor 40~~ **built 2026-11-12** (Brackwater, a hub). **Floor 50 next, on the same
+   builder** — *the old note, for the record:* **Floor 40, on the builder Floor 25 extracted** — *after* M5.5. A milestone floor is now
    a layout script on `tools/authored_floor.gd`, a `FloorDefinition`, two NPCs with a quest
    each and an authored boss — Lanternfall took that from a design job to a content job, and
    the suite checks everything a hand-built floor tends to get wrong. Forty opens the swamp

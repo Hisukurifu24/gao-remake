@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/statuses/poison.tres" id="status"]
+[ext_resource type="Resource" path="res://resources/fx/splash.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"bog_belch"
+display_name = "Bog Belch"
+description = "Everything the fen has rotted down, brought back up at once."
+kind = 0
+target = 1
+power = 85
+accuracy = 90
+crit_chance = 0
+stagger = 12
+cooldown = 3
+apply_chance = 75
+ai_weight = 1.1
+announce = "%s belches up a wave of black bog water!"
+applies = ExtResource("status")
+fx = ExtResource("fx_res")

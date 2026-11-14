@@ -11,6 +11,7 @@ const AUTHORED := {
 	1: "res://resources/floors/floor_01.tres",
 	10: "res://resources/floors/floor_10.tres",
 	25: "res://resources/floors/floor_25.tres",
+	40: "res://resources/floors/floor_40.tres",
 }
 
 ## Which biome a floor belongs to. Ten bands of ten -- the higher you climb the
@@ -114,19 +115,20 @@ func shape_of(floor_number: int) -> FloorDefinition.Shape:
 ## [method shape_of] in the world [param world_seed], overrides aside.
 func shape_in(world_seed: int, floor_number: int) -> FloorDefinition.Shape:
 	if not _shapes.has(world_seed):
-		_shapes[world_seed] = _pick_shapes(world_seed)
+		_shapes[world_seed] = _pick_shapes(world_seed, AUTHORED.keys())
 	var picked: int = _shapes[world_seed][clampi(floor_number, 1, FloorTuning.TOP_FLOOR)]
 	return (picked if picked in BUILT_SHAPES else FloorDefinition.Shape.CLASSIC) \
 			as FloorDefinition.Shape
 
 
-## Every floor's pick, 1 to the top, in [param world_seed]. Index 0 is unused.
-func _pick_shapes(world_seed: int) -> Array[int]:
+## Every floor's pick, 1 to the top, in [param world_seed] with [param authored]
+## hand-built. Index 0 is unused.
+func _pick_shapes(world_seed: int, authored: Array) -> Array[int]:
 	var picks: Array[int] = [FloorDefinition.Shape.CLASSIC]
 	var rng := RandomNumberGenerator.new()
 	for n in range(1, FloorTuning.TOP_FLOOR + 1):
 		var pick := FloorDefinition.Shape.CLASSIC
-		if not (AUTHORED.has(n) or n <= 2 or n >= FloorTuning.TOP_FLOOR):
+		if not (n in authored or n <= 2 or n >= FloorTuning.TOP_FLOOR):
 			rng.seed = hash("%d:shape" % seed_in(world_seed, n))
 			var roll := rng.randf()
 			if roll >= SHAPE_CLASSIC:
@@ -137,6 +139,35 @@ func _pick_shapes(world_seed: int) -> Array[int]:
 				pick = FloorDefinition.Shape.CLASSIC
 		picks.append(pick)
 	return picks
+
+
+## Every floor's shape as built in [param world_seed] -- [method shape_in] for all of
+## them at once, index 0 unused.
+func _shapes_in(world_seed: int) -> Array[int]:
+	var built: Array[int] = [FloorDefinition.Shape.CLASSIC]
+	for n in range(1, FloorTuning.TOP_FLOOR + 1):
+		built.append(shape_in(world_seed, n))
+	return built
+
+
+## What every floor of [param world_seed] picks -- [code]shape[/code],
+## [code]modifier[/code], [code]event[/code] and [code]landmark[/code], each an array
+## indexed by floor -- in a world whose hand-built floors are [param authored]
+## rather than [constant AUTHORED]. Overrides aside, and never cached. A floor that
+## becomes hand-built changes what the floors above it may pick, since none picks
+## what the floor below it did: a save's migration asks this about the world it was
+## written in, to know which floors came out different ([method SaveGame._migrate]).
+func layout_picks(world_seed: int, authored: Array) -> Dictionary:
+	var picked := _pick_shapes(world_seed, authored)
+	var shapes: Array[int] = [FloorDefinition.Shape.CLASSIC]
+	for n in range(1, picked.size()):
+		shapes.append(picked[n] if picked[n] in BUILT_SHAPES else FloorDefinition.Shape.CLASSIC)
+	return {
+		"shape": shapes,
+		"modifier": _pick_modifiers(world_seed, authored, shapes),
+		"event": _pick_events(world_seed, authored, shapes),
+		"landmark": _pick_landmarks(world_seed, authored, shapes),
+	}
 
 
 ## Floor [param floor_number]'s modifier ([enum FloorModifier.Kind]) in this world.
@@ -156,22 +187,23 @@ func modifier_of(floor_number: int) -> FloorModifier.Kind:
 ## [method modifier_of] in the world [param world_seed], overrides aside.
 func modifier_in(world_seed: int, floor_number: int) -> FloorModifier.Kind:
 	if not _modifiers.has(world_seed):
-		_modifiers[world_seed] = _pick_modifiers(world_seed)
+		_modifiers[world_seed] = _pick_modifiers(world_seed, AUTHORED.keys(), _shapes_in(world_seed))
 	return _modifiers[world_seed][clampi(floor_number, 1, FloorTuning.TOP_FLOOR)] as FloorModifier.Kind
 
 
-## Every floor's modifier, 1 to the top, in [param world_seed]. Index 0 is unused.
-func _pick_modifiers(world_seed: int) -> Array[int]:
+## Every floor's modifier, 1 to the top, in [param world_seed] with [param authored]
+## hand-built and [param shapes] its floors' picks. Index 0 is unused.
+func _pick_modifiers(world_seed: int, authored: Array, shapes: Array[int]) -> Array[int]:
 	var picks: Array[int] = [FloorModifier.Kind.NONE]
 	var rng := RandomNumberGenerator.new()
 	for n in range(1, FloorTuning.TOP_FLOOR + 1):
 		var pick := FloorModifier.Kind.NONE
-		if not (AUTHORED.has(n) or n <= 2 or n >= FloorTuning.TOP_FLOOR):
+		if not (n in authored or n <= 2 or n >= FloorTuning.TOP_FLOOR):
 			rng.seed = hash("%d:modifier" % seed_in(world_seed, n))
 			if rng.randf() < FloorModifier.CHANCE:
 				pick = FloorModifier.Kind.INFESTED if rng.randf() < 0.5 else FloorModifier.Kind.STORM
 				if pick == FloorModifier.Kind.STORM and (FloorModifier.weather_for(biome_id(n)) == &""
-						or shape_in(world_seed, n) == FloorDefinition.Shape.DUNGEON):
+						or shapes[n] == FloorDefinition.Shape.DUNGEON):
 					pick = FloorModifier.Kind.INFESTED
 		picks.append(pick)
 	return picks
@@ -194,20 +226,20 @@ func event_of(floor_number: int) -> FloorEvents.Kind:
 ## [method event_of] in the world [param world_seed], overrides aside.
 func event_in(world_seed: int, floor_number: int) -> FloorEvents.Kind:
 	if not _events.has(world_seed):
-		_events[world_seed] = _pick_events(world_seed)
+		_events[world_seed] = _pick_events(world_seed, AUTHORED.keys(), _shapes_in(world_seed))
 	return _events[world_seed][clampi(floor_number, 1, FloorTuning.TOP_FLOOR)] as FloorEvents.Kind
 
 
-## Every floor's event, 1 to the top, in [param world_seed]. Index 0 is unused.
-func _pick_events(world_seed: int) -> Array[int]:
+## Every floor's event, 1 to the top, in [param world_seed] with [param authored]
+## hand-built and [param shapes] its floors' picks. Index 0 is unused.
+func _pick_events(world_seed: int, authored: Array, shapes: Array[int]) -> Array[int]:
 	var picks: Array[int] = [FloorEvents.Kind.NONE]
 	var rng := RandomNumberGenerator.new()
 	var last := FloorEvents.Kind.NONE
 	for n in range(1, FloorTuning.TOP_FLOOR + 1):
 		var pick := FloorEvents.Kind.NONE
-		var shape := shape_in(world_seed, n)
-		if not (AUTHORED.has(n) or n <= 2 or n >= FloorTuning.TOP_FLOOR
-				or shape == FloorDefinition.Shape.DUNGEON):
+		if not (n in authored or n <= 2 or n >= FloorTuning.TOP_FLOOR
+				or shapes[n] == FloorDefinition.Shape.DUNGEON):
 			rng.seed = hash("%d:event" % seed_in(world_seed, n))
 			if rng.randf() < FloorEvents.CHANCE:
 				var kinds: Array[int] = []
@@ -238,19 +270,20 @@ func landmark_of(floor_number: int) -> FloorLandmarks.Kind:
 ## [method landmark_of] in the world [param world_seed], overrides aside.
 func landmark_in(world_seed: int, floor_number: int) -> FloorLandmarks.Kind:
 	if not _landmarks.has(world_seed):
-		_landmarks[world_seed] = _pick_landmarks(world_seed)
+		_landmarks[world_seed] = _pick_landmarks(world_seed, AUTHORED.keys(), _shapes_in(world_seed))
 	return _landmarks[world_seed][clampi(floor_number, 1, FloorTuning.TOP_FLOOR)] as FloorLandmarks.Kind
 
 
-## Every floor's landmark, 1 to the top, in [param world_seed]. Index 0 is unused.
-func _pick_landmarks(world_seed: int) -> Array[int]:
+## Every floor's landmark, 1 to the top, in [param world_seed] with [param authored]
+## hand-built and [param shapes] its floors' picks. Index 0 is unused.
+func _pick_landmarks(world_seed: int, authored: Array, shapes: Array[int]) -> Array[int]:
 	var picks: Array[int] = [FloorLandmarks.Kind.NONE]
 	var rng := RandomNumberGenerator.new()
 	var last := FloorLandmarks.Kind.NONE
 	for n in range(1, FloorTuning.TOP_FLOOR + 1):
 		var pick := FloorLandmarks.Kind.NONE
-		if not (AUTHORED.has(n) or n <= 2 or n >= FloorTuning.TOP_FLOOR
-				or shape_in(world_seed, n) == FloorDefinition.Shape.DUNGEON):
+		if not (n in authored or n <= 2 or n >= FloorTuning.TOP_FLOOR
+				or shapes[n] == FloorDefinition.Shape.DUNGEON):
 			rng.seed = hash("%d:landmark" % seed_in(world_seed, n))
 			if rng.randf() < FloorLandmarks.CHANCE:
 				var kinds: Array[int] = []

@@ -705,6 +705,11 @@ func _preview(map: Node2D) -> String:
 
 func _terrain_mark(cell: Vector2i) -> String:
 	if _walls.get_cell_source_id(cell) != -1:
+		# Dressed water has left its slot for a shoreline tile; its terrain says what it is.
+		var data := _walls.get_cell_tile_data(cell)
+		if data != null and _biome.liquid_terrain_set >= 0 \
+				and data.terrain_set == _biome.liquid_terrain_set:
+			return "~"
 		var slot := _walls.get_cell_atlas_coords(cell)
 		if slot.y > 0 or slot.x == _biome.wall_tile:
 			return "#"  # the wall mass, joined or not

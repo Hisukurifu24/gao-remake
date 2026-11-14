@@ -23,6 +23,8 @@ const WOLVES := &"ashlow_wolves"
 const WARDEN := &"ashlow_warden"
 const TAGS := &"lanternfall_tags"
 const BREACH := &"lanternfall_breach"
+const LETTER := &"brackwater_letter"
+const MIRE := &"brackwater_mire"
 
 var _failures: PackedStringArray = PackedStringArray()
 var _checks := 0
@@ -70,6 +72,7 @@ func _run() -> void:
 	_test_flags_and_dialogue()
 	_test_ashlow()
 	_test_lanternfall()
+	_test_brackwater()
 	_test_settled_floors()
 	_test_floor_events()
 	_test_door_intel()
@@ -658,6 +661,68 @@ func _test_lanternfall() -> void:
 	QuestLog.turn_in(BREACH)
 	_check(QuestLog.is_completed(BREACH), "Lanternfall's second job closes out")
 	_check(Inventory.count(&"foremans_lantern") == 1, "and the lantern is in the bag")
+
+
+# --- floor 40, Brackwater --------------------------------------------------
+
+## Brackwater's two jobs. Isolde's is the first that sends you off the floor it
+## was given on -- down the gates to Lanternfall, where Dorran hands over what she
+## asked for, and only to somebody she sent: the item comes out of a conversation
+## that existed before the job did, gated on the job's own flags. It is a COLLECT,
+## so carrying the letter is the job and handing it over spends it. Oskar's is
+## Maren's shape on a floor that gates nothing on level.
+func _test_brackwater() -> void:
+	print("\n-- floor 40, Brackwater --")
+	_reset()
+
+	var isolde: Dialogue = load("res://resources/dialogue/isolde.tres")
+	var oskar: Dialogue = load("res://resources/dialogue/oskar.tres")
+	var dorran: Dialogue = load("res://resources/dialogue/dorran.tres")
+
+	_check(QuestLog.state_of(LETTER) == QuestLog.State.LOCKED,
+			"Isolde's job is locked until Floor 39 falls")
+	_check(not _offers(isolde, "You keep looking at the gate."), "and she does not offer it")
+	_offers(dorran, "Later.")
+	_check(Inventory.count(&"dorrans_letter") == 0,
+			"Dorran has no letter for somebody nobody sent")
+
+	GameState.clear_floor(39)
+	_check(_offers(isolde, "You keep looking at the gate.") == QuestLog.can_start(LETTER),
+			"Isolde's offer appears exactly when the job can be started")
+	QuestLog.start(LETTER)
+	_check(not QuestLog.is_ready(LETTER), "asking is not the job")
+	_check(_offers(isolde, "I haven't been down yet."), "and she asks whether you've been down")
+
+	_check(_offers(dorran, "What's behind the door?"),
+			"Dorran's own conversation still reaches his menu after the letter")
+	_check(Inventory.count(&"dorrans_letter") == 1, "Dorran writes to somebody Isolde sent")
+	_check(QuestLog.is_ready(LETTER), "and carrying the letter is the job")
+	_offers(dorran, "Later.")
+	_check(Inventory.count(&"dorrans_letter") == 1, "he gives it once")
+	_check(_offers(isolde, "Dorran sent this. From Lanternfall."), "and Isolde will take it")
+
+	QuestLog.turn_in(LETTER)
+	_check(QuestLog.is_completed(LETTER), "Isolde's job closes out")
+	_check(Inventory.count(&"dorrans_letter") == 0, "the letter leaves the bag")
+	_check(Inventory.count(&"marsh_remedy") == 2, "and the remedies come the other way")
+	_offers(dorran, "Later.")
+	_check(Inventory.count(&"dorrans_letter") == 0, "and Dorran does not write a second")
+
+	_check(_offers(oskar, "What's raising the water?") == QuestLog.can_start(MIRE),
+			"Oskar's offer appears exactly when the job can be started")
+	QuestLog.start(MIRE)
+	_check(_offers(oskar, "Still on it."), "and he asks after it once it's taken")
+	GameState.clear_floor(40)
+	_check(not QuestLog.is_ready(MIRE), "Gulmaw alone is not the whole job")
+	for i in QuestLibrary.get_quest(MIRE).objective(&"lizardmen").required:
+		EventBus.enemy_defeated.emit(&"lizardman_soldier")
+	_check(QuestLog.is_ready(MIRE), "the lizardmen and Gulmaw together are")
+	_check(_offers(oskar, "The causeways are clear. It's asleep for good."),
+			"and Oskar's report branch opens")
+
+	QuestLog.turn_in(MIRE)
+	_check(QuestLog.is_completed(MIRE), "Brackwater's second job closes out")
+	_check(Inventory.count(&"reeves_oilskin") == 1, "and the oilskin is in the bag")
 
 
 # --- settled floors' jobs ---------------------------------------------------

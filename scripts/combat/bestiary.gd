@@ -16,7 +16,7 @@ const ENEMY_PATH := "res://resources/enemies/%s.tres"
 const ENEMIES: PackedStringArray = [
 	"frenzy_boar", "dire_wolf", "little_nepent", "kobold_trooper", "cave_bat",
 	"ruin_wraith", "lizardman_soldier", "stone_golem", "ember_drake", "illfang",
-	"hollow_warden", "twin_giant", "pk_swordsman", "pk_knifer", "duellist",
+	"hollow_warden", "twin_giant", "mire_sovereign", "pk_swordsman", "pk_knifer", "duellist",
 	"hisukurifu",
 ]
 
@@ -67,6 +67,7 @@ const AUTHORED_BOSSES := {
 	1: &"illfang",
 	10: &"hollow_warden",
 	25: &"twin_giant",
+	40: &"mire_sovereign",
 	100: &"hisukurifu",
 }
 

@@ -139,6 +139,7 @@ python3 tools/gen_placeholder_art.py                                          # 
 "$GODOT" --headless --path . --script res://tools/build_placeholder_maps.gd   # the authored Floor 1 maps
 "$GODOT" --headless --path . --script res://tools/build_floor_10.gd           # Ashlow Wood
 "$GODOT" --headless --path . --script res://tools/build_floor_25.gd           # Lanternfall
+"$GODOT" --headless --path . --script res://tools/build_floor_40.gd           # Brackwater
 ```
 
 Maps are engine-generated because `tile_map_data` is a binary blob inside the `.tscn` and can't be hand-authored as text. All biome atlases share one semantic slot layout, so a new biome is a palette entry plus a table row — no generator changes. The milestone-floor tools share `tools/authored_floor.gd`, so a new milestone floor is its layout tables and nothing else; run one with `-- --preview` to see the layout as text without writing it.

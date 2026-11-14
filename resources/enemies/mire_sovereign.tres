@@ -1,0 +1,65 @@
+[gd_resource type="Resource" script_class="EnemyType" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/enemy_type.gd" id="enemy"]
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Script" path="res://scripts/resources/boss_phase.gd" id="phase"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantFrog/Idle40x40.png" id="battler_art"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Boss/GiantFrog2/Idle.png" id="awake_art"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/tongue_lash.tres" id="tongue_lash"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/bog_belch.tres" id="bog_belch"]
+[ext_resource type="Resource" path="res://resources/skills/enemy/deluge.tres" id="deluge"]
+[ext_resource type="Resource" path="res://resources/fx/splash.tres" id="strike_fx_res"]
+
+[sub_resource type="AtlasTexture" id="battler"]
+atlas = ExtResource("battler_art")
+region = Rect2(0, 0, 40, 40)
+
+[sub_resource type="AtlasTexture" id="awake_battler"]
+atlas = ExtResource("awake_art")
+region = Rect2(0, 0, 40, 40)
+
+[sub_resource type="Resource" id="awake"]
+script = ExtResource("enemy")
+id = &"mire_sovereign_awake"
+display_name = "Gulmaw the Mire Sovereign"
+battler = SubResource("awake_battler")
+idle_frames = 5
+strike_fx = ExtResource("strike_fx_res")
+
+[sub_resource type="Resource" id="bar_2"]
+script = ExtResource("phase")
+
+[sub_resource type="Resource" id="last_bar"]
+script = ExtResource("phase")
+form = SubResource("awake")
+skills = Array[ExtResource("skill")]([ExtResource("tongue_lash"), ExtResource("deluge")])
+skill_bias = 0.6
+attack_scale = 1.12
+defense_scale = 0.9
+speed_scale = 1.35
+narration = PackedStringArray("Gulmaw's eyes open. Both of them, all the way, for the first time since you came in.", "The green goes out of it like a bruise coming up. It has not been fighting you. It has been dozing through you.")
+
+[resource]
+script = ExtResource("enemy")
+id = &"mire_sovereign"
+display_name = "Gulmaw the Mire Sovereign"
+battler = SubResource("battler")
+idle_frames = 5
+max_hp = 34
+attack = 10
+defense = 6
+speed = 6
+poise = 48
+hp_growth = 6.6
+attack_growth = 1.0
+defense_growth = 0.75
+speed_growth = 0.25
+poise_growth = 2.1
+skill_bias = 0.5
+xp_reward = 15
+xp_growth = 5.0
+skills = Array[ExtResource("skill")]([ExtResource("tongue_lash"), ExtResource("bog_belch")])
+strike_fx = ExtResource("strike_fx_res")
+phases = Array[ExtResource("phase")]([SubResource("bar_2"), SubResource("last_bar")])
+loot = Array[StringName]([&"drowned_blade"])
+loot_chance = 1.0

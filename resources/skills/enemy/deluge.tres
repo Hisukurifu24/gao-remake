@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/water_pillar.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"deluge"
+display_name = "Deluge"
+description = "It comes down on the mud with all of itself, and the fen comes up under you."
+kind = 0
+target = 0
+power = 205
+accuracy = 80
+crit_chance = 6
+stagger = 48
+cooldown = 3
+post_motion = 1
+ai_weight = 1.2
+announce = "%s slams down, and the bog erupts under you!"
+fx = ExtResource("fx_res")

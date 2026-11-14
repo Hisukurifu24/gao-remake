@@ -1175,6 +1175,13 @@ func _capture_world(main: Node) -> void:
 		["res://scenes/world/floor_25.tscn", Vector2(11 * 16 + 8, 49 * 16 + 8), "04u_lanternfall_breach"],
 		["res://scenes/world/floor_25.tscn", Vector2(50 * 16, 49 * 16 + 8), "04v_lanternfall_statues"],
 		["res://scenes/world/floor_25.tscn", Vector2(31 * 16, 84 * 16), "04w_lanternfall_labyrinth_camp"],
+		["res://scenes/world/floor_40.tscn", Vector2(59 * 16 + 8, 25 * 16 + 8), "04z_brackwater_landing"],
+		["res://scenes/world/floor_40.tscn", Vector2(49 * 16 + 8, 17 * 16 + 10), "04z2_brackwater_behind_hut"],
+		["res://scenes/world/floor_40.tscn", Vector2(80 * 16 + 8, 21 * 16 + 8), "04z3_brackwater_causeway"],
+		["res://scenes/world/floor_40.tscn", Vector2(99 * 16, 19 * 16 + 8), "04z4_brackwater_chapel"],
+		["res://scenes/world/floor_40.tscn", Vector2(15 * 16 + 8, 27 * 16 + 8), "04z5_brackwater_peat"],
+		["res://scenes/world/floor_40.tscn", Vector2(60 * 16, 51 * 16), "04z6_brackwater_sinkmouth"],
+		["res://scenes/world/floor_40.tscn", Vector2(79 * 16 + 8, 65 * 16 + 8), "04z7_brackwater_undermire_camp"],
 	]
 	for spot: Array in spots:
 		var current := world.get_child(0) if world.get_child_count() > 0 else null
@@ -1200,6 +1207,8 @@ func _capture_world(main: Node) -> void:
 			await _capture_map(main, "04p2_ashlow_map")
 		elif spot[2] == "04u_lanternfall_breach":
 			await _capture_map(main, "04u2_lanternfall_map")
+		elif spot[2] == "04z6_brackwater_sinkmouth":
+			await _capture_map(main, "04z8_brackwater_map")
 		GameState.pop_input_lock()
 		await _frames(2)
 
@@ -1209,13 +1218,13 @@ func _capture_world(main: Node) -> void:
 ## long enough to scroll. Arrived at through each gate's own spawn, so the shot is
 ## what coming through one looks like.
 func _capture_gates(main: Node) -> void:
-	for floor_number in range(1, 31):
+	for floor_number in range(1, 41):
 		if floor_number > 1:
 			GameState.clear_floor(floor_number - 1)
 		GameState.visit_floor(floor_number)
 	var spots := [
 		[1, "04x_town_gate"], [10, "04x2_ashlow_gate"], [25, "04x3_lanternfall_gate"],
-		[3, "04x4_floor3_gate"],
+		[3, "04x4_floor3_gate"], [40, "04x5_brackwater_gate"],
 	]
 	for spot: Array in spots:
 		SceneRouter.enter_floor(spot[0], &"gate")
@@ -1239,11 +1248,12 @@ func _capture_gates(main: Node) -> void:
 
 ## Each hub's counter -- standing at it, buying, selling -- then the purse: the
 ## bag's header, and a fall's dropped pouch on the floor and on the map.
-const SHOP_SPOTS := [[1, "Tomas", "town"], [10, "Hesk", "ashlow"], [25, "Odile", "lanternfall"]]
+const SHOP_SPOTS := [[1, "Tomas", "town"], [10, "Hesk", "ashlow"], [25, "Odile", "lanternfall"],
+		[40, "Pell", "brackwater"]]
 
 
 func _capture_shops(main: Node) -> void:
-	for floor_number in range(1, 31):
+	for floor_number in range(1, 41):
 		if floor_number > 1:
 			GameState.clear_floor(floor_number - 1)
 		GameState.visit_floor(floor_number)
@@ -1289,7 +1299,7 @@ func _capture_shops(main: Node) -> void:
 ## door pitch, a door she sold on its floor's map, and a peddler by a safe zone's
 ## fire with their pack open.
 func _capture_forge(main: Node) -> void:
-	for floor_number in range(1, 31):
+	for floor_number in range(1, 41):
 		if floor_number > 1:
 			GameState.clear_floor(floor_number - 1)
 		GameState.visit_floor(floor_number)

@@ -83,6 +83,45 @@ script = ExtResource("choice")
 text = "Later."
 next = &""
 
+[sub_resource type="Resource" id="cond_letter_asked"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_brackwater_letter_started"
+
+[sub_resource type="Resource" id="cond_letter_not_carried"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_brackwater_letter_ready"
+
+[sub_resource type="Resource" id="cond_letter_not_delivered"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_brackwater_letter_done"
+
+[sub_resource type="Resource" id="eff_give_letter"]
+script = ExtResource("effect")
+kind = 3
+id = &"dorrans_letter"
+amount = 1
+
+[sub_resource type="Resource" id="line_vey"]
+script = ExtResource("line")
+id = &"vey"
+text = "Brackwater? Floor Forty? ...Then you're asking about Vey."
+conditions = Array[ExtResource("condition")]([SubResource("cond_letter_asked"), SubResource("cond_letter_not_carried"), SubResource("cond_letter_not_delivered")])
+
+[sub_resource type="Resource" id="line_vey_2"]
+script = ExtResource("line")
+text = "Tamsin Vey. Second rank through the Breach door, and he didn't come back through it. His name was the first one I put on the wall."
+
+[sub_resource type="Resource" id="line_vey_3"]
+script = ExtResource("line")
+text = "I should have written to his sister a month ago. I didn't know where Brackwater was. I wrote it the night we came up and it's been in my coat since. Take it to her."
+effects = Array[ExtResource("effect")]([SubResource("eff_give_letter")])
+next = &"menu"
+
 [sub_resource type="Resource" id="line_done"]
 script = ExtResource("line")
 id = &"done"
@@ -164,5 +203,5 @@ script = ExtResource("dialogue")
 id = &"dorran"
 default_speaker = "Dorran"
 default_portrait = ExtResource("portrait")
-lines = Array[ExtResource("line")]([SubResource("line_done"), SubResource("line_done_2"), SubResource("line_brief"), SubResource("line_brief_2"), SubResource("line_first"), SubResource("line_first_2"), SubResource("line_menu"), SubResource("line_tags"), SubResource("line_tags_2"), SubResource("line_tags_wip"), SubResource("line_report"), SubResource("line_report_2"), SubResource("line_giant"), SubResource("line_giant_2")])
+lines = Array[ExtResource("line")]([SubResource("line_vey"), SubResource("line_vey_2"), SubResource("line_vey_3"), SubResource("line_done"), SubResource("line_done_2"), SubResource("line_brief"), SubResource("line_brief_2"), SubResource("line_first"), SubResource("line_first_2"), SubResource("line_menu"), SubResource("line_tags"), SubResource("line_tags_2"), SubResource("line_tags_wip"), SubResource("line_report"), SubResource("line_report_2"), SubResource("line_giant"), SubResource("line_giant_2")])
 start = &""

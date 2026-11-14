@@ -23,7 +23,13 @@ extends Node
 ## (a [code].fight[/code] file beside the slot), so closing the game to get out of
 ## a losing one is losing it. A marathon is never saved at all.
 
-const VERSION := 4
+const VERSION := 5
+## The floors version 4's world built by hand. Floor 40 joined them in version 5.
+const V4_AUTHORED: Array[int] = [1, 10, 25]
+## The flags a floor keeps through becoming hand-built: that it was stood on and
+## that it was cleared. Anything else a generated floor set for itself -- a door
+## found, a puzzle solved, a chest opened -- would turn up on the new map unearned.
+const KEPT_FLOOR_FLAGS: PackedStringArray = ["floor_%d_visited", "floor_%d_cleared"]
 const SLOTS := 3
 const DIRECTORY := "user://saves"
 
@@ -280,7 +286,64 @@ func _migrate(data: Dictionary, from_version: int) -> Dictionary:
 				if pile is Dictionary and str(pile.get("map", "")) == "floor_%d" % n:
 					game["col"] = SaveCodec.whole(game.get("col"), 0) + SaveCodec.whole(pile.get("amount"), 0)
 					game["dropped_col"] = {}
+	if from_version < 5:
+		# Version 4 generated floor 40; it is Brackwater now, hand-built, under the
+		# same map id. What was explored of the old one charts nothing on the new,
+		# a purse dropped there may be lying in the bog, and what the old floor set
+		# for itself -- its door found, its puzzles solved, its chests opened -- would
+		# turn up here unearned. And since no floor picks the shape, event or
+		# landmark the floor below it did, the floors above it may have picked again:
+		# any that came out a different map forget theirs too.
+		var game: Variant = data.get("game")
+		if game is Dictionary and game.has("world_seed"):
+			var world := SaveCodec.whole(game["world_seed"])
+			var before := FloorRegistry.layout_picks(world, V4_AUTHORED)
+			var now := FloorRegistry.layout_picks(world, FloorRegistry.AUTHORED.keys())
+			for n in range(2, FloorTuning.TOP_FLOOR + 1):
+				if n in FloorRegistry.AUTHORED and n not in V4_AUTHORED:
+					_forget_floor(game, n)
+					_drop_floor_flags(game, n)
+					continue
+				for pick in ["shape", "event", "landmark"]:
+					if before[pick][n] != now[pick][n]:
+						_forget_floor(game, n)
+						break
 	return data
+
+
+## Forgets what [param game] (a save's game part) explored of floor [param n] --
+## every level of it -- and puts a purse dropped on it back in the purse.
+func _forget_floor(game: Dictionary, n: int) -> void:
+	var floor_id := "floor_%d" % n
+	for part in ["explored", "walked"]:
+		if not game.get(part) is Dictionary:
+			continue
+		for map_id: String in (game[part] as Dictionary).keys():
+			if map_id == floor_id or map_id.begins_with(floor_id + "_"):
+				game[part].erase(map_id)
+	var pile: Variant = game.get("dropped_col")
+	if pile is Dictionary:
+		var at := str(pile.get("map", ""))
+		if at == floor_id or at.begins_with(floor_id + "_"):
+			game["col"] = SaveCodec.whole(game.get("col"), 0) + SaveCodec.whole(pile.get("amount"), 0)
+			game["dropped_col"] = {}
+
+
+## Drops every flag a generated floor [param n] set for itself from [param game]:
+## those that name it second ([code]puzzle_<n>_...[/code], [code]floor_<n>_chest_...[/code],
+## [code]event_<n>_...[/code] and the rest) and [code]boss_found_<n>[/code], but not
+## a quest's, nor the ones in [constant KEPT_FLOOR_FLAGS].
+func _drop_floor_flags(game: Dictionary, n: int) -> void:
+	if not game.get("flags") is Dictionary:
+		return
+	var kept: PackedStringArray = []
+	for format in KEPT_FLOOR_FLAGS:
+		kept.append(format % n)
+	for flag: String in (game["flags"] as Dictionary).keys():
+		var parts := flag.split("_")
+		var names_it := (parts.size() > 1 and parts[1] == str(n)) or flag == "boss_found_%d" % n
+		if names_it and not flag.begins_with("quest_") and flag not in kept:
+			game["flags"].erase(flag)
 
 
 # --- a new game, and leaving one ---------------------------------------------

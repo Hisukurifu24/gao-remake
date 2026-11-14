@@ -1,0 +1,172 @@
+[gd_resource type="Resource" script_class="Dialogue" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/Actor/Character/Village6/Faceset.png" id="portrait"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue.gd" id="dialogue"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_line.gd" id="line"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_choice.gd" id="choice"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="taken"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_brackwater_letter_started"
+
+[sub_resource type="Resource" id="not_taken"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_brackwater_letter_started"
+
+[sub_resource type="Resource" id="ready"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_brackwater_letter_ready"
+
+[sub_resource type="Resource" id="not_ready"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_brackwater_letter_ready"
+
+[sub_resource type="Resource" id="done"]
+script = ExtResource("condition")
+test = 0
+flag = &"quest_brackwater_letter_done"
+
+[sub_resource type="Resource" id="not_done"]
+script = ExtResource("condition")
+test = 0
+negate = true
+flag = &"quest_brackwater_letter_done"
+
+[sub_resource type="Resource" id="floor"]
+script = ExtResource("condition")
+test = 1
+number = 39
+
+[sub_resource type="Resource" id="eff_start"]
+script = ExtResource("effect")
+kind = 4
+id = &"brackwater_letter"
+
+[sub_resource type="Resource" id="eff_turn_in"]
+script = ExtResource("effect")
+kind = 5
+id = &"brackwater_letter"
+
+[sub_resource type="Resource" id="choice_report"]
+script = ExtResource("choice")
+text = "Dorran sent this. From Lanternfall."
+next = &"report"
+conditions = Array[ExtResource("condition")]([SubResource("ready")])
+
+[sub_resource type="Resource" id="choice_ask"]
+script = ExtResource("choice")
+text = "You keep looking at the gate."
+next = &"ask"
+conditions = Array[ExtResource("condition")]([SubResource("not_taken"), SubResource("floor")])
+
+[sub_resource type="Resource" id="choice_wip"]
+script = ExtResource("choice")
+text = "I haven't been down yet."
+next = &"wip"
+conditions = Array[ExtResource("condition")]([SubResource("taken"), SubResource("not_ready"), SubResource("not_done")])
+
+[sub_resource type="Resource" id="choice_about"]
+script = ExtResource("choice")
+text = "What is Brackwater?"
+next = &"about"
+
+[sub_resource type="Resource" id="choice_leave"]
+script = ExtResource("choice")
+text = "Later."
+next = &""
+
+[sub_resource type="Resource" id="line_0"]
+script = ExtResource("line")
+id = &"done"
+text = "The letter's on the shelf by the loom, where I can see it while I work."
+conditions = Array[ExtResource("condition")]([SubResource("done")])
+
+[sub_resource type="Resource" id="line_1"]
+script = ExtResource("line")
+text = "Four lines. Tamsin never wrote more than two, so I'm choosing to believe Dorran wrote it for both of them."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_2"]
+script = ExtResource("line")
+id = &"brief"
+text = "Lanternfall, on Floor Twenty-five. The gate on the square will take you if you've stood there before."
+conditions = Array[ExtResource("condition")]([SubResource("taken"), SubResource("not_done")])
+
+[sub_resource type="Resource" id="line_3"]
+script = ExtResource("line")
+text = "Ask for whoever leads what's left of the Army. Ask about Tamsin Vey. Whatever he says, I'd rather have it than not."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_4"]
+script = ExtResource("line")
+id = &"first"
+text = "Mind the jetty. The third plank from the end is nobody's friend."
+
+[sub_resource type="Resource" id="line_5"]
+script = ExtResource("line")
+text = "I mend nets. Brackwater eats eels, the eels eat nets, and I'm the one who loses either way."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_6"]
+script = ExtResource("line")
+id = &"menu"
+text = "Something you wanted? I can talk and knot at the same time."
+choices = Array[ExtResource("choice")]([SubResource("choice_report"), SubResource("choice_ask"), SubResource("choice_wip"), SubResource("choice_about"), SubResource("choice_leave")])
+
+[sub_resource type="Resource" id="line_7"]
+script = ExtResource("line")
+id = &"ask"
+text = "My brother went down the castle to join the Army. The Army goes up, he said, and he wanted to go up with something."
+effects = Array[ExtResource("effect")]([SubResource("eff_start")])
+
+[sub_resource type="Resource" id="line_8"]
+script = ExtResource("line")
+text = "Then a trader said the Army went through a door on Floor Twenty-five and came back short. Nobody has told me whether Tamsin was the short."
+
+[sub_resource type="Resource" id="line_9"]
+script = ExtResource("line")
+text = "Would you ask? A man called Dorran leads them now, at Lanternfall. I can't leave the nets. And I'm afraid to."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_10"]
+script = ExtResource("line")
+id = &"wip"
+text = "The gate goes down as easily as it goes up, I'm told. I wouldn't know. I've never been past Thirty-nine."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_11"]
+script = ExtResource("line")
+id = &"report"
+text = "...That's an Army seal."
+effects = Array[ExtResource("effect")]([SubResource("eff_turn_in")])
+
+[sub_resource type="Resource" id="line_12"]
+script = ExtResource("line")
+text = "Thank you. I'd rather know. Take the remedies -- bog fever is the other thing the fen gives you, and you're going further in than I ever will."
+next = &"menu"
+
+[sub_resource type="Resource" id="line_13"]
+script = ExtResource("line")
+id = &"about"
+text = "The one island in the fen that doesn't move. Everything else does, a little, every spring."
+
+[sub_resource type="Resource" id="line_14"]
+script = ExtResource("line")
+text = "So we build on stilts and raise them when the water comes up. This year it came up a forearm. Ask Oskar why. He'll tell you whether you ask or not."
+next = &"menu"
+
+[resource]
+script = ExtResource("dialogue")
+id = &"isolde"
+default_speaker = "Isolde"
+default_portrait = ExtResource("portrait")
+lines = Array[ExtResource("line")]([SubResource("line_0"), SubResource("line_1"), SubResource("line_2"), SubResource("line_3"), SubResource("line_4"), SubResource("line_5"), SubResource("line_6"), SubResource("line_7"), SubResource("line_8"), SubResource("line_9"), SubResource("line_10"), SubResource("line_11"), SubResource("line_12"), SubResource("line_13"), SubResource("line_14")])
+start = &""

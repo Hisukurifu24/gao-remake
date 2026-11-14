@@ -20,15 +20,16 @@ const ITEMS: PackedStringArray = [
 	"small_potion", "health_potion", "antidote", "whetstone",
 	# Weapons
 	"bronze_sword", "kobold_blade", "anneal_blade", "heartwood_blade", "deepiron_blade",
+	"drowned_blade",
 	# Armor
-	"leather_coat", "blackwyrm_coat",
+	"leather_coat", "blackwyrm_coat", "reeves_oilskin",
 	# Accessories
 	"guard_ring", "swift_charm", "warden_seal", "foremans_lantern",
 	# Materials -- every monster's drop table points at one of these
 	"boar_hide", "wolf_fang", "bat_wing", "nepent_ovule", "kobold_fang",
 	"lizard_scale", "drake_scale", "golem_core", "spirit_ash",
 	# Key items
-	"map_floor_2", "raid_tag",
+	"map_floor_2", "raid_tag", "dorrans_letter",
 	# Villages' specialities -- each band's own, sold only at its villages' counter
 	# (ShopLibrary.village_shop), a wearable sidegrade and a consumable apiece
 	"clover_charm", "meadow_honey", "wolfskin_cloak", "bark_tonic", "delvers_pick",

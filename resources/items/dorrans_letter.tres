@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/dorrans_letter.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"dorrans_letter"
+display_name = "Dorran's Letter"
+description = "A page in an Army hand, folded twice and sealed with candle wax.\nAddressed to Isolde Vey, Brackwater, Floor Forty."
+icon = ExtResource("icon")
+kind = 5
+rarity = 0

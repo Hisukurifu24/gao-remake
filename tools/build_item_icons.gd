@@ -27,8 +27,10 @@ const ICONS := {
 	&"anneal_blade": "Weapons/BigSword/Sprite.png",
 	&"heartwood_blade": "Weapons/Sword2/Sprite.png",
 	&"deepiron_blade": "Weapons/Rapier/Sprite.png",
+	&"drowned_blade": "Weapons/BigSword/Sprite.png",
 	&"leather_coat": "",
 	&"blackwyrm_coat": "",
+	&"reeves_oilskin": "",
 	&"guard_ring": "",
 	&"swift_charm": "Resource/feather.png",
 	&"small_potion": "Potion/WaterPot.png",
@@ -46,6 +48,7 @@ const ICONS := {
 	&"spirit_ash": "Resource/GemPurple.png",
 	&"map_floor_2": "Scroll/Scroll.png",
 	&"raid_tag": "Other/Stamp.png",
+	&"dorrans_letter": "Other/Letter.png",
 	&"warden_seal": "Other/Letter3.png",
 	&"foremans_lantern": "",
 	# Villages' specialities
@@ -77,6 +80,7 @@ const TINTS := {
 	&"heartwood_blade": Color(0.62, 0.95, 0.5),
 	&"glass_scimitar": Color(0.62, 0.92, 1.0),
 	&"emberforged_blade": Color(1.0, 0.62, 0.38),
+	&"drowned_blade": Color(0.58, 0.82, 0.74),
 }
 
 const INK := "141b1b"
@@ -149,6 +153,8 @@ var DRAWN := {
 	&"guard_ring": [RING, {"c": "ffffff", "a": "c9d4d8", "b": "7d8c94"}],
 	&"wolfskin_cloak": [_mirror(COAT_HALF),
 			{"c": "b8b8b0", "a": "8c8a84", "b": "625f5a", "d": "3a3836", "e": "c8a46a"}],
+	&"reeves_oilskin": [_mirror(COAT_HALF),
+			{"c": "9a9a5a", "a": "6e7040", "b": "4a4c2c", "d": "2c2e1a", "e": "c89a4a"}],
 	&"lizardhide_vest": [_mirror(COAT_HALF),
 			{"c": "8fb86a", "a": "5f8a48", "b": "3f6034", "d": "263c22", "e": "b0884a"}],
 	&"snowfur_mantle": [_mirror(COAT_HALF),

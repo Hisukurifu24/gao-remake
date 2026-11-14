@@ -479,6 +479,60 @@ func _test_modes_in_memory() -> void:
 			and climbed["game"]["explored"].has("floor_%d" % classic_floor)
 			and climbed["game"]["col"] == 35 and climbed["game"]["dropped_col"].is_empty(),
 			"a version 3 save forgets a floor that is a dungeon now (%d), and its purse dropped there comes back" % dungeon_floor)
+	# Version 4 generated floor 40, which is Brackwater now: what was explored of it
+	# is forgotten, every level of it, a purse dropped there comes back, and what the
+	# old floor set for itself is dropped -- but not that it was visited or cleared,
+	# a quest's flags, or another floor's.
+	charted = {"floor_40": "x", "floor_40_2": "x", "floor_%d" % classic_floor: "y"}
+	var flags := {"boss_found_40": true, "puzzle_40_wisp": true, "floor_40_chest_2": true,
+			"event_40_boss": true, "floor_40_visited": true, "floor_40_cleared": true,
+			"quest_local_40_hunt_started": true, "puzzle_41_wisp": true, "boss_found_4": true}
+	var authored := SaveGame._migrate({"game": {"world_seed": 12345, "explored": charted.duplicate(),
+			"walked": charted.duplicate(), "flags": flags.duplicate(), "col": 10,
+			"dropped_col": {"map": "floor_40", "x": 40.0, "y": 40.0, "amount": 25}}}, 4)
+	var left: Dictionary = authored["game"]["flags"]
+	_check(not authored["game"]["explored"].has("floor_40")
+			and not authored["game"]["explored"].has("floor_40_2")
+			and not authored["game"]["walked"].has("floor_40")
+			and authored["game"]["explored"].has("floor_%d" % classic_floor)
+			and authored["game"]["col"] == 35 and authored["game"]["dropped_col"].is_empty(),
+			"a version 4 save forgets the generated floor 40, and its purse dropped there comes back")
+	_check(not left.has("boss_found_40") and not left.has("puzzle_40_wisp")
+			and not left.has("floor_40_chest_2") and not left.has("event_40_boss")
+			and left.has("floor_40_visited") and left.has("floor_40_cleared")
+			and left.has("quest_local_40_hunt_started") and left.has("puzzle_41_wisp")
+			and left.has("boss_found_4"),
+			"and drops what that floor set for itself, keeping that it was visited and cleared (%s)" % [
+				left.keys()])
+	# Floors above 40 pick their shape, event and landmark against the floor below,
+	# which is never anything now: in a world where one comes out different, what it
+	# explored is forgotten, and a floor that came out the same keeps its own.
+	var moved_world := 0
+	var moved_floor := 0
+	var kept_floor := 0
+	for world in range(1, 400):
+		var before := FloorRegistry.layout_picks(world, SaveGame.V4_AUTHORED)
+		var now := FloorRegistry.layout_picks(world, FloorRegistry.AUTHORED.keys())
+		moved_floor = 0
+		kept_floor = 0
+		for n in range(41, FloorTuning.TOP_FLOOR):
+			var same := true
+			for pick in ["shape", "event", "landmark"]:
+				same = same and before[pick][n] == now[pick][n]
+			if not same and moved_floor == 0:
+				moved_floor = n
+			elif same and kept_floor == 0 and n > 41:
+				kept_floor = n
+		if moved_floor > 0 and kept_floor > 0:
+			moved_world = world
+			break
+	charted = {"floor_%d" % moved_floor: "x", "floor_%d" % kept_floor: "y"}
+	var repicked := SaveGame._migrate({"game": {"world_seed": moved_world,
+			"explored": charted.duplicate(), "walked": charted.duplicate()}}, 4)
+	_check(moved_world > 0 and not repicked["game"]["explored"].has("floor_%d" % moved_floor)
+			and repicked["game"]["explored"].has("floor_%d" % kept_floor),
+			"a version 4 save forgets a floor above 40 that picked again (world %d, floor %d) and keeps one that didn't (%d)" % [
+				moved_world, moved_floor, kept_floor])
 	GameState.from_save({"mode": "nonsense"})
 	_check(GameState.mode == GameState.Mode.STANDARD, "a mode nobody knows loads as standard")
 	GameState.from_save({})

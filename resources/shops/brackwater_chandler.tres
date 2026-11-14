@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Shop" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/shop.gd" id="shop"]
+
+[resource]
+script = ExtResource("shop")
+id = &"brackwater_chandler"
+display_name = "Brackwater Chandlery"
+keeper = "Pell"
+greeting = "Rope, wax, cures and steel. Everything the fen takes off you, at prices the fen would be ashamed of."
+wares = Array[StringName]([&"small_potion", &"health_potion", &"antidote", &"whetstone", &"guard_ring", &"swift_charm", &"blackwyrm_coat"])

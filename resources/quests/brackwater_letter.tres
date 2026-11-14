@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="Quest" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
+[ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_floor_39_cleared"]
+script = ExtResource("condition")
+test = 1
+number = 39
+
+[sub_resource type="Resource" id="obj_letter"]
+script = ExtResource("objective")
+id = &"letter"
+kind = 1
+target = &"dorrans_letter"
+required = 1
+description = "Ask Dorran at Lanternfall, Floor 25, about Tamsin Vey -- and bring back what he says"
+
+[sub_resource type="Resource" id="reward_xp"]
+script = ExtResource("effect")
+kind = 2
+amount = 500
+
+[sub_resource type="Resource" id="reward_col"]
+script = ExtResource("effect")
+kind = 6
+amount = 400
+
+[sub_resource type="Resource" id="reward_remedy"]
+script = ExtResource("effect")
+kind = 3
+id = &"marsh_remedy"
+amount = 2
+
+[resource]
+script = ExtResource("quest")
+id = &"brackwater_letter"
+title = "A Name on the Wall"
+giver = "Isolde"
+summary = "Isolde's brother Tamsin went down the castle to join the Army, and the last anyone in Brackwater heard, the Army had gone through a door on Floor 25 and come back short. Nobody has told her whether he was one of the short. The gate goes all the way down now. Dorran, at Lanternfall, would know."
+objectives = Array[ExtResource("objective")]([SubResource("obj_letter")])
+prerequisites = Array[ExtResource("condition")]([SubResource("cond_floor_39_cleared")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_col"), SubResource("reward_remedy")])

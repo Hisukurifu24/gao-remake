@@ -760,8 +760,8 @@ func _test_shops() -> void:
 			counters[floor_number] = true
 			_check(shop_id in ShopLibrary.SHOPS,
 					"floor %d's shop '%s' is listed" % [floor_number, shop_id])
-	_check(counters.has(1) and counters.has(10) and counters.has(25),
-			"the town, Ashlow and Lanternfall each have a shop (%s)" % [counters.keys()])
+	_check(counters.has(1) and counters.has(10) and counters.has(25) and counters.has(40),
+			"the town, Ashlow, Lanternfall and Brackwater each have a shop (%s)" % [counters.keys()])
 	GameState._cleared_floors.clear()
 	GameState.reset_col()
 	_test_village_shops()

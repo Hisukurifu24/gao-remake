@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Item" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/item.gd" id="item"]
+[ext_resource type="Texture2D" path="res://assets/icons/items/drowned_blade.png" id="icon"]
+
+[resource]
+script = ExtResource("item")
+id = &"drowned_blade"
+display_name = "Drowned Blade"
+description = "Gulmaw swallowed it with whoever was carrying it. The fen got\ninto the steel and never let go; it has kept the edge anyway."
+icon = ExtResource("icon")
+kind = 1
+rarity = 2
+attack_bonus = 27
+defense_bonus = 2
+speed_bonus = 1
+price = 8500

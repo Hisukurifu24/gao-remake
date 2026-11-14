@@ -1,0 +1,53 @@
+[gd_resource type="Resource" script_class="Quest" format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest.gd" id="quest"]
+[ext_resource type="Script" path="res://scripts/resources/quest_objective.gd" id="objective"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_condition.gd" id="condition"]
+[ext_resource type="Script" path="res://scripts/resources/dialogue_effect.gd" id="effect"]
+
+[sub_resource type="Resource" id="cond_floor_39_cleared"]
+script = ExtResource("condition")
+test = 1
+number = 39
+
+[sub_resource type="Resource" id="obj_lizardmen"]
+script = ExtResource("objective")
+id = &"lizardmen"
+kind = 0
+target = &"lizardman_soldier"
+required = 4
+description = "Take the causeways back from 4 Lizardman Soldiers"
+
+[sub_resource type="Resource" id="obj_sovereign"]
+script = ExtResource("objective")
+id = &"sovereign"
+kind = 3
+number = 40
+required = 1
+description = "Put Gulmaw the Mire Sovereign back to sleep for good and clear Floor 40"
+
+[sub_resource type="Resource" id="reward_xp"]
+script = ExtResource("effect")
+kind = 2
+amount = 900
+
+[sub_resource type="Resource" id="reward_col"]
+script = ExtResource("effect")
+kind = 6
+amount = 600
+
+[sub_resource type="Resource" id="reward_oilskin"]
+script = ExtResource("effect")
+kind = 3
+id = &"reeves_oilskin"
+amount = 1
+
+[resource]
+script = ExtResource("quest")
+id = &"brackwater_mire"
+title = "The Fen Rising"
+giver = "Oskar"
+summary = "Every spring the fen comes up a hand's width, and every spring Brackwater raises its stilts to match. This year it came up a forearm. The lizardmen have taken the outer causeways, and Oskar the reeve says the water is not rising on its own: something at the bottom of the labyrinth has started to breathe."
+objectives = Array[ExtResource("objective")]([SubResource("obj_lizardmen"), SubResource("obj_sovereign")])
+prerequisites = Array[ExtResource("condition")]([SubResource("cond_floor_39_cleared")])
+rewards = Array[ExtResource("effect")]([SubResource("reward_xp"), SubResource("reward_col"), SubResource("reward_oilskin")])

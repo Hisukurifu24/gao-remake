@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/skill.gd" id="skill"]
+[ext_resource type="Resource" path="res://resources/fx/claw.tres" id="fx_res"]
+
+[resource]
+script = ExtResource("skill")
+id = &"tongue_lash"
+display_name = "Tongue Lash"
+description = "Faster than anything that size should be, and it comes back with whatever it hit."
+kind = 0
+target = 0
+power = 145
+accuracy = 92
+crit_chance = 10
+stagger = 30
+cooldown = 2
+ai_weight = 1.0
+announce = "%s's tongue lashes out across the water!"
+fx = ExtResource("fx_res")

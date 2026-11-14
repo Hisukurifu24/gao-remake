@@ -7,7 +7,7 @@ class_name ShopLibrary
 const SHOP_PATH := "res://resources/shops/%s.tres"
 
 const SHOPS: PackedStringArray = [
-	"town_outfitter", "ashlow_trader", "lanternfall_quartermaster", "travelling_merchant",
+	"town_outfitter", "ashlow_trader", "lanternfall_quartermaster", "brackwater_chandler", "travelling_merchant",
 	"village_meadow", "village_forest", "village_cave", "village_ruins", "village_swamp",
 	"village_desert", "village_ice", "village_volcanic", "village_sky", "village_castle",
 ]

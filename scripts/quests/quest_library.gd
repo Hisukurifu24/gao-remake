@@ -32,6 +32,9 @@ const QUESTS: PackedStringArray = [
 	# Floor 25, Lanternfall
 	"lanternfall_tags",
 	"lanternfall_breach",
+	# Floor 40, Brackwater
+	"brackwater_letter",
+	"brackwater_mire",
 ]
 
 static var _cache: Dictionary[StringName, Quest] = {}

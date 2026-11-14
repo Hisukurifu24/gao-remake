@@ -384,6 +384,16 @@ const PACK_BIOMES := {
 			["TilesetFloorDetail.png", Vector2i(14, 0)],
 		],
 		"decor_density": 0.05,
+		# Brackwater's (Floor 40): the village's three, then the reeve's hall and the
+		# frog idol on the landing. The village below shares the first three, cut once,
+		# so its tiles are where they were before Brackwater had houses.
+		"houses": [
+			["TilesetVillageAbandoned.png", Rect2i(14, 0, 3, 5)],
+			["TilesetVillageAbandoned.png", Rect2i(11, 0, 3, 3)],
+			["TilesetVillageAbandoned.png", Rect2i(12, 6, 4, 5)],
+			["TilesetVillageAbandoned.png", Rect2i(16, 5, 4, 5)],
+			["TilesetVillageAbandoned.png", Rect2i(9, 5, 2, 2)],
+		],
 		# The village a generated floor's camp grows into (FloorCamp). Stilt huts and mossy cabins, up out of the bog.
 		"village": [
 			["TilesetVillageAbandoned.png", Rect2i(14, 0, 3, 5)],
